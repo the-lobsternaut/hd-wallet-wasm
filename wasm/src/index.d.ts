@@ -9,6 +9,9 @@
  * - Transaction building and signing
  */
 
+// Import aligned API types
+import { AlignedAPI } from './aligned';
+
 // =============================================================================
 // Module Types
 // =============================================================================
@@ -62,6 +65,9 @@ export interface HDWalletModule {
 
   // Utilities
   utils: UtilsAPI;
+
+  // Aligned binary API for efficient batch operations
+  aligned: AlignedAPI;
 }
 
 // =============================================================================

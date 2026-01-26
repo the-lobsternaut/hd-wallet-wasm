@@ -176,6 +176,21 @@ public:
   static Result<ExtendedKey> fromString(const std::string& str);
 
   /**
+   * Create extended key from raw components
+   * Used by aligned API for zero-copy key reconstruction
+   */
+  static ExtendedKey fromRawData(
+    Curve curve,
+    uint8_t depth,
+    uint32_t parentFingerprint,
+    uint32_t childIndex,
+    const Bytes32& chainCode,
+    const Bytes33& publicKey,
+    const Bytes32& privateKey,
+    bool hasPrivateKey
+  );
+
+  /**
    * Derive child key at index
    *
    * @param index Child index (use harden() for hardened derivation)

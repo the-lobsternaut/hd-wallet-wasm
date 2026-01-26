@@ -12,6 +12,9 @@
  * @version 0.1.0
  */
 
+// Import aligned API for batch operations
+import { AlignedAPI } from './aligned.mjs';
+
 // =============================================================================
 // Enums (matching TypeScript definitions)
 // =============================================================================
@@ -2444,7 +2447,20 @@ function createModule(wasm) {
     polkadot,
     hardware,
     keyring,
-    utils
+    utils,
+
+    // Aligned binary API for efficient batch operations
+    get aligned() {
+      if (!this._aligned) {
+        // Create a wrapper that exposes wasmMemory for the aligned API
+        const wasmWithMemory = Object.create(wasm);
+        Object.defineProperty(wasmWithMemory, 'wasmMemory', {
+          get: () => ({ buffer: wasm.HEAPU8.buffer })
+        });
+        this._aligned = new AlignedAPI(wasmWithMemory);
+      }
+      return this._aligned;
+    }
   };
 }
 

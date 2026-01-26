@@ -617,6 +617,59 @@ int32_t hd_is_fips_mode() {
 #endif
 }
 
+// Alias for hd_get_version (which already returns the version string)
+HD_WALLET_C_EXPORT HD_WALLET_EXPORT
+const char* hd_get_version_string() {
+    return HD_WALLET_VERSION_STRING;
+}
+
+HD_WALLET_C_EXPORT HD_WALLET_EXPORT
+int32_t hd_has_cryptopp() {
+#if HD_WALLET_USE_CRYPTOPP
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+// Static storage for coin list string
+static std::string g_supported_coins;
+
+HD_WALLET_C_EXPORT HD_WALLET_EXPORT
+const char* hd_get_supported_coins() {
+    g_supported_coins = "[";
+#if HD_WALLET_ENABLE_BITCOIN
+    g_supported_coins += "\"bitcoin\",";
+#endif
+#if HD_WALLET_ENABLE_ETHEREUM
+    g_supported_coins += "\"ethereum\",";
+#endif
+#if HD_WALLET_ENABLE_COSMOS
+    g_supported_coins += "\"cosmos\",";
+#endif
+#if HD_WALLET_ENABLE_SOLANA
+    g_supported_coins += "\"solana\",";
+#endif
+#if HD_WALLET_ENABLE_POLKADOT
+    g_supported_coins += "\"polkadot\",";
+#endif
+    // Remove trailing comma if present
+    if (g_supported_coins.size() > 1) {
+        g_supported_coins.pop_back();
+    }
+    g_supported_coins += "]";
+    return g_supported_coins.c_str();
+}
+
+// Static storage for curves list string
+static std::string g_supported_curves;
+
+HD_WALLET_C_EXPORT HD_WALLET_EXPORT
+const char* hd_get_supported_curves() {
+    g_supported_curves = "[\"secp256k1\",\"ed25519\",\"p256\",\"p384\",\"x25519\"]";
+    return g_supported_curves.c_str();
+}
+
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 int32_t hd_curve_supported(int32_t curve) {
     switch (static_cast<Curve>(curve)) {

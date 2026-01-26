@@ -901,6 +901,32 @@ Result<ExtendedKey> ExtendedKey::fromSeed(const ByteVector& seed, Curve curve) {
 }
 
 /**
+ * Create extended key from raw components
+ * Used by aligned API for zero-copy key reconstruction
+ */
+ExtendedKey ExtendedKey::fromRawData(
+    Curve curve,
+    uint8_t depth,
+    uint32_t parentFingerprint,
+    uint32_t childIndex,
+    const Bytes32& chainCode,
+    const Bytes33& publicKey,
+    const Bytes32& privateKey,
+    bool hasPrivateKey
+) {
+    return ExtendedKey(
+        curve,
+        depth,
+        parentFingerprint,
+        childIndex,
+        chainCode,
+        publicKey,
+        privateKey,
+        hasPrivateKey
+    );
+}
+
+/**
  * Parse extended key from Base58Check encoded string (xprv/xpub)
  */
 Result<ExtendedKey> ExtendedKey::fromString(const std::string& str) {

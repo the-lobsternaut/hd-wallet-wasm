@@ -13,6 +13,10 @@
       "import": "./src/index.mjs",
       "require": "./dist/hd-wallet.cjs"
     },
+    "./aligned": {
+      "types": "./src/aligned.d.ts",
+      "import": "./src/aligned.mjs"
+    },
     "./wasm": {
       "types": "./dist/index.d.ts",
       "import": "./dist/hd-wallet.js"
@@ -21,6 +25,8 @@
   "files": [
     "src/index.mjs",
     "src/index.d.ts",
+    "src/aligned.mjs",
+    "src/aligned.d.ts",
     "dist/hd-wallet.js",
     "dist/hd-wallet.wasm",
     "dist/hd-wallet.cjs",
@@ -28,11 +34,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "cmake --build ../build-wasm --target hd_wallet_wasm_npm -j",
+    "generate": "node ../scripts/generate-aligned.mjs",
+    "build": "npm run generate && cmake --build ../build-wasm --target hd_wallet_wasm_npm -j",
     "test": "node test/test_all.mjs",
     "test:bip39": "node test/test_bip39.mjs",
     "test:bip32": "node test/test_bip32.mjs",
     "test:vectors": "node test/test_vectors.mjs",
+    "test:aligned": "node test/test_aligned.mjs",
     "prepublishOnly": "npm run build && npm test"
   },
   "repository": {
