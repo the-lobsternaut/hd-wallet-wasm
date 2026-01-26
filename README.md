@@ -414,7 +414,7 @@ hd-wallet-wasm/
 Apache-2.0
 
 ```
-Copyright 2024 DigitalArsenal
+Copyright 2024-2025 DigitalArsenal
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
