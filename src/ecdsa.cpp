@@ -26,6 +26,7 @@
 
 #include <cstring>
 #include <algorithm>
+#include <stdexcept>
 
 namespace hd_wallet {
 namespace ecdsa {
