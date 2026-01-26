@@ -28,22 +28,7 @@ namespace hd_wallet {
 // Curve Metadata Functions
 // =============================================================================
 
-const char* curveToString(Curve curve) {
-    switch (curve) {
-        case Curve::SECP256K1:
-            return "secp256k1";
-        case Curve::ED25519:
-            return "ed25519";
-        case Curve::P256:
-            return "p256";
-        case Curve::P384:
-            return "p384";
-        case Curve::X25519:
-            return "x25519";
-        default:
-            return "unknown";
-    }
-}
+// Note: curveToString is defined in error.cpp
 
 size_t curvePrivateKeySize(Curve curve) {
     switch (curve) {
@@ -1131,84 +1116,7 @@ std::shared_ptr<CurveOperations> getCurveOperations(Curve curve) {
     }
 }
 
-// =============================================================================
-// Error String Helper
-// =============================================================================
-
-const char* errorToString(Error error) {
-    switch (error) {
-        case Error::OK:
-            return "Success";
-        case Error::UNKNOWN:
-            return "Unknown error";
-        case Error::INVALID_ARGUMENT:
-            return "Invalid argument";
-        case Error::NOT_SUPPORTED:
-            return "Operation not supported";
-        case Error::OUT_OF_MEMORY:
-            return "Out of memory";
-        case Error::INTERNAL:
-            return "Internal error";
-        case Error::NO_ENTROPY:
-            return "No entropy available";
-        case Error::INSUFFICIENT_ENTROPY:
-            return "Insufficient entropy";
-        case Error::INVALID_WORD:
-            return "Invalid mnemonic word";
-        case Error::INVALID_CHECKSUM:
-            return "Invalid mnemonic checksum";
-        case Error::INVALID_MNEMONIC_LENGTH:
-            return "Invalid mnemonic length";
-        case Error::INVALID_ENTROPY_LENGTH:
-            return "Invalid entropy length";
-        case Error::INVALID_SEED:
-            return "Invalid seed";
-        case Error::INVALID_PATH:
-            return "Invalid derivation path";
-        case Error::INVALID_CHILD_INDEX:
-            return "Invalid child index";
-        case Error::HARDENED_FROM_PUBLIC:
-            return "Cannot derive hardened key from public key";
-        case Error::INVALID_EXTENDED_KEY:
-            return "Invalid extended key format";
-        case Error::INVALID_PRIVATE_KEY:
-            return "Invalid private key";
-        case Error::INVALID_PUBLIC_KEY:
-            return "Invalid public key";
-        case Error::INVALID_SIGNATURE:
-            return "Invalid signature";
-        case Error::VERIFICATION_FAILED:
-            return "Signature verification failed";
-        case Error::KEY_DERIVATION_FAILED:
-            return "Key derivation failed";
-        case Error::INVALID_TRANSACTION:
-            return "Invalid transaction format";
-        case Error::INSUFFICIENT_FUNDS:
-            return "Insufficient funds";
-        case Error::INVALID_ADDRESS:
-            return "Invalid address";
-        case Error::DEVICE_NOT_CONNECTED:
-            return "Device not connected";
-        case Error::DEVICE_COMM_ERROR:
-            return "Device communication error";
-        case Error::USER_CANCELLED:
-            return "Operation cancelled by user";
-        case Error::DEVICE_BUSY:
-            return "Device busy";
-        case Error::DEVICE_NOT_SUPPORTED:
-            return "Device operation not supported";
-        case Error::BRIDGE_NOT_SET:
-            return "Bridge callback not set";
-        case Error::BRIDGE_FAILED:
-            return "Bridge callback failed";
-        case Error::NEEDS_BRIDGE:
-            return "Feature requires bridge in WASI";
-        case Error::FIPS_NOT_ALLOWED:
-            return "Algorithm not allowed in FIPS mode";
-        default:
-            return "Unknown error code";
-    }
-}
+// Note: errorToString is defined in error.cpp
 
 // =============================================================================
 // Coin Type Helpers

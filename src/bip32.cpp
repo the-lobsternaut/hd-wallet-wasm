@@ -1548,61 +1548,7 @@ void hd_key_destroy(hd_key_handle key) {
     }
 }
 
-int32_t hd_path_build(
-    char* out,
-    size_t out_size,
-    uint32_t purpose,
-    uint32_t coin_type,
-    uint32_t account,
-    uint32_t change,
-    uint32_t index
-) {
-    if (out == nullptr || out_size < 32) {
-        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
-    }
-
-    std::ostringstream ss;
-    ss << "m/" << purpose << "'/" << coin_type << "'/" << account << "'/" << change << "/" << index;
-
-    std::string path = ss.str();
-    if (path.size() >= out_size) {
-        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
-    }
-
-    std::strcpy(out, path.c_str());
-    return static_cast<int32_t>(Error::OK);
-}
-
-int32_t hd_path_parse(
-    const char* path,
-    uint32_t* purpose,
-    uint32_t* coin_type,
-    uint32_t* account,
-    uint32_t* change,
-    uint32_t* index
-) {
-    if (path == nullptr) {
-        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
-    }
-
-    auto result = DerivationPath::parse(path);
-    if (!result.ok()) {
-        return static_cast<int32_t>(result.error);
-    }
-
-    const auto& components = result.value.components;
-    if (components.size() < 5) {
-        return static_cast<int32_t>(Error::INVALID_PATH);
-    }
-
-    if (purpose != nullptr) *purpose = components[0].index;
-    if (coin_type != nullptr) *coin_type = components[1].index;
-    if (account != nullptr) *account = components[2].index;
-    if (change != nullptr) *change = components[3].index;
-    if (index != nullptr) *index = components[4].index;
-
-    return static_cast<int32_t>(Error::OK);
-}
+// Note: hd_path_build and hd_path_parse are defined in bip44.cpp
 
 } // namespace bip32
 } // namespace hd_wallet

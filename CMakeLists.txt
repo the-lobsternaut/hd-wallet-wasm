@@ -225,10 +225,11 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
   file(MAKE_DIRECTORY "${WASM_NPM_DIR}")
 
   if(EMSCRIPTEN)
-    # WASM source files (includes bindings)
+    # WASM source files
+    # Note: Individual source files (bip39.cpp, wasi_bridge.cpp, etc.) already export
+    # their functions with HD_WALLET_C_EXPORT, so wasm_bindings.cpp is not needed
     set(HD_WALLET_WASM_SOURCES
       ${HD_WALLET_SOURCES}
-      src/wasm_bindings.cpp
     )
 
     # ==========================================================================
@@ -546,6 +547,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -sPURE_WASI=1
       -sWASM=1
       -sERROR_ON_UNDEFINED_SYMBOLS=0
+      -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sALLOW_MEMORY_GROWTH=1
       -sINITIAL_MEMORY=32MB
@@ -582,6 +584,8 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -sINITIAL_MEMORY=32MB
       -sMAXIMUM_MEMORY=512MB
       -sSTACK_SIZE=2MB
+      -sERROR_ON_UNDEFINED_SYMBOLS=0
+      -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
       -sENVIRONMENT=web,node
@@ -618,6 +622,8 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -sINITIAL_MEMORY=32MB
       -sMAXIMUM_MEMORY=512MB
       -sSTACK_SIZE=2MB
+      -sERROR_ON_UNDEFINED_SYMBOLS=0
+      -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
       -sENVIRONMENT=web,node
