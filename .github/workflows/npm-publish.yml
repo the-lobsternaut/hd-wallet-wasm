@@ -12,6 +12,11 @@ on:
         default: "false"
         type: boolean
 
+# Required for NPM provenance / trusted publishing
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
     name: Build WASM
@@ -141,9 +146,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to NPM
+      - name: Publish to NPM with provenance
         if: github.event.inputs.dry_run != 'true'
-        run: npm publish --access public
+        run: npm publish --access public --provenance
         working-directory: wasm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
