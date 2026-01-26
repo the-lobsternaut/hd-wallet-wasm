@@ -383,7 +383,8 @@ int32_t hd_mnemonic_generate(
 ) {
     auto result = generateMnemonic(word_count, static_cast<Language>(language));
     if (!result.ok()) {
-        return static_cast<int32_t>(result.error);
+        // Return negative error code to distinguish from valid string length
+        return -static_cast<int32_t>(result.error);
     }
 
     if (result.value.size() >= output_size) {
@@ -391,7 +392,8 @@ int32_t hd_mnemonic_generate(
     }
 
     std::strcpy(output, result.value.c_str());
-    return static_cast<int32_t>(Error::OK);
+    // Return the length of the mnemonic string on success
+    return static_cast<int32_t>(result.value.size());
 }
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT

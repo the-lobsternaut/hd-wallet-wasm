@@ -646,4 +646,266 @@ int32_t hd_ed25519_verify(
     ) ? 1 : 0;
 }
 
+// =============================================================================
+// SLIP-10 Ed25519 Key Derivation
+// =============================================================================
+
+HD_WALLET_EXPORT
+int32_t hd_ed25519_pubkey_from_seed(
+    const uint8_t* seed,
+    uint8_t* public_key_out,
+    size_t public_key_size
+) {
+    if (!seed || !public_key_out || public_key_size < 32) {
+        return -1;
+    }
+
+    // Derive public key from 32-byte seed
+    size_t pubKeyLen = public_key_size;
+    if (hd_wallet::eddsa::derivePublicKey(seed, 32, public_key_out, &pubKeyLen)) {
+        return 0;
+    }
+    return -1;
+}
+
+HD_WALLET_EXPORT
+int32_t hd_slip10_ed25519_master(
+    const uint8_t* seed,
+    size_t seed_len,
+    uint8_t* key_out,
+    uint8_t* chain_code_out
+) {
+    if (!seed || !key_out || !chain_code_out || seed_len != 64) {
+        return -1;
+    }
+
+    // SLIP-10: Master key = HMAC-SHA512(Key = "ed25519 seed", Data = seed)
+    const char* hmacKey = "ed25519 seed";
+    uint8_t hmacOut[64];
+
+    CryptoPP::HMAC<CryptoPP::SHA512> hmac(
+        reinterpret_cast<const uint8_t*>(hmacKey),
+        std::strlen(hmacKey)
+    );
+    hmac.Update(seed, seed_len);
+    hmac.Final(hmacOut);
+
+    // First 32 bytes = private key (IL)
+    std::memcpy(key_out, hmacOut, 32);
+    // Last 32 bytes = chain code (IR)
+    std::memcpy(chain_code_out, hmacOut + 32, 32);
+
+    CryptoPP::SecureWipeArray(hmacOut, 64);
+    return 0;
+}
+
+static int32_t slip10_ed25519_derive_child(
+    const uint8_t* parent_key,
+    const uint8_t* parent_chain_code,
+    uint32_t index,
+    uint8_t* key_out,
+    uint8_t* chain_code_out
+) {
+    // SLIP-10 Ed25519: only hardened derivation (index >= 0x80000000)
+    if (index < 0x80000000) {
+        return -1;  // Must be hardened for Ed25519
+    }
+
+    // Data = 0x00 || kpar || ser32(index)
+    uint8_t data[37];
+    data[0] = 0x00;
+    std::memcpy(data + 1, parent_key, 32);
+    // Big-endian serialization of index
+    data[33] = (index >> 24) & 0xFF;
+    data[34] = (index >> 16) & 0xFF;
+    data[35] = (index >> 8) & 0xFF;
+    data[36] = index & 0xFF;
+
+    // HMAC-SHA512(Key = cpar, Data = data)
+    uint8_t hmacOut[64];
+    CryptoPP::HMAC<CryptoPP::SHA512> hmac(parent_chain_code, 32);
+    hmac.Update(data, 37);
+    hmac.Final(hmacOut);
+
+    // First 32 bytes = child private key
+    std::memcpy(key_out, hmacOut, 32);
+    // Last 32 bytes = child chain code
+    std::memcpy(chain_code_out, hmacOut + 32, 32);
+
+    CryptoPP::SecureWipeArray(hmacOut, 64);
+    CryptoPP::SecureWipeArray(data, 37);
+    return 0;
+}
+
+HD_WALLET_EXPORT
+int32_t hd_slip10_ed25519_derive_path(
+    const uint8_t* seed,
+    size_t seed_len,
+    const char* path,
+    uint8_t* key_out,
+    uint8_t* chain_code_out
+) {
+    if (!seed || !path || !key_out || !chain_code_out || seed_len != 64) {
+        return -1;
+    }
+
+    // Parse the path and derive
+    std::string pathStr(path);
+
+    // Check for "m/" prefix
+    size_t pos = 0;
+    if (pathStr.substr(0, 2) == "m/") {
+        pos = 2;
+    } else if (pathStr[0] == 'm') {
+        // Just "m" = master key
+        return hd_slip10_ed25519_master(seed, seed_len, key_out, chain_code_out);
+    }
+
+    // Start with master key
+    uint8_t currentKey[32];
+    uint8_t currentChainCode[32];
+    if (hd_slip10_ed25519_master(seed, seed_len, currentKey, currentChainCode) != 0) {
+        return -1;
+    }
+
+    // Parse and derive each path component
+    while (pos < pathStr.length()) {
+        // Find end of this component
+        size_t endPos = pathStr.find('/', pos);
+        if (endPos == std::string::npos) {
+            endPos = pathStr.length();
+        }
+
+        std::string component = pathStr.substr(pos, endPos - pos);
+        pos = endPos + 1;
+
+        if (component.empty()) {
+            continue;
+        }
+
+        // Check for hardened indicator
+        bool hardened = false;
+        if (component.back() == '\'' || component.back() == 'h' || component.back() == 'H') {
+            hardened = true;
+            component.pop_back();
+        }
+
+        // Parse index
+        uint32_t index;
+        try {
+            index = static_cast<uint32_t>(std::stoul(component));
+        } catch (...) {
+            CryptoPP::SecureWipeArray(currentKey, 32);
+            CryptoPP::SecureWipeArray(currentChainCode, 32);
+            return -1;
+        }
+
+        // For Ed25519, all derivation must be hardened
+        if (!hardened) {
+            // Auto-harden for Ed25519
+            hardened = true;
+        }
+
+        // Add hardened flag
+        index |= 0x80000000;
+
+        // Derive child
+        uint8_t childKey[32];
+        uint8_t childChainCode[32];
+        if (slip10_ed25519_derive_child(currentKey, currentChainCode, index, childKey, childChainCode) != 0) {
+            CryptoPP::SecureWipeArray(currentKey, 32);
+            CryptoPP::SecureWipeArray(currentChainCode, 32);
+            return -1;
+        }
+
+        // Update current key
+        std::memcpy(currentKey, childKey, 32);
+        std::memcpy(currentChainCode, childChainCode, 32);
+        CryptoPP::SecureWipeArray(childKey, 32);
+        CryptoPP::SecureWipeArray(childChainCode, 32);
+    }
+
+    // Output final key and chain code
+    std::memcpy(key_out, currentKey, 32);
+    std::memcpy(chain_code_out, currentChainCode, 32);
+    CryptoPP::SecureWipeArray(currentKey, 32);
+    CryptoPP::SecureWipeArray(currentChainCode, 32);
+
+    return 0;
+}
+
+// =============================================================================
+// X25519 Functions
+// =============================================================================
+
+HD_WALLET_EXPORT
+int32_t hd_x25519_pubkey(
+    const uint8_t* private_key,
+    uint8_t* public_key_out,
+    size_t public_key_size
+) {
+    if (!private_key || !public_key_out || public_key_size < 32) {
+        return -1;
+    }
+
+    // X25519 public key derivation
+    // Clamp the private key and multiply by basepoint
+    try {
+        // X25519 clamp the private key
+        uint8_t clampedPriv[32];
+        std::memcpy(clampedPriv, private_key, 32);
+        clampedPriv[0] &= 0xF8;
+        clampedPriv[31] &= 0x7F;
+        clampedPriv[31] |= 0x40;
+
+        // Basepoint for X25519 is 9 (little-endian)
+        uint8_t basepoint[32] = {9};
+
+        // Use x25519 key agreement to derive public key
+        CryptoPP::x25519 x25519;
+        if (!x25519.Agree(public_key_out, clampedPriv, basepoint)) {
+            CryptoPP::SecureWipeArray(clampedPriv, 32);
+            return -1;
+        }
+
+        CryptoPP::SecureWipeArray(clampedPriv, 32);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+HD_WALLET_EXPORT
+int32_t hd_ecdh_x25519(
+    const uint8_t* private_key,
+    const uint8_t* public_key,
+    uint8_t* shared_secret_out,
+    size_t shared_secret_size
+) {
+    if (!private_key || !public_key || !shared_secret_out || shared_secret_size < 32) {
+        return -1;
+    }
+
+    try {
+        // X25519 clamp the private key
+        uint8_t clampedPriv[32];
+        std::memcpy(clampedPriv, private_key, 32);
+        clampedPriv[0] &= 0xF8;
+        clampedPriv[31] &= 0x7F;
+        clampedPriv[31] |= 0x40;
+
+        // Perform X25519 key agreement
+        CryptoPP::x25519 x25519;
+        if (!x25519.Agree(shared_secret_out, clampedPriv, public_key)) {
+            CryptoPP::SecureWipeArray(clampedPriv, 32);
+            return -1;
+        }
+
+        CryptoPP::SecureWipeArray(clampedPriv, 32);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 } // extern "C"
