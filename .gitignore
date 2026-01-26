@@ -1,6 +1,11 @@
 # Build directories
 build/
+build-wasm/
 cmake-build-*/
+.cache/
+
+# Claude Code
+.claude/
 
 # IDE
 .vscode/

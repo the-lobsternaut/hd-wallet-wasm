@@ -287,14 +287,22 @@ ctest --test-dir build --output-on-failure
 ### WASM Build
 
 ```bash
-# Ensure Emscripten is activated
-source /path/to/emsdk/emsdk_env.sh
+# Install Emscripten locally (first time only)
+cd packages
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk install latest
+./emsdk activate latest
+cd ../..
+
+# Activate Emscripten (each session)
+source packages/emsdk/emsdk_env.sh
 
 # Configure and build
-emcmake cmake -B build -S . -DHD_WALLET_BUILD_WASM=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
+emcmake cmake -B build-wasm -S . -DHD_WALLET_BUILD_WASM=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-wasm --parallel
 
-# Output in build/wasm/ and wasm/dist/
+# Output in build-wasm/wasm/ and wasm/dist/
 ```
 
 ## Testing
