@@ -1,0 +1,76 @@
+{
+  "name": "hd-wallet-wasm",
+  "version": "0.1.0",
+  "description": "Comprehensive HD Wallet implementation in WebAssembly - BIP-32/39/44, multi-curve, multi-chain support",
+  "type": "module",
+  "main": "src/index.mjs",
+  "module": "src/index.mjs",
+  "types": "src/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.mjs",
+      "require": "./dist/hd-wallet.cjs"
+    },
+    "./wasm": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/hd-wallet.js"
+    }
+  },
+  "files": [
+    "src/index.mjs",
+    "src/index.d.ts",
+    "dist/hd-wallet.js",
+    "dist/hd-wallet.wasm",
+    "dist/hd-wallet.cjs",
+    "dist/index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "cmake --build ../build --target hd_wallet_wasm_npm -j",
+    "test": "node test/test_all.mjs",
+    "test:bip39": "node test/test_bip39.mjs",
+    "test:bip32": "node test/test_bip32.mjs",
+    "test:vectors": "node test/test_vectors.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DigitalArsenal/hd-wallet-wasm.git"
+  },
+  "keywords": [
+    "hd-wallet",
+    "bip32",
+    "bip39",
+    "bip44",
+    "cryptocurrency",
+    "bitcoin",
+    "ethereum",
+    "solana",
+    "cosmos",
+    "polkadot",
+    "wasm",
+    "webassembly",
+    "secp256k1",
+    "ed25519",
+    "p256",
+    "p384",
+    "hardware-wallet",
+    "trezor",
+    "ledger",
+    "keepkey"
+  ],
+  "author": "DigitalArsenal",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/DigitalArsenal/hd-wallet-wasm/issues"
+  },
+  "homepage": "https://digitalarsenal.github.io/hd-wallet-wasm/",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  }
+}

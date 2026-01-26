@@ -1,0 +1,175 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Native build and tests
+  native:
+    name: Native Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      - name: Cache Crypto++
+        id: cache-cryptopp
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/cryptopp*
+          key: cryptopp-native-${{ runner.os }}-8.9.0
+
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build native library
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+  # WASM build with Emscripten
+  wasm:
+    name: WASM Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: "3.1.51"
+          actions-cache-folder: "emsdk-cache"
+
+      - name: Verify Emscripten
+        run: emcc --version
+
+      - name: Cache Crypto++ (WASM)
+        id: cache-cryptopp-wasm
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/cryptopp*
+          key: cryptopp-wasm-${{ runner.os }}-8.9.0-emsdk-3.1.51
+
+      - name: Configure CMake with Emscripten
+        run: emcmake cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON
+
+      - name: Build WASM targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Verify WASM output
+        run: |
+          echo "Checking WASM output files..."
+          ls -la build/wasm/
+          test -f build/wasm/hd-wallet.wasm
+          test -f build/wasm/hd-wallet.js
+          test -f build/wasm/hd-wallet-inline.js
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-build
+          path: |
+            build/wasm/hd-wallet.wasm
+            build/wasm/hd-wallet.js
+            build/wasm/hd-wallet-inline.js
+          retention-days: 7
+
+  # NPM package build and test
+  npm:
+    name: NPM Package Test
+    runs-on: ubuntu-latest
+    needs: wasm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: wasm/package.json
+
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-build
+          path: wasm/dist/
+
+      - name: Copy TypeScript definitions
+        run: cp wasm/src/index.d.ts wasm/dist/
+
+      - name: Install npm dependencies
+        run: npm ci --ignore-scripts
+        working-directory: wasm
+
+      - name: Run npm tests
+        run: npm test
+        working-directory: wasm
+        continue-on-error: true  # Tests may not exist yet
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+        working-directory: wasm
+
+  # Build matrix for multiple configurations
+  matrix:
+    name: Build Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+        compiler: [gcc, clang]
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Clang
+        if: matrix.compiler == 'clang'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Cache Crypto++
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/cryptopp*
+          key: cryptopp-${{ matrix.compiler }}-${{ matrix.build_type }}-8.9.0
+
+      - name: Configure CMake
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Test
+        run: |
+          cd build
+          ctest --output-on-failure

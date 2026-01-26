@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HD Wallet WASM - A comprehensive hierarchical deterministic wallet implementation compiled to WebAssembly. BIP-32/39/44 compliant with multi-curve and multi-chain support.">
+  <title>HD Wallet WASM - Hierarchical Deterministic Wallet Library</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container navbar-content">
+      <a href="index.html" class="navbar-brand">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="8" fill="url(#logo-gradient)"/>
+          <path d="M8 12h6v8H8v-8zm10 0h6v8h-6v-8zM11 8v4M21 8v4M11 20v4M21 20v4" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#6366f1"/>
+              <stop offset="1" stop-color="#a855f7"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        HD Wallet WASM
+      </a>
+
+      <ul class="navbar-nav">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="learn/how-it-works.html">Learn</a></li>
+        <li><a href="api/index.html">API</a></li>
+        <li><a href="examples/mnemonic/index.html">Examples</a></li>
+      </ul>
+
+      <div class="navbar-actions">
+        <button class="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light mode">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+        <a href="https://github.com/user/hd-wallet-wasm" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          GitHub
+        </a>
+        <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <h1 class="hero-title">
+        <span class="text-gradient">HD Wallet WASM</span>
+      </h1>
+      <p class="hero-subtitle">
+        A comprehensive hierarchical deterministic wallet implementation in pure C++,
+        compiled to WebAssembly for cross-platform compatibility. BIP-32/39/44 compliant
+        with multi-curve cryptography and multi-chain support.
+      </p>
+      <div class="hero-actions">
+        <a href="examples/mnemonic/index.html" class="btn btn-primary btn-lg">
+          Try Interactive Demo
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </a>
+        <a href="api/index.html" class="btn btn-secondary btn-lg">
+          View API Docs
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Install -->
+  <section class="section">
+    <div class="container container-sm">
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">bash</span>
+          <button class="code-copy-btn" title="Copy code">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <pre><code>npm install @digitalarsenal/hd-wallet-wasm</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="section">
+    <div class="container">
+      <h2 class="text-center mb-xl">Features</h2>
+      <div class="grid grid-3">
+        <!-- BIP Standards -->
+        <div class="glass card feature-card glass-hover">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">BIP Standards Compliant</h3>
+          <p class="feature-description">
+            Full implementation of BIP-32 (HD keys), BIP-39 (mnemonic phrases),
+            BIP-44/49/84 (account hierarchy), and SLIP-44 (coin types).
+          </p>
+        </div>
+
+        <!-- Multi-Curve -->
+        <div class="glass card feature-card glass-hover">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">Multi-Curve Cryptography</h3>
+          <p class="feature-description">
+            Support for secp256k1 (Bitcoin, Ethereum), Ed25519 (Solana, Polkadot),
+            NIST P-256, P-384, and X25519 key exchange.
+          </p>
+        </div>
+
+        <!-- Multi-Chain -->
+        <div class="glass card feature-card glass-hover">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/>
+              <path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 10-5.656-5.656l-1.102 1.101"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">Multi-Chain Support</h3>
+          <p class="feature-description">
+            Bitcoin (all address types), Ethereum/EVM, Solana, Cosmos/Tendermint,
+            Polkadot/Substrate, and 50+ coins via SLIP-44.
+          </p>
+        </div>
+
+        <!-- WebAssembly -->
+        <div class="glass card feature-card glass-hover">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2"/>
+              <path d="M8 21h8M12 17v4"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">WebAssembly Native</h3>
+          <p class="feature-description">
+            Compiled to WASM for browser, Node.js, and WASI runtimes.
+            Works with Go, Rust, Python, and any WASI-compatible host.
+          </p>
+        </div>
+
+        <!-- Hardware Wallets -->
+        <div class="glass card feature-card glass-hover">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="6" width="20" height="12" rx="2"/>
+              <path d="M12 12h.01M17 12h.01M7 12h.01"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">Hardware Wallet Support</h3>
+          <p class="feature-description">
+            Abstraction layer for Trezor, Ledger, and KeepKey devices
+            with WASI bridge integration for USB/HID communication.
+          </p>
+        </div>
+
+        <!-- Security -->
+        <div class="glass card feature-card glass-hover">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">Security First</h3>
+          <p class="feature-description">
+            Secure memory wiping, optional FIPS-compliant mode,
+            and comprehensive input validation for production use.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Start Code Example -->
+  <section class="section">
+    <div class="container container-sm">
+      <h2 class="text-center mb-xl">Quick Start</h2>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-lang">javascript</span>
+          <button class="code-copy-btn" title="Copy code">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <pre><code class="language-javascript">import HDWalletWasm from '@digitalarsenal/hd-wallet-wasm';
+
+// Initialize the WASM module
+const wallet = await HDWalletWasm();
+
+// Generate a 24-word mnemonic
+const mnemonic = wallet.mnemonic.generate(24);
+console.log('Mnemonic:', mnemonic);
+
+// Convert mnemonic to seed
+const seed = wallet.mnemonic.toSeed(mnemonic, 'optional passphrase');
+
+// Create master HD key from seed
+const masterKey = wallet.hdkey.fromSeed(seed);
+
+// Derive Bitcoin address (BIP-84 native SegWit)
+const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
+const btcAddress = wallet.bitcoin.getAddress(btcKey.publicKey(), 2); // P2WPKH
+
+// Derive Ethereum address
+const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
+const ethAddress = wallet.ethereum.getAddress(ethKey.publicKey());
+
+console.log('Bitcoin:', btcAddress);
+console.log('Ethereum:', ethAddress);</code></pre>
+      </div>
+
+      <div class="text-center mt-xl">
+        <a href="api/index.html" class="btn btn-secondary">
+          View Full API Reference
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Supported Chains -->
+  <section class="section">
+    <div class="container">
+      <h2 class="text-center mb-xl">Supported Blockchains</h2>
+      <div class="grid grid-4">
+        <div class="glass card-sm text-center">
+          <strong>Bitcoin</strong>
+          <p class="text-muted text-sm">P2PKH, P2SH, P2WPKH, Taproot</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>Ethereum</strong>
+          <p class="text-muted text-sm">EIP-55, EIP-712, EIP-1559</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>Solana</strong>
+          <p class="text-muted text-sm">Ed25519 signatures</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>Cosmos</strong>
+          <p class="text-muted text-sm">Amino & Direct signing</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>Polkadot</strong>
+          <p class="text-muted text-sm">SS58 addresses</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>Litecoin</strong>
+          <p class="text-muted text-sm">All address types</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>Dogecoin</strong>
+          <p class="text-muted text-sm">P2PKH addresses</p>
+        </div>
+        <div class="glass card-sm text-center">
+          <strong>+ 50 more</strong>
+          <p class="text-muted text-sm">via SLIP-44</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Demos -->
+  <section class="section">
+    <div class="container">
+      <h2 class="text-center mb-xl">Interactive Demos</h2>
+      <div class="grid grid-2">
+        <a href="examples/mnemonic/index.html" class="glass card glass-hover" style="text-decoration: none; color: inherit;">
+          <h3>Mnemonic Generator</h3>
+          <p class="text-secondary">
+            Generate and validate BIP-39 mnemonic phrases. See the entropy, checksum,
+            and seed derivation in action.
+          </p>
+          <span class="btn btn-ghost btn-sm mt-md">
+            Try Demo
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </span>
+        </a>
+
+        <a href="examples/derivation/index.html" class="glass card glass-hover" style="text-decoration: none; color: inherit;">
+          <h3>HD Key Derivation</h3>
+          <p class="text-secondary">
+            Explore hierarchical key derivation with an interactive path builder.
+            Generate xprv/xpub keys and derive child keys.
+          </p>
+          <span class="btn btn-ghost btn-sm mt-md">
+            Try Demo
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Build Targets Table -->
+  <section class="section">
+    <div class="container container-sm">
+      <h2 class="text-center mb-xl">Build Targets</h2>
+      <div class="glass card">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Description</th>
+                <th>Output</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>hd_wallet_wasm</code></td>
+                <td>WASI standalone module</td>
+                <td><code>.wasm</code></td>
+              </tr>
+              <tr>
+                <td><code>hd_wallet_wasm_js</code></td>
+                <td>JavaScript ES6 module</td>
+                <td><code>.js + .wasm</code></td>
+              </tr>
+              <tr>
+                <td><code>hd_wallet_wasm_inline</code></td>
+                <td>Single-file (inlined WASM)</td>
+                <td><code>.js</code></td>
+              </tr>
+              <tr>
+                <td><code>hd_wallet_wasm_npm</code></td>
+                <td>NPM package</td>
+                <td><code>wasm/dist/</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p class="footer-text">
+          HD Wallet WASM - MIT License
+        </p>
+        <ul class="footer-links">
+          <li><a href="https://github.com/user/hd-wallet-wasm" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://www.npmjs.com/package/@digitalarsenal/hd-wallet-wasm" target="_blank" rel="noopener">NPM</a></li>
+          <li><a href="api/index.html">API Docs</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="assets/js/app.mjs"></script>
+</body>
+</html>

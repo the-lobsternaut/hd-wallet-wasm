@@ -1,0 +1,275 @@
+# hd-wallet-wasm
+
+A comprehensive HD (Hierarchical Deterministic) wallet implementation compiled to WebAssembly. Implements BIP-32, BIP-39, and BIP-44 standards with multi-curve cryptography and multi-chain support.
+
+## Features
+
+- **BIP-32/39/44/49/84** - Complete HD wallet derivation standards
+- **Multi-curve support** - secp256k1, Ed25519, P-256, P-384, X25519
+- **Multi-chain** - Bitcoin, Ethereum, Solana, Cosmos, Polkadot
+- **Hardware wallet ready** - Trezor, Ledger, KeepKey abstraction layer
+- **Secure** - Crypto++ backend, secure memory handling
+- **Fast** - WebAssembly performance
+- **TypeScript** - Full type definitions included
+
+## Installation
+
+```bash
+npm install hd-wallet-wasm
+```
+
+## Quick Start
+
+```javascript
+import init from 'hd-wallet-wasm';
+
+// Initialize the WASM module
+const wallet = await init();
+
+// Inject entropy (required in WASI environments)
+const entropy = crypto.getRandomValues(new Uint8Array(32));
+wallet.injectEntropy(entropy);
+
+// Generate a 24-word mnemonic
+const mnemonic = wallet.mnemonic.generate(24);
+console.log('Mnemonic:', mnemonic);
+
+// Derive seed from mnemonic
+const seed = wallet.mnemonic.toSeed(mnemonic, 'optional passphrase');
+
+// Create master key
+const master = wallet.hdkey.fromSeed(seed);
+
+// Derive Bitcoin key (BIP-44: m/44'/0'/0'/0/0)
+const btcKey = master.derivePath("m/44'/0'/0'/0/0");
+console.log('Bitcoin public key:', wallet.utils.encodeHex(btcKey.publicKey()));
+
+// Get Bitcoin address
+const btcAddress = wallet.bitcoin.getAddress(btcKey.publicKey(), 0); // P2PKH
+console.log('Bitcoin address:', btcAddress);
+
+// Derive Ethereum key (BIP-44: m/44'/60'/0'/0/0)
+const ethKey = master.derivePath("m/44'/60'/0'/0/0");
+const ethAddress = wallet.ethereum.getAddress(ethKey.publicKey());
+console.log('Ethereum address:', ethAddress);
+
+// Sign a message
+const signature = wallet.curves.secp256k1.sign(
+  wallet.utils.sha256(new TextEncoder().encode('Hello, World!')),
+  ethKey.privateKey()
+);
+
+// Clean up
+btcKey.wipe();
+ethKey.wipe();
+master.wipe();
+```
+
+## API Overview
+
+### Mnemonic (BIP-39)
+
+```javascript
+// Generate mnemonic (12, 15, 18, 21, or 24 words)
+const mnemonic = wallet.mnemonic.generate(24);
+
+// Validate mnemonic
+const isValid = wallet.mnemonic.validate(mnemonic);
+
+// Convert to seed
+const seed = wallet.mnemonic.toSeed(mnemonic, 'passphrase');
+
+// Convert to/from entropy
+const entropy = wallet.mnemonic.toEntropy(mnemonic);
+const recovered = wallet.mnemonic.fromEntropy(entropy);
+
+// Multiple languages supported
+import { Language } from 'hd-wallet-wasm';
+const japanese = wallet.mnemonic.generate(24, Language.JAPANESE);
+```
+
+### HD Keys (BIP-32)
+
+```javascript
+// From seed
+const master = wallet.hdkey.fromSeed(seed);
+
+// From extended key
+const restored = wallet.hdkey.fromXprv('xprv...');
+const watchOnly = wallet.hdkey.fromXpub('xpub...');
+
+// Derivation
+const child = master.deriveChild(0);
+const hardened = master.deriveHardened(0);
+const path = master.derivePath("m/44'/0'/0'/0/0");
+
+// Serialization
+const xprv = master.toXprv();
+const xpub = master.toXpub();
+
+// Get neutered (public only) version
+const pubOnly = master.neutered();
+```
+
+### Multi-Curve Cryptography
+
+```javascript
+import { Curve } from 'hd-wallet-wasm';
+
+// secp256k1 (Bitcoin, Ethereum)
+const sig = wallet.curves.secp256k1.sign(message, privateKey);
+const valid = wallet.curves.secp256k1.verify(message, sig, publicKey);
+const shared = wallet.curves.secp256k1.ecdh(myPrivate, theirPublic);
+
+// Ed25519 (Solana)
+const edSig = wallet.curves.ed25519.sign(message, privateKey);
+const edValid = wallet.curves.ed25519.verify(message, edSig, publicKey);
+
+// P-256, P-384 (FIPS compliant)
+const p256Sig = wallet.curves.p256.sign(message, privateKey);
+const p384Sig = wallet.curves.p384.sign(message, privateKey);
+
+// X25519 (key exchange only)
+const x25519Shared = wallet.curves.x25519.ecdh(myPrivate, theirPublic);
+```
+
+### Bitcoin
+
+```javascript
+import { BitcoinAddressType, Network } from 'hd-wallet-wasm';
+
+// Address generation
+const p2pkh = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2PKH);
+const p2wpkh = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2WPKH);
+const p2tr = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2TR);
+
+// Testnet
+const testAddr = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2WPKH, Network.TESTNET);
+
+// Message signing (Bitcoin Signed Message format)
+const sig = wallet.bitcoin.signMessage('Hello', privateKey);
+const valid = wallet.bitcoin.verifyMessage('Hello', sig, address);
+```
+
+### Ethereum
+
+```javascript
+// Address (EIP-55 checksummed)
+const address = wallet.ethereum.getAddress(publicKey);
+
+// Message signing (EIP-191)
+const sig = wallet.ethereum.signMessage('Hello', privateKey);
+
+// Typed data signing (EIP-712)
+const typedSig = wallet.ethereum.signTypedData(typedData, privateKey);
+
+// Verify and recover signer
+const signer = wallet.ethereum.verifyMessage('Hello', sig);
+```
+
+### Solana
+
+```javascript
+// Address (Base58)
+const address = wallet.solana.getAddress(publicKey);
+
+// Message signing
+const sig = wallet.solana.signMessage(message, privateKey);
+const valid = wallet.solana.verifyMessage(message, sig, publicKey);
+```
+
+### Cosmos
+
+```javascript
+// Address with custom prefix
+const cosmosAddr = wallet.cosmos.getAddress(publicKey, 'cosmos');
+const osmoAddr = wallet.cosmos.getAddress(publicKey, 'osmo');
+
+// Amino signing (legacy)
+const aminoSig = wallet.cosmos.signAmino(aminoDoc, privateKey);
+
+// Direct signing (protobuf)
+const directSig = wallet.cosmos.signDirect(bodyBytes, authInfoBytes, chainId, accountNumber, privateKey);
+```
+
+### Polkadot
+
+```javascript
+// SS58 address
+const dotAddr = wallet.polkadot.getAddress(publicKey, 0);   // Polkadot
+const ksmAddr = wallet.polkadot.getAddress(publicKey, 2);   // Kusama
+
+// Message signing
+const sig = wallet.polkadot.signMessage(message, privateKey);
+```
+
+### Utilities
+
+```javascript
+// Hashing
+const sha256 = wallet.utils.sha256(data);
+const keccak = wallet.utils.keccak256(data);
+const blake2b = wallet.utils.blake2b(data, 32);
+
+// Encoding
+const hex = wallet.utils.encodeHex(data);
+const base58 = wallet.utils.encodeBase58(data);
+const bech32 = wallet.utils.encodeBech32('bc', data);
+
+// Key derivation
+const derived = wallet.utils.hkdf(ikm, salt, info, 32);
+const pbkdf2 = wallet.utils.pbkdf2(password, salt, 100000, 32);
+
+// Secure wipe
+wallet.utils.secureWipe(sensitiveData);
+```
+
+## Coin Types (SLIP-44)
+
+```javascript
+import { CoinType } from 'hd-wallet-wasm';
+
+CoinType.BITCOIN         // 0
+CoinType.BITCOIN_TESTNET // 1
+CoinType.LITECOIN        // 2
+CoinType.ETHEREUM        // 60
+CoinType.COSMOS          // 118
+CoinType.POLKADOT        // 354
+CoinType.SOLANA          // 501
+// ... and 50+ more
+```
+
+## Browser Usage
+
+```html
+<script type="module">
+import init from 'https://unpkg.com/hd-wallet-wasm/src/index.mjs';
+
+const wallet = await init();
+// Use wallet...
+</script>
+```
+
+## Security Notes
+
+- Always inject entropy from a cryptographically secure source before generating mnemonics
+- Use `wipe()` to securely clear sensitive key material when done
+- Never log or expose private keys or mnemonics
+- Consider using hardware wallets for high-value operations
+- The library enforces key separation: external chain (0) for signing, internal chain (1) for encryption
+
+## FIPS Mode
+
+When built with FIPS mode enabled, only FIPS-approved algorithms are available:
+- P-256 and P-384 ECDSA (not secp256k1 or Ed25519)
+- FIPS-approved random number generation
+
+## License
+
+Apache-2.0
+
+## Links
+
+- [Documentation](https://digitalarsenal.github.io/hd-wallet-wasm/)
+- [GitHub](https://github.com/DigitalArsenal/hd-wallet-wasm)
+- [API Reference](https://digitalarsenal.github.io/hd-wallet-wasm/api/)

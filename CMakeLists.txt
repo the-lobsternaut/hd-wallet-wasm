@@ -125,8 +125,9 @@ set(HD_WALLET_HEADERS
   include/hd_wallet/hw/keepkey.h
   include/hd_wallet/hw/trezor.h
   include/hd_wallet/hw/ledger.h
-  # Keyring
+  # Keyring and Key Manager
   include/hd_wallet/keyring.h
+  include/hd_wallet/key_manager.h
   # WASI
   include/hd_wallet/wasi_bridge.h
 )
@@ -163,8 +164,9 @@ set(HD_WALLET_SOURCES
   src/hw/keepkey.cpp
   src/hw/trezor.cpp
   src/hw/ledger.cpp
-  # Keyring
+  # Keyring and Key Manager
   src/keyring.cpp
+  src/key_manager.cpp
   # WASI Bridge
   src/wasi_bridge.cpp
 )
@@ -434,12 +436,63 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_keyring_create"
       "_hd_keyring_destroy"
       "_hd_keyring_add_wallet"
+      "_hd_keyring_add_wallet_from_mnemonic"
       "_hd_keyring_remove_wallet"
-      "_hd_keyring_get_wallet_count"
-      "_hd_keyring_get_wallet"
-      "_hd_keyring_get_accounts"
-      "_hd_keyring_sign_transaction"
+      "_hd_keyring_wallet_count"
+      "_hd_keyring_has_wallet"
+      "_hd_keyring_get_xpub"
+      "_hd_keyring_get_public_key"
+      "_hd_keyring_sign_hash"
       "_hd_keyring_sign_message"
+      "_hd_keyring_lock_wallet"
+      "_hd_keyring_unlock_wallet"
+      "_hd_keyring_is_wallet_locked"
+      "_hd_keyring_wipe_all"
+      "_hd_keyring_wipe_cache"
+
+      # ========== Key Manager ==========
+      "_hd_key_manager_create"
+      "_hd_key_manager_from_mnemonic"
+      "_hd_key_manager_destroy"
+      "_hd_key_manager_derive_signing_key"
+      "_hd_key_manager_derive_encryption_key"
+      "_hd_key_manager_derive_key_pair"
+      "_hd_key_manager_derive_at_path"
+      "_hd_key_manager_get_xpub"
+      "_hd_key_manager_get_master_fingerprint"
+      "_hd_key_manager_clear_cache"
+      "_hd_key_manager_wipe"
+      "_hd_key_manager_is_wiped"
+
+      # ========== Derived Key ==========
+      "_hd_derived_key_destroy"
+      "_hd_derived_key_get_private"
+      "_hd_derived_key_get_public"
+      "_hd_derived_key_get_chain_code"
+      "_hd_derived_key_get_path"
+      "_hd_derived_key_get_purpose"
+      "_hd_derived_key_get_coin_type"
+      "_hd_derived_key_get_fingerprint"
+      "_hd_derived_key_wipe"
+      "_hd_derived_key_is_valid"
+
+      # ========== Key Pair ==========
+      "_hd_key_pair_destroy"
+      "_hd_key_pair_get_signing"
+      "_hd_key_pair_get_encryption"
+      "_hd_key_pair_wipe"
+      "_hd_key_pair_is_valid"
+
+      # ========== Key Validation ==========
+      "_hd_validate_private_key"
+      "_hd_validate_public_key"
+      "_hd_validate_path"
+      "_hd_public_key_from_private"
+
+      # ========== Path Building ==========
+      "_hd_build_path"
+      "_hd_build_signing_path"
+      "_hd_build_encryption_path"
 
       # ========== Encoding Utilities ==========
       "_hd_encode_base58"
@@ -676,8 +729,8 @@ endif()
 if(NOT EMSCRIPTEN)
   include(GNUInstallDirs)
 
+  # Install the library (without EXPORT since cryptopp is a fetched dependency)
   install(TARGETS hd_wallet
-    EXPORT HDWalletTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -687,9 +740,7 @@ if(NOT EMSCRIPTEN)
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   )
 
-  install(EXPORT HDWalletTargets
-    FILE HDWalletTargets.cmake
-    NAMESPACE HDWallet::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/HDWallet
-  )
+  # Note: CMake export is disabled because cryptopp is fetched via FetchContent
+  # and cannot be included in the export set. Users should link to hd_wallet
+  # and let CMake handle the transitive cryptopp dependency.
 endif()

@@ -120,6 +120,8 @@ enum class Error : int32_t {
   DEVICE_BUSY = 603,
   /// Unsupported operation on this device
   DEVICE_NOT_SUPPORTED = 604,
+  /// Invalid response from device
+  INVALID_RESPONSE = 605,
 
   // WASI bridge errors (700-799)
   /// Bridge callback not set

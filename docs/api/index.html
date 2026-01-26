@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="HD Wallet WASM API Reference - Complete JavaScript/TypeScript API documentation with code examples">
+  <title>API Reference - HD Wallet WASM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="container navbar-content">
+      <a href="../index.html" class="navbar-brand">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="8" fill="url(#logo-gradient)"/>
+          <path d="M8 12h6v8H8v-8zm10 0h6v8h-6v-8zM11 8v4M21 8v4M11 20v4M21 20v4" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#6366f1"/>
+              <stop offset="1" stop-color="#a855f7"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        HD Wallet WASM
+      </a>
+
+      <ul class="navbar-nav">
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="../learn/how-it-works.html">Learn</a></li>
+        <li><a href="index.html" class="active">API</a></li>
+        <li><a href="../examples/mnemonic/index.html">Examples</a></li>
+      </ul>
+
+      <div class="navbar-actions">
+        <button class="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light mode">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+        <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12h18M3 6h18M3 18h18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="section">
+    <div class="container container-lg">
+      <div class="docs-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="docs-sidebar glass card">
+          <nav class="docs-nav">
+            <div class="docs-nav-section">
+              <div class="docs-nav-title">Getting Started</div>
+              <ul class="docs-nav-list" style="list-style: none;">
+                <li class="docs-nav-item"><a href="#installation" class="docs-nav-link">Installation</a></li>
+                <li class="docs-nav-item"><a href="#initialization" class="docs-nav-link">Initialization</a></li>
+                <li class="docs-nav-item"><a href="#enums" class="docs-nav-link">Enums & Types</a></li>
+              </ul>
+            </div>
+
+            <div class="docs-nav-section">
+              <div class="docs-nav-title">Mnemonic API</div>
+              <ul class="docs-nav-list" style="list-style: none;">
+                <li class="docs-nav-item"><a href="#mnemonic-generate" class="docs-nav-link">generate()</a></li>
+                <li class="docs-nav-item"><a href="#mnemonic-validate" class="docs-nav-link">validate()</a></li>
+                <li class="docs-nav-item"><a href="#mnemonic-toseed" class="docs-nav-link">toSeed()</a></li>
+                <li class="docs-nav-item"><a href="#mnemonic-toentropy" class="docs-nav-link">toEntropy()</a></li>
+                <li class="docs-nav-item"><a href="#mnemonic-fromentropy" class="docs-nav-link">fromEntropy()</a></li>
+              </ul>
+            </div>
+
+            <div class="docs-nav-section">
+              <div class="docs-nav-title">HD Key API</div>
+              <ul class="docs-nav-list" style="list-style: none;">
+                <li class="docs-nav-item"><a href="#hdkey-fromseed" class="docs-nav-link">fromSeed()</a></li>
+                <li class="docs-nav-item"><a href="#hdkey-fromxprv" class="docs-nav-link">fromXprv()</a></li>
+                <li class="docs-nav-item"><a href="#hdkey-derivepath" class="docs-nav-link">derivePath()</a></li>
+                <li class="docs-nav-item"><a href="#hdkey-derivechild" class="docs-nav-link">deriveChild()</a></li>
+                <li class="docs-nav-item"><a href="#hdkey-neutered" class="docs-nav-link">neutered()</a></li>
+                <li class="docs-nav-item"><a href="#hdkey-serialization" class="docs-nav-link">Serialization</a></li>
+              </ul>
+            </div>
+
+            <div class="docs-nav-section">
+              <div class="docs-nav-title">Chain APIs</div>
+              <ul class="docs-nav-list" style="list-style: none;">
+                <li class="docs-nav-item"><a href="#bitcoin" class="docs-nav-link">Bitcoin</a></li>
+                <li class="docs-nav-item"><a href="#ethereum" class="docs-nav-link">Ethereum</a></li>
+                <li class="docs-nav-item"><a href="#solana" class="docs-nav-link">Solana</a></li>
+                <li class="docs-nav-item"><a href="#cosmos" class="docs-nav-link">Cosmos</a></li>
+              </ul>
+            </div>
+
+            <div class="docs-nav-section">
+              <div class="docs-nav-title">Utilities</div>
+              <ul class="docs-nav-list" style="list-style: none;">
+                <li class="docs-nav-item"><a href="#utils-hashing" class="docs-nav-link">Hashing</a></li>
+                <li class="docs-nav-item"><a href="#utils-encoding" class="docs-nav-link">Encoding</a></li>
+                <li class="docs-nav-item"><a href="#utils-curves" class="docs-nav-link">Curves</a></li>
+              </ul>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="docs-content">
+          <h1>API Reference</h1>
+          <p class="text-secondary mb-xl">
+            Complete JavaScript/TypeScript API documentation for HD Wallet WASM.
+          </p>
+
+          <!-- Installation -->
+          <section id="installation" class="mb-xl">
+            <h2>Installation</h2>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">bash</span>
+                <button class="code-copy-btn" title="Copy code">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <pre><code># NPM
+npm install @digitalarsenal/hd-wallet-wasm
+
+# Yarn
+yarn add @digitalarsenal/hd-wallet-wasm
+
+# PNPM
+pnpm add @digitalarsenal/hd-wallet-wasm</code></pre>
+            </div>
+          </section>
+
+          <!-- Initialization -->
+          <section id="initialization" class="mb-xl">
+            <h2>Initialization</h2>
+
+            <p>
+              The WASM module must be initialized before use. This is an async operation
+              that loads and compiles the WebAssembly binary.
+            </p>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">javascript</span>
+                <button class="code-copy-btn" title="Copy code">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <pre><code class="language-javascript">import HDWalletWasm from '@digitalarsenal/hd-wallet-wasm';
+
+// Initialize the module
+const wallet = await HDWalletWasm();
+
+// Check module status
+console.log('Version:', wallet.getVersion());
+console.log('Has Crypto++:', wallet.hasCryptopp());
+console.log('FIPS Mode:', wallet.isFipsMode());
+console.log('Supported Coins:', wallet.getSupportedCoins());
+console.log('Supported Curves:', wallet.getSupportedCurves());
+
+// In WASI environments, inject entropy first
+if (wallet.getEntropyStatus() === 0) {
+  const entropy = crypto.getRandomValues(new Uint8Array(64));
+  wallet.injectEntropy(entropy);
+}</code></pre>
+            </div>
+          </section>
+
+          <!-- Enums & Types -->
+          <section id="enums" class="mb-xl">
+            <h2>Enums & Types</h2>
+
+            <div class="api-method">
+              <h4>Curve</h4>
+              <p class="api-method-description">Supported elliptic curves for key derivation and signing.</p>
+              <div class="code-block">
+                <pre><code class="language-typescript">enum Curve {
+  SECP256K1 = 0,  // Bitcoin, Ethereum
+  ED25519 = 1,    // Solana, Polkadot
+  P256 = 2,       // NIST P-256 (secp256r1)
+  P384 = 3,       // NIST P-384 (secp384r1)
+  X25519 = 4      // Key exchange only
+}</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <h4>CoinType</h4>
+              <p class="api-method-description">SLIP-44 registered coin type indices.</p>
+              <div class="code-block">
+                <pre><code class="language-typescript">enum CoinType {
+  BITCOIN = 0,
+  BITCOIN_TESTNET = 1,
+  LITECOIN = 2,
+  DOGECOIN = 3,
+  ETHEREUM = 60,
+  ETHEREUM_CLASSIC = 61,
+  COSMOS = 118,
+  STELLAR = 148,
+  BITCOIN_CASH = 145,
+  POLKADOT = 354,
+  KUSAMA = 434,
+  SOLANA = 501,
+  BINANCE = 714,
+  CARDANO = 1815
+}</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <h4>Language</h4>
+              <p class="api-method-description">BIP-39 wordlist languages.</p>
+              <div class="code-block">
+                <pre><code class="language-typescript">enum Language {
+  ENGLISH = 0,
+  JAPANESE = 1,
+  KOREAN = 2,
+  SPANISH = 3,
+  CHINESE_SIMPLIFIED = 4,
+  CHINESE_TRADITIONAL = 5,
+  FRENCH = 6,
+  ITALIAN = 7,
+  CZECH = 8,
+  PORTUGUESE = 9
+}</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <h4>BitcoinAddressType</h4>
+              <p class="api-method-description">Bitcoin address format types.</p>
+              <div class="code-block">
+                <pre><code class="language-typescript">enum BitcoinAddressType {
+  P2PKH = 0,   // Legacy (1...)
+  P2SH = 1,    // Script hash (3...)
+  P2WPKH = 2,  // Native SegWit (bc1q...)
+  P2WSH = 3,   // SegWit script hash
+  P2TR = 4     // Taproot (bc1p...)
+}</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- Mnemonic API -->
+          <section id="mnemonic-generate" class="mb-xl">
+            <h2>Mnemonic API</h2>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">mnemonic.generate()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Generate a random BIP-39 mnemonic phrase with the specified word count.
+              </p>
+
+              <div class="api-params">
+                <div class="api-params-title">Parameters</div>
+                <div class="api-param">
+                  <span class="api-param-name">wordCount</span>
+                  <span class="api-param-type">number</span>
+                  <span class="api-param-description">Number of words (12, 15, 18, 21, or 24). Default: 24</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">language</span>
+                  <span class="api-param-type">Language</span>
+                  <span class="api-param-description">Wordlist language. Default: ENGLISH</span>
+                </div>
+              </div>
+
+              <div class="api-params">
+                <div class="api-params-title">Returns</div>
+                <div class="api-param">
+                  <span class="api-param-name">mnemonic</span>
+                  <span class="api-param-type">string</span>
+                  <span class="api-param-description">Space-separated mnemonic phrase</span>
+                </div>
+              </div>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Generate 24-word English mnemonic
+const mnemonic24 = wallet.mnemonic.generate(24);
+
+// Generate 12-word mnemonic
+const mnemonic12 = wallet.mnemonic.generate(12);
+
+// Generate Japanese mnemonic
+const mnemonicJp = wallet.mnemonic.generate(24, Language.JAPANESE);</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="mnemonic-validate">
+              <div class="api-method-header">
+                <span class="api-method-name">mnemonic.validate()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Validate a BIP-39 mnemonic phrase. Checks word count, wordlist membership, and checksum.
+              </p>
+
+              <div class="api-params">
+                <div class="api-params-title">Parameters</div>
+                <div class="api-param">
+                  <span class="api-param-name">mnemonic</span>
+                  <span class="api-param-type">string</span>
+                  <span class="api-param-description">Space-separated mnemonic phrase to validate</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">language</span>
+                  <span class="api-param-type">Language</span>
+                  <span class="api-param-description">Wordlist language. Default: ENGLISH</span>
+                </div>
+              </div>
+
+              <div class="api-params">
+                <div class="api-params-title">Returns</div>
+                <div class="api-param">
+                  <span class="api-param-name">isValid</span>
+                  <span class="api-param-type">boolean</span>
+                  <span class="api-param-description">True if mnemonic is valid</span>
+                </div>
+              </div>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const isValid = wallet.mnemonic.validate(mnemonic);
+if (!isValid) {
+  throw new Error('Invalid mnemonic phrase');
+}</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="mnemonic-toseed">
+              <div class="api-method-header">
+                <span class="api-method-name">mnemonic.toSeed()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Convert a mnemonic phrase to a 64-byte seed using PBKDF2-HMAC-SHA512.
+              </p>
+
+              <div class="api-params">
+                <div class="api-params-title">Parameters</div>
+                <div class="api-param">
+                  <span class="api-param-name">mnemonic</span>
+                  <span class="api-param-type">string</span>
+                  <span class="api-param-description">Space-separated mnemonic phrase</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">passphrase</span>
+                  <span class="api-param-type">string</span>
+                  <span class="api-param-description">Optional passphrase (25th word). Default: ""</span>
+                </div>
+              </div>
+
+              <div class="api-params">
+                <div class="api-params-title">Returns</div>
+                <div class="api-param">
+                  <span class="api-param-name">seed</span>
+                  <span class="api-param-type">Uint8Array</span>
+                  <span class="api-param-description">64-byte seed</span>
+                </div>
+              </div>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Without passphrase
+const seed = wallet.mnemonic.toSeed(mnemonic);
+
+// With passphrase (25th word)
+const seedWithPass = wallet.mnemonic.toSeed(mnemonic, 'my secret passphrase');
+
+console.log('Seed length:', seed.length); // 64</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="mnemonic-toentropy">
+              <div class="api-method-header">
+                <span class="api-method-name">mnemonic.toEntropy()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Convert a mnemonic phrase back to its original entropy bytes.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const entropy = wallet.mnemonic.toEntropy(mnemonic);
+console.log('Entropy bytes:', entropy.length); // 16-32 depending on word count</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="mnemonic-fromentropy">
+              <div class="api-method-header">
+                <span class="api-method-name">mnemonic.fromEntropy()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Generate a mnemonic phrase from provided entropy bytes.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Create entropy externally (CSPRNG)
+const entropy = crypto.getRandomValues(new Uint8Array(32)); // 256 bits
+
+// Convert to 24-word mnemonic
+const mnemonic = wallet.mnemonic.fromEntropy(entropy);
+console.log(mnemonic.split(' ').length); // 24</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- HD Key API -->
+          <section id="hdkey-fromseed" class="mb-xl">
+            <h2>HD Key API</h2>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">hdkey.fromSeed()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Create a master HD key from a seed. This is the root of the key derivation tree.
+              </p>
+
+              <div class="api-params">
+                <div class="api-params-title">Parameters</div>
+                <div class="api-param">
+                  <span class="api-param-name">seed</span>
+                  <span class="api-param-type">Uint8Array</span>
+                  <span class="api-param-description">64-byte seed from mnemonic.toSeed()</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">curve</span>
+                  <span class="api-param-type">Curve</span>
+                  <span class="api-param-description">Elliptic curve. Default: SECP256K1</span>
+                </div>
+              </div>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const seed = wallet.mnemonic.toSeed(mnemonic);
+
+// Create secp256k1 master key (Bitcoin, Ethereum)
+const masterKey = wallet.hdkey.fromSeed(seed);
+
+// Create Ed25519 master key (Solana)
+const masterKeyEd = wallet.hdkey.fromSeed(seed, Curve.ED25519);</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="hdkey-fromxprv">
+              <div class="api-method-header">
+                <span class="api-method-name">hdkey.fromXprv() / fromXpub()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Parse an extended key from its Base58Check-encoded serialization.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Parse extended private key
+const key = wallet.hdkey.fromXprv('xprv9s21ZrQH143K...');
+
+// Parse extended public key (watch-only)
+const pubKey = wallet.hdkey.fromXpub('xpub661MyMwAqRbc...');
+console.log(pubKey.isNeutered); // true</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="hdkey-derivepath">
+              <div class="api-method-header">
+                <span class="api-method-name">key.derivePath()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Derive a child key at the specified BIP-32 path.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Derive Bitcoin (BIP-84 native SegWit)
+const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
+
+// Derive Ethereum
+const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
+
+// Access key data
+console.log('Depth:', btcKey.depth);              // 5
+console.log('Path:', btcKey.path);                // "m/84'/0'/0'/0/0"
+console.log('Private key:', btcKey.privateKey()); // Uint8Array(32)
+console.log('Public key:', btcKey.publicKey());   // Uint8Array(33)</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="hdkey-derivechild">
+              <div class="api-method-header">
+                <span class="api-method-name">key.deriveChild() / deriveHardened()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Derive a single child key at the specified index.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Non-hardened derivation (index 0-2147483647)
+const child0 = masterKey.deriveChild(0);
+
+// Hardened derivation (index >= 2147483648)
+const childH = masterKey.deriveHardened(44);
+// Equivalent to:
+const childH2 = masterKey.deriveChild(44 + 0x80000000);</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="hdkey-neutered">
+              <div class="api-method-header">
+                <span class="api-method-name">key.neutered()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Get a public-only (neutered) version of the key. Useful for creating watch-only wallets.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const accountKey = masterKey.derivePath("m/84'/0'/0'");
+const watchOnly = accountKey.neutered();
+
+console.log(watchOnly.isNeutered);  // true
+console.log(watchOnly.toXpub());    // "xpub..."
+watchOnly.privateKey();             // throws Error</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method" id="hdkey-serialization">
+              <div class="api-method-header">
+                <span class="api-method-name">key.toXprv() / toXpub()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Serialize the extended key to Base58Check format.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const xprv = masterKey.toXprv();  // "xprv9s21ZrQH143K..."
+const xpub = masterKey.toXpub();  // "xpub661MyMwAqRbc..."
+
+// Clean up sensitive data when done
+masterKey.wipe();</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- Bitcoin API -->
+          <section id="bitcoin" class="mb-xl">
+            <h2>Bitcoin API</h2>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">bitcoin.getAddress()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Generate a Bitcoin address from a public key.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
+const pubKey = btcKey.publicKey();
+
+// Native SegWit (bech32)
+const p2wpkh = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2WPKH);
+// "bc1q..."
+
+// Legacy
+const p2pkh = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2PKH);
+// "1..."
+
+// Taproot
+const p2tr = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2TR);
+// "bc1p..."
+
+// Testnet
+const testnet = wallet.bitcoin.getAddress(pubKey, BitcoinAddressType.P2WPKH, Network.TESTNET);
+// "tb1q..."</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">bitcoin.signMessage()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Sign a message using the Bitcoin Signed Message format.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const message = 'Hello, Bitcoin!';
+const signature = wallet.bitcoin.signMessage(message, btcKey.privateKey());
+
+// Verify
+const isValid = wallet.bitcoin.verifyMessage(message, signature, address);
+console.log(isValid); // true</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- Ethereum API -->
+          <section id="ethereum" class="mb-xl">
+            <h2>Ethereum API</h2>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">ethereum.getAddress()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Generate an Ethereum address from a public key.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
+const pubKey = ethKey.publicKey();
+
+// Get address (lowercase)
+const address = wallet.ethereum.getAddress(pubKey);
+// "0x..."
+
+// Get checksummed address (EIP-55)
+const checksummed = wallet.ethereum.getChecksumAddress(address);
+// "0x..." with mixed case</code></pre>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">ethereum.signMessage()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Sign a message using EIP-191 personal_sign format.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const message = 'Sign this message';
+const signature = wallet.ethereum.signMessage(message, ethKey.privateKey());
+
+// Recover signer address
+const recoveredAddress = wallet.ethereum.verifyMessage(message, signature);
+console.log(recoveredAddress === address); // true</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- Solana API -->
+          <section id="solana" class="mb-xl">
+            <h2>Solana API</h2>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">solana.getAddress()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Generate a Solana address from an Ed25519 public key.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">// Solana uses Ed25519 curve
+const solSeed = wallet.mnemonic.toSeed(mnemonic);
+const solMaster = wallet.hdkey.fromSeed(solSeed, Curve.ED25519);
+
+// Standard Solana derivation path
+const solKey = solMaster.derivePath("m/44'/501'/0'/0'");
+const pubKey = solKey.publicKey();
+
+// Get Base58 address
+const address = wallet.solana.getAddress(pubKey);
+// Base58-encoded public key</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- Cosmos API -->
+          <section id="cosmos" class="mb-xl">
+            <h2>Cosmos API</h2>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">cosmos.getAddress()</span>
+                <span class="api-method-badge sync">sync</span>
+              </div>
+              <p class="api-method-description">
+                Generate a Cosmos/Tendermint address with custom bech32 prefix.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">
+                  <span class="code-block-lang">javascript</span>
+                  <button class="code-copy-btn" title="Copy code">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                    </svg>
+                  </button>
+                </div>
+                <pre><code class="language-javascript">const cosmosKey = masterKey.derivePath("m/44'/118'/0'/0/0");
+const pubKey = cosmosKey.publicKey();
+
+// Cosmos Hub
+const cosmosAddr = wallet.cosmos.getAddress(pubKey, 'cosmos');
+// "cosmos1..."
+
+// Osmosis
+const osmoAddr = wallet.cosmos.getAddress(pubKey, 'osmo');
+// "osmo1..."
+
+// Terra
+const terraAddr = wallet.cosmos.getAddress(pubKey, 'terra');
+// "terra1..."</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <!-- Utilities -->
+          <section id="utils-hashing" class="mb-xl">
+            <h2>Utilities</h2>
+
+            <h3>Hashing Functions</h3>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">javascript</span>
+                <button class="code-copy-btn" title="Copy code">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <pre><code class="language-javascript">const data = new TextEncoder().encode('Hello, World!');
+
+// SHA-256
+const sha256Hash = wallet.utils.sha256(data);
+
+// SHA-512
+const sha512Hash = wallet.utils.sha512(data);
+
+// Keccak-256 (Ethereum)
+const keccakHash = wallet.utils.keccak256(data);
+
+// RIPEMD-160
+const ripemdHash = wallet.utils.ripemd160(data);
+
+// HASH160 (SHA256 + RIPEMD160, used in Bitcoin)
+const hash160 = wallet.utils.hash160(data);
+
+// BLAKE2b (Polkadot)
+const blake2b = wallet.utils.blake2b(data, 32);
+
+// BLAKE2s
+const blake2s = wallet.utils.blake2s(data, 32);</code></pre>
+            </div>
+          </section>
+
+          <section id="utils-encoding" class="mb-xl">
+            <h3>Encoding Functions</h3>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">javascript</span>
+                <button class="code-copy-btn" title="Copy code">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <pre><code class="language-javascript">const bytes = new Uint8Array([1, 2, 3, 4]);
+
+// Hex encoding
+const hex = wallet.utils.encodeHex(bytes);    // "01020304"
+const decoded = wallet.utils.decodeHex(hex);  // Uint8Array
+
+// Base58 (Bitcoin-style)
+const b58 = wallet.utils.encodeBase58(bytes);
+const decodedB58 = wallet.utils.decodeBase58(b58);
+
+// Base58Check (with checksum)
+const b58check = wallet.utils.encodeBase58Check(bytes);
+const decodedB58Check = wallet.utils.decodeBase58Check(b58check);
+
+// Bech32 (SegWit addresses)
+const bech32 = wallet.utils.encodeBech32('bc', bytes);
+const { hrp, data } = wallet.utils.decodeBech32(bech32);
+
+// Base64
+const b64 = wallet.utils.encodeBase64(bytes);
+const decodedB64 = wallet.utils.decodeBase64(b64);</code></pre>
+            </div>
+          </section>
+
+          <section id="utils-curves" class="mb-xl">
+            <h3>Curve Operations</h3>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">javascript</span>
+                <button class="code-copy-btn" title="Copy code">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <pre><code class="language-javascript">// secp256k1 ECDSA signing
+const message = wallet.utils.sha256(data);
+const signature = wallet.curves.secp256k1.sign(message, privateKey);
+const isValid = wallet.curves.secp256k1.verify(message, signature, publicKey);
+
+// Recoverable signature (used in Ethereum)
+const { signature: sig, recoveryId } = wallet.curves.secp256k1.signRecoverable(message, privateKey);
+const recoveredPubKey = wallet.curves.secp256k1.recover(message, sig, recoveryId);
+
+// Ed25519 signing (Solana, Polkadot)
+const edSig = wallet.curves.ed25519.sign(message, privateKey);
+const edValid = wallet.curves.ed25519.verify(message, edSig, publicKey);
+
+// ECDH key exchange
+const sharedSecret = wallet.curves.secp256k1.ecdh(myPrivateKey, theirPublicKey);</code></pre>
+            </div>
+          </section>
+
+          <!-- Navigation -->
+          <div class="flex flex-between mt-xl" style="flex-wrap: wrap; gap: var(--spacing-md);">
+            <a href="../learn/how-it-works.html" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+              How It Works
+            </a>
+            <a href="../examples/mnemonic/index.html" class="btn btn-primary">
+              Try Interactive Demo
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <p class="footer-text">HD Wallet WASM - MIT License</p>
+        <ul class="footer-links">
+          <li><a href="https://github.com/user/hd-wallet-wasm" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://www.npmjs.com/package/@digitalarsenal/hd-wallet-wasm" target="_blank" rel="noopener">NPM</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="../assets/js/app.mjs"></script>
+  <script type="module">
+    // Highlight active nav item on scroll
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.docs-nav-link');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          navLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+          });
+        }
+      });
+    }, { rootMargin: '-100px 0px -70% 0px' });
+
+    sections.forEach(section => observer.observe(section));
+  </script>
+</body>
+</html>

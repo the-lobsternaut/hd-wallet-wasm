@@ -26,3 +26,15 @@ Thumbs.db
 
 # Test artifacts
 test_data/
+
+# NPM
+node_modules/
+package-lock.json
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+
+# Downloaded wordlists (regenerate from official source)
+src/bip39_english.txt
