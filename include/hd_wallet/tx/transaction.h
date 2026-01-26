@@ -18,6 +18,7 @@
 #include "../config.h"
 #include "../types.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <memory>
