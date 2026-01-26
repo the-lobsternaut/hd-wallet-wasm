@@ -28,7 +28,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "cmake --build ../build --target hd_wallet_wasm_npm -j",
+    "build": "cmake --build ../build-wasm --target hd_wallet_wasm_npm -j",
     "test": "node test/test_all.mjs",
     "test:bip39": "node test/test_bip39.mjs",
     "test:bip32": "node test/test_bip32.mjs",

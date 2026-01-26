@@ -604,7 +604,7 @@ async function loadWasmModule(wasmPath) {
 
   try {
     // Try dynamic import (works in Node.js and bundlers)
-    const module = await import('./hd-wallet.js');
+    const module = await import('../dist/hd-wallet.js');
     HDWalletWasm = module.default;
   } catch (e) {
     // Fallback for browsers without ES module support
