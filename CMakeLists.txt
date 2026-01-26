@@ -245,6 +245,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/eddsa.cpp
       src/ecdh.cpp
       src/wasi_bridge.cpp
+      src/aligned_api.cpp
     )
 
     # ==========================================================================
@@ -312,6 +313,21 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_ed25519_pubkey_from_seed"
       "_hd_x25519_pubkey"
       "_hd_ecdh_x25519"
+
+      # ========== Aligned Binary API ==========
+      "_hd_aligned_derive_batch"
+      "_hd_aligned_sign_batch"
+      "_hd_aligned_verify_batch"
+      "_hd_aligned_stream_create"
+      "_hd_aligned_stream_next"
+      "_hd_aligned_stream_status"
+      "_hd_aligned_stream_destroy"
+      "_hd_aligned_from_extended_key"
+      "_hd_aligned_to_extended_key"
+      "_hd_aligned_derived_key_entry_size"
+      "_hd_aligned_signature_entry_size"
+      "_hd_aligned_extended_key_data_size"
+      "_hd_aligned_batch_derive_request_size"
     )
     string(JOIN "," EXPORTED_FUNCS_STR ${WASM_EXPORTED_FUNCTIONS})
 

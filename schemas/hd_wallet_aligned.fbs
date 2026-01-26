@@ -1,0 +1,302 @@
+// HD Wallet Aligned Binary Format
+// FlatBuffers schema for zero-copy WASM interop
+//
+// This schema defines fixed-size, memory-aligned structs for efficient
+// batch operations between WASM and host environments.
+
+namespace HdWallet;
+
+// =============================================================================
+// Core Byte Array Types (matching C++ types)
+// =============================================================================
+
+/// 32-byte array for private keys, chain codes, etc.
+struct Bytes32 {
+  data:[ubyte:32];
+}
+
+/// 33-byte array for compressed public keys
+struct Bytes33 {
+  data:[ubyte:33];
+}
+
+/// 64-byte array for signatures, seeds
+struct Bytes64 {
+  data:[ubyte:64];
+}
+
+// =============================================================================
+// Enums
+// =============================================================================
+
+/// Elliptic curve types (matches hd_wallet::Curve)
+enum Curve : ubyte {
+  SECP256K1 = 0,
+  ED25519 = 1,
+  P256 = 2,
+  P384 = 3,
+  X25519 = 4
+}
+
+/// Error codes for batch operations (matches hd_wallet::Error)
+enum Error : int32 {
+  OK = 0,
+  UNKNOWN = 1,
+  INVALID_ARGUMENT = 2,
+  NOT_SUPPORTED = 3,
+  OUT_OF_MEMORY = 4,
+  INTERNAL = 5,
+  NO_ENTROPY = 100,
+  INSUFFICIENT_ENTROPY = 101,
+  INVALID_WORD = 200,
+  INVALID_CHECKSUM = 201,
+  INVALID_MNEMONIC_LENGTH = 202,
+  INVALID_ENTROPY_LENGTH = 203,
+  INVALID_SEED = 300,
+  INVALID_PATH = 301,
+  INVALID_CHILD_INDEX = 302,
+  HARDENED_FROM_PUBLIC = 303,
+  INVALID_EXTENDED_KEY = 304,
+  INVALID_PRIVATE_KEY = 400,
+  INVALID_PUBLIC_KEY = 401,
+  INVALID_SIGNATURE = 402,
+  VERIFICATION_FAILED = 403,
+  KEY_DERIVATION_FAILED = 404
+}
+
+// =============================================================================
+// Extended Key Data
+// =============================================================================
+
+/// Extended key data (mirrors ExtendedKey class layout)
+/// Total size: 112 bytes
+struct ExtendedKeyData {
+  /// Elliptic curve type
+  curve:Curve;
+  /// Key depth in derivation tree
+  depth:ubyte;
+  /// Padding for alignment
+  _pad0:[ubyte:2];
+  /// Parent key fingerprint
+  parent_fingerprint:uint32;
+  /// Child index (with hardened flag in high bit)
+  child_index:uint32;
+  /// Chain code (32 bytes)
+  chain_code:Bytes32;
+  /// Compressed public key (33 bytes)
+  public_key:Bytes33;
+  /// Padding after public key
+  _pad1:[ubyte:3];
+  /// Private key (32 bytes, zeroed if neutered)
+  private_key:Bytes32;
+  /// Whether private key is present (0 = neutered)
+  has_private_key:ubyte;
+  /// Final padding
+  _pad2:[ubyte:3];
+}
+
+// =============================================================================
+// Batch Derivation Structures
+// =============================================================================
+
+/// Request for batch key derivation
+/// Derives multiple child keys from a base key
+/// Total size: 128 bytes (112 + 16)
+struct BatchDeriveRequest {
+  /// Base key to derive from
+  base_key:ExtendedKeyData;
+  /// Starting child index
+  start_index:uint32;
+  /// Number of keys to derive
+  count:uint32;
+  /// Whether to use hardened derivation
+  hardened:ubyte;
+  /// Padding
+  _pad:[ubyte:7];
+}
+
+/// Result entry for a derived key
+/// Total size: 76 bytes
+struct DerivedKeyEntry {
+  /// Child index that was derived
+  index:uint32;
+  /// Error code (OK = 0 on success)
+  error:Error;
+  /// Compressed public key
+  public_key:Bytes33;
+  /// Padding after public key
+  _pad0:[ubyte:3];
+  /// Private key (if base key had private key)
+  private_key:Bytes32;
+}
+
+// =============================================================================
+// Batch Signing Structures
+// =============================================================================
+
+/// Request for batch signing
+/// Signs multiple message hashes with the same private key
+/// Total size: 40 bytes
+struct BatchSignRequest {
+  /// Private key for signing
+  private_key:Bytes32;
+  /// Elliptic curve type
+  curve:Curve;
+  /// Padding
+  _pad:[ubyte:3];
+  /// Number of hashes to sign
+  count:uint32;
+}
+
+/// Entry for a hash to be signed (input)
+/// Total size: 36 bytes
+struct HashEntry {
+  /// Index identifier for this hash
+  index:uint32;
+  /// Hash to sign (32 bytes)
+  hash:Bytes32;
+}
+
+/// Result entry for a signature
+/// Total size: 76 bytes
+struct SignatureEntry {
+  /// Index matching the hash entry
+  index:uint32;
+  /// Error code (OK = 0 on success)
+  error:Error;
+  /// Signature (64 bytes for ECDSA r||s format)
+  signature:Bytes64;
+  /// Recovery ID for recoverable signatures (-1 if not applicable)
+  recovery_id:int8;
+  /// Padding
+  _pad:[ubyte:3];
+}
+
+// =============================================================================
+// Batch Verification Structures
+// =============================================================================
+
+/// Request for batch signature verification
+/// Total size: 40 bytes
+struct BatchVerifyRequest {
+  /// Public key for verification
+  public_key:Bytes33;
+  /// Padding after public key
+  _pad0:[ubyte:3];
+  /// Elliptic curve type
+  curve:Curve;
+  /// Padding
+  _pad1:[ubyte:3];
+  /// Number of signatures to verify
+  count:uint32;
+}
+
+/// Entry for a signature to be verified (input)
+/// Total size: 100 bytes
+struct VerifyEntry {
+  /// Index identifier
+  index:uint32;
+  /// Hash that was signed
+  hash:Bytes32;
+  /// Signature to verify
+  signature:Bytes64;
+}
+
+/// Result entry for verification
+/// Total size: 8 bytes
+struct VerifyResultEntry {
+  /// Index matching the verify entry
+  index:uint32;
+  /// Error code (OK = verified, VERIFICATION_FAILED = invalid)
+  error:Error;
+}
+
+// =============================================================================
+// Streaming Structures
+// =============================================================================
+
+/// Configuration for streaming key derivation
+/// Total size: 128 bytes (same as BatchDeriveRequest)
+struct StreamDeriveConfig {
+  /// Base key to derive from
+  base_key:ExtendedKeyData;
+  /// Starting child index
+  start_index:uint32;
+  /// Batch size for each stream call
+  batch_size:uint32;
+  /// Whether to use hardened derivation
+  hardened:ubyte;
+  /// Padding
+  _pad:[ubyte:7];
+}
+
+/// Status of a streaming operation
+/// Total size: 16 bytes
+struct StreamStatus {
+  /// Number of keys derived so far
+  derived_count:uint32;
+  /// Current index position
+  current_index:uint32;
+  /// Error code (OK if no error)
+  error:Error;
+  /// Whether stream is complete
+  complete:ubyte;
+  /// Padding
+  _pad:[ubyte:3];
+}
+
+// =============================================================================
+// Address Generation Structures
+// =============================================================================
+
+/// Address type enum for Bitcoin addresses
+enum AddressType : ubyte {
+  P2PKH = 0,
+  P2SH = 1,
+  P2WPKH = 2,
+  P2WSH = 3,
+  P2TR = 4
+}
+
+/// Network type enum
+enum Network : ubyte {
+  MAINNET = 0,
+  TESTNET = 1
+}
+
+/// Request for batch address generation
+/// Total size: 8 bytes
+struct BatchAddressRequest {
+  /// Address type to generate
+  address_type:AddressType;
+  /// Network (mainnet/testnet)
+  network:Network;
+  /// Padding
+  _pad:[ubyte:2];
+  /// Number of addresses to generate
+  count:uint32;
+}
+
+/// Entry for address generation input (just public key)
+/// Total size: 36 bytes
+struct AddressInputEntry {
+  /// Index identifier
+  index:uint32;
+  /// Compressed public key
+  public_key:Bytes33;
+  /// Padding
+  _pad:[ubyte:3];
+}
+
+/// Entry for generated address result
+/// Total size: 68 bytes
+struct AddressResultEntry {
+  /// Index matching input
+  index:uint32;
+  /// Error code
+  error:Error;
+  /// Generated address (null-terminated, max 62 chars for bech32)
+  address:[ubyte:62];
+  /// Padding
+  _pad:[ubyte:2];
+}
