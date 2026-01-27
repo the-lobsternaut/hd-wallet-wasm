@@ -524,20 +524,20 @@ static bip32::ExtendedKey* toKey(bip32::hd_key_handle handle) {
 /**
  * Create master HD key from seed
  * @param seed Seed bytes
- * @param seed_size Seed size (should be 64 bytes)
+ * @param seed_size Seed size (16-64 bytes per BIP-32 spec)
  * @param curve Curve enum value
  * @return Key handle, or nullptr on failure
  */
 extern "C" HD_WALLET_EXPORT
 bip32::hd_key_handle hd_key_from_seed(const uint8_t* seed, size_t seed_size, int32_t curve) {
-    if (seed_size != 64) {
+    // BIP-32 allows 128-512 bits (16-64 bytes)
+    if (seed_size < 16 || seed_size > 64) {
         return nullptr;
     }
 
-    Bytes64 seed_arr;
-    std::memcpy(seed_arr.data(), seed, 64);
+    ByteVector seed_vec(seed, seed + seed_size);
 
-    auto result = bip32::ExtendedKey::fromSeed(seed_arr, static_cast<Curve>(curve));
+    auto result = bip32::ExtendedKey::fromSeed(seed_vec, static_cast<Curve>(curve));
     if (!result.ok()) {
         return nullptr;
     }

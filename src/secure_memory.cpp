@@ -10,6 +10,7 @@
 
 #include "hd_wallet/secure_memory.h"
 #include "hd_wallet/config.h"
+#include "hd_wallet/wasi_bridge.h"
 
 #include <algorithm>
 #include <array>
@@ -478,11 +479,19 @@ public:
 
     T* allocate(size_t n) {
         if (n > static_cast<size_t>(-1) / sizeof(T)) {
+#if defined(__wasi__) || defined(HD_WALLET_NO_EXCEPTIONS)
+            std::abort();
+#else
             throw std::bad_alloc();
+#endif
         }
         T* ptr = static_cast<T*>(std::malloc(n * sizeof(T)));
         if (!ptr) {
+#if defined(__wasi__) || defined(HD_WALLET_NO_EXCEPTIONS)
+            std::abort();
+#else
             throw std::bad_alloc();
+#endif
         }
         return ptr;
     }
@@ -758,4 +767,32 @@ template class SecureAllocator<uint8_t>;
 template class SecureAllocator<char>;
 
 } // namespace secure
+
+// =============================================================================
+// MaskedKey Implementation (in hd_wallet namespace)
+// =============================================================================
+
+template<size_t N>
+void MaskedKey<N>::initializeMask() {
+    // Try to get entropy from the WASI bridge
+    auto& bridge = WasiBridge::instance();
+    int32_t result = bridge.getEntropy(mask_.data(), N);
+
+    if (result != static_cast<int32_t>(N)) {
+        // Fallback: Use a deterministic but unpredictable pattern
+        // This is less secure but better than nothing
+        // Mix in the address of this object for some entropy
+        uintptr_t addr = reinterpret_cast<uintptr_t>(this);
+        for (size_t i = 0; i < N; ++i) {
+            // Simple PRNG-like mixing
+            addr = addr * 6364136223846793005ULL + 1442695040888963407ULL;
+            mask_[i] = static_cast<uint8_t>(addr >> 56);
+        }
+    }
+}
+
+// Explicit template instantiations for common sizes
+template class MaskedKey<32>;
+template class MaskedKey<64>;
+
 } // namespace hd_wallet

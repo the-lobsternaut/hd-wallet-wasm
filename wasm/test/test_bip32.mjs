@@ -27,7 +27,7 @@ test('BIP-32 Test Vector 1 - Master key', () => {
   assertEqual(master.parentFingerprint, 0, 'Master parent fingerprint should be 0');
 
   const xprv = master.toXprv();
-  assertEqual(xprv, 'xprv9s21ZrQH143K3GJpoapnV8SFfuZaEHQ73gJknRx5bhtSgXQniwewjLMXh5L4sFJaNQEvjjhnRb9AwhqaAguGzKXD3bNZ5cGPi5yxDfYi5x6k',
+  assertEqual(xprv, 'xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi',
     'Master xprv should match test vector');
 
   const xpub = master.toXpub();

@@ -381,23 +381,43 @@ int32_t hd_mnemonic_generate(
     size_t word_count,
     int32_t language
 ) {
-    auto result = generateMnemonic(word_count, static_cast<Language>(language));
-    if (!result.ok()) {
-        // Return negative error code to distinguish from valid string length
-        return -static_cast<int32_t>(result.error);
-    }
-
-    if (result.value.size() >= output_size) {
+    // Null pointer validation
+    if (!output || output_size == 0) {
         return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     }
 
-    std::strcpy(output, result.value.c_str());
-    // Return the length of the mnemonic string on success
-    return static_cast<int32_t>(result.value.size());
+    // Language enum validation
+    if (language < 0 || language > static_cast<int32_t>(Language::ENGLISH)) {
+        return static_cast<int32_t>(Error::NOT_SUPPORTED);
+    }
+
+    auto result = generateMnemonic(word_count, static_cast<Language>(language));
+    if (!result.ok()) {
+        return static_cast<int32_t>(result.error);
+    }
+
+    // Safe string copy with bounds checking (need space for null terminator)
+    if (result.value.size() + 1 > output_size) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    std::memcpy(output, result.value.c_str(), result.value.size());
+    output[result.value.size()] = '\0';
+    return 0; // Success
 }
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 int32_t hd_mnemonic_validate(const char* mnemonic, int32_t language) {
+    // Null pointer validation
+    if (!mnemonic) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    // Language enum validation
+    if (language < 0 || language > static_cast<int32_t>(Language::ENGLISH)) {
+        return static_cast<int32_t>(Error::NOT_SUPPORTED);
+    }
+
     return static_cast<int32_t>(validateMnemonic(mnemonic, static_cast<Language>(language)));
 }
 
@@ -408,6 +428,11 @@ int32_t hd_mnemonic_to_seed(
     uint8_t* seed_out,
     size_t seed_size
 ) {
+    // Null pointer validation
+    if (!mnemonic || !seed_out) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
     if (seed_size < 64) {
         return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     }
@@ -428,6 +453,16 @@ int32_t hd_mnemonic_to_entropy(
     uint8_t* entropy_out,
     size_t* entropy_size
 ) {
+    // Null pointer validation
+    if (!mnemonic || !entropy_out || !entropy_size) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    // Language enum validation
+    if (language < 0 || language > static_cast<int32_t>(Language::ENGLISH)) {
+        return static_cast<int32_t>(Error::NOT_SUPPORTED);
+    }
+
     auto result = mnemonicToEntropy(mnemonic, static_cast<Language>(language));
     if (!result.ok()) {
         return static_cast<int32_t>(result.error);
@@ -451,17 +486,29 @@ int32_t hd_entropy_to_mnemonic(
     char* output,
     size_t output_size
 ) {
+    // Null pointer validation
+    if (!entropy || entropy_size == 0 || !output || output_size == 0) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    // Language enum validation
+    if (language < 0 || language > static_cast<int32_t>(Language::ENGLISH)) {
+        return static_cast<int32_t>(Error::NOT_SUPPORTED);
+    }
+
     ByteVector ent(entropy, entropy + entropy_size);
     auto result = entropyToMnemonic(ent, static_cast<Language>(language));
     if (!result.ok()) {
         return static_cast<int32_t>(result.error);
     }
 
-    if (result.value.size() >= output_size) {
+    // Safe string copy with bounds checking (need space for null terminator)
+    if (result.value.size() + 1 > output_size) {
         return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     }
 
-    std::strcpy(output, result.value.c_str());
+    std::memcpy(output, result.value.c_str(), result.value.size());
+    output[result.value.size()] = '\0';
     return static_cast<int32_t>(Error::OK);
 }
 
@@ -491,6 +538,16 @@ int32_t hd_mnemonic_suggest_word(
     size_t output_size,
     size_t max_suggestions
 ) {
+    // Null pointer validation
+    if (!prefix || !suggestions_out || output_size == 0) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    // Language enum validation
+    if (language < 0 || language > static_cast<int32_t>(Language::ENGLISH)) {
+        return static_cast<int32_t>(Error::NOT_SUPPORTED);
+    }
+
     auto suggestions = suggestWords(prefix, static_cast<Language>(language), max_suggestions);
 
     std::string result;
@@ -499,11 +556,13 @@ int32_t hd_mnemonic_suggest_word(
         result += suggestions[i];
     }
 
-    if (result.size() >= output_size) {
+    // Safe string copy with bounds checking (need space for null terminator)
+    if (result.size() + 1 > output_size) {
         return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     }
 
-    std::strcpy(suggestions_out, result.c_str());
+    std::memcpy(suggestions_out, result.c_str(), result.size());
+    suggestions_out[result.size()] = '\0';
     return static_cast<int32_t>(suggestions.size());
 }
 

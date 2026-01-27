@@ -12,8 +12,8 @@
 // Version information
 #define HD_WALLET_VERSION_MAJOR 0
 #define HD_WALLET_VERSION_MINOR 1
-#define HD_WALLET_VERSION_PATCH 0
-#define HD_WALLET_VERSION_STRING "0.1.0"
+#define HD_WALLET_VERSION_PATCH 5
+#define HD_WALLET_VERSION_STRING "0.1.5"
 
 // =============================================================================
 // Build Environment Detection
@@ -173,7 +173,8 @@ enum class WasiWarning {
 // =============================================================================
 
 #if HD_WALLET_IS_WASM
-  #define HD_WALLET_EXPORT extern "C" __attribute__((visibility("default")))
+  // Note: extern "C" is provided by HD_WALLET_C_EXPORT when used together
+  #define HD_WALLET_EXPORT __attribute__((visibility("default")))
 #else
   #ifdef _WIN32
     #ifdef HD_WALLET_BUILDING_DLL

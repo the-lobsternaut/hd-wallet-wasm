@@ -25,6 +25,25 @@
 #include <mutex>
 #include <string>
 
+#if HD_WALLET_IS_WASI
+// WASI random_get syscall
+extern "C" {
+    __attribute__((import_module("wasi_snapshot_preview1")))
+    __attribute__((import_name("random_get")))
+    int32_t __wasi_random_get(uint8_t* buf, size_t buf_len);
+}
+#elif defined(__linux__)
+#include <sys/random.h>
+#elif defined(__APPLE__)
+#include <Security/SecRandom.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
+#else
+#include <fstream>
+#endif
+
 #if !HD_WALLET_IS_WASI
 #include <chrono>
 #endif
@@ -293,27 +312,54 @@ int32_t WasiBridge::getEntropy(uint8_t* buffer, size_t length) {
         return -1;
     }
 
-    // Try callback first
+    // Try callback first (allows host to override)
     if (entropy_callback_) {
         return entropy_callback_(buffer, length);
     }
 
-    // Try entropy pool
+    // Try entropy pool (for manually injected entropy)
     if (getEntropyPool().hasEntropy()) {
         size_t extracted = getEntropyPool().extract(buffer, length);
         return static_cast<int32_t>(extracted);
     }
 
-#if !HD_WALLET_IS_WASI
-    // Native: use system random
-    // In production, use proper CSPRNG
-    // This is a placeholder - real implementation would use /dev/urandom or CryptGenRandom
-    for (size_t i = 0; i < length; ++i) {
-        buffer[i] = static_cast<uint8_t>(std::rand() & 0xFF);
+#if HD_WALLET_IS_WASI
+    // WASI: Use the random_get syscall for cryptographically secure entropy
+    int32_t result = __wasi_random_get(buffer, length);
+    if (result == 0) {
+        return static_cast<int32_t>(length);
     }
-    return static_cast<int32_t>(length);
+    return -1;
+#elif defined(__linux__)
+    // Linux: Use getrandom() for cryptographically secure entropy
+    ssize_t result = getrandom(buffer, length, 0);
+    if (result >= 0 && static_cast<size_t>(result) == length) {
+        return static_cast<int32_t>(length);
+    }
+    return -1;
+#elif defined(__APPLE__)
+    // macOS/iOS: Use SecRandomCopyBytes for cryptographically secure entropy
+    int result = SecRandomCopyBytes(kSecRandomDefault, length, buffer);
+    if (result == errSecSuccess) {
+        return static_cast<int32_t>(length);
+    }
+    return -1;
+#elif defined(_WIN32)
+    // Windows: Use BCryptGenRandom for cryptographically secure entropy
+    NTSTATUS status = BCryptGenRandom(NULL, buffer, static_cast<ULONG>(length), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (BCRYPT_SUCCESS(status)) {
+        return static_cast<int32_t>(length);
+    }
+    return -1;
 #else
-    // WASI with no entropy source
+    // Fallback: Read from /dev/urandom
+    std::ifstream urandom("/dev/urandom", std::ios::binary);
+    if (urandom.good()) {
+        urandom.read(reinterpret_cast<char*>(buffer), length);
+        if (urandom.gcount() == static_cast<std::streamsize>(length)) {
+            return static_cast<int32_t>(length);
+        }
+    }
     return -1;
 #endif
 }

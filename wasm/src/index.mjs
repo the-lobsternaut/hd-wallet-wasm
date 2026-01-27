@@ -771,8 +771,9 @@ function createModule(wasm) {
       const outputPtr = wasm._hd_alloc(1024);
       try {
         wasm._hd_mnemonic_suggest_word(prefixPtr, language, outputPtr, 1024, maxSuggestions);
-        const json = readString(wasm, outputPtr);
-        return JSON.parse(json);
+        const text = readString(wasm, outputPtr);
+        // C API returns newline-separated words
+        return text ? text.split('\n').filter(w => w.length > 0) : [];
       } finally {
         wasm._hd_dealloc(prefixPtr);
         wasm._hd_dealloc(outputPtr);
@@ -807,23 +808,24 @@ function createModule(wasm) {
   const hdkey = {
     /**
      * Create master key from seed
-     * @param {Uint8Array} seed - 64-byte seed
+     * @param {Uint8Array} seed - 16-64 byte seed (BIP-32 allows 128-512 bits)
      * @param {number} [curve=Curve.SECP256K1] - Elliptic curve
      * @returns {HDKey} Master HD key
      */
     fromSeed(seed, curve = Curve.SECP256K1) {
-      if (seed.length !== 64) {
-        throw new HDWalletError(ErrorCode.INVALID_SEED, 'Seed must be 64 bytes');
+      // BIP-32 allows 128-512 bits (16-64 bytes)
+      if (seed.length < 16 || seed.length > 64) {
+        throw new HDWalletError(ErrorCode.INVALID_SEED, 'Seed must be 16-64 bytes');
       }
       const seedPtr = allocAndCopy(wasm, seed);
       try {
-        const handle = wasm._hd_key_from_seed(seedPtr, 64, curve);
+        const handle = wasm._hd_key_from_seed(seedPtr, seed.length, curve);
         if (!handle) {
           throw new HDWalletError(ErrorCode.INVALID_SEED);
         }
         return new HDKey(wasm, handle, 'm');
       } finally {
-        wasm._hd_secure_wipe(seedPtr, 64);
+        wasm._hd_secure_wipe(seedPtr, seed.length);
         wasm._hd_dealloc(seedPtr);
       }
     },

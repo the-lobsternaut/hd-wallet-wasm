@@ -309,6 +309,187 @@ bool lockMemory(void* ptr, size_t size);
 bool unlockMemory(void* ptr, size_t size);
 
 // =============================================================================
+// Memory Encryption for Private Keys
+// =============================================================================
+
+/**
+ * XOR-based memory encryption for private keys
+ *
+ * This class provides a simple but effective way to protect private keys
+ * in memory by XOR-masking them with a random session key. This makes it
+ * harder to extract keys from memory dumps or debugging.
+ *
+ * The mask is generated once per session and stored separately from the
+ * masked data. When the key is needed, it's unmasked temporarily.
+ *
+ * @tparam N Size in bytes (typically 32 for private keys)
+ *
+ * @example
+ * ```cpp
+ * MaskedKey<32> maskedPrivateKey;
+ * maskedPrivateKey.store(privateKeyBytes);  // Key is now masked in memory
+ * auto unmasked = maskedPrivateKey.reveal();  // Temporarily unmask
+ * // ... use unmasked.data() ...
+ * // unmasked auto-wipes when it goes out of scope
+ * ```
+ */
+template<size_t N>
+class MaskedKey {
+public:
+    /**
+     * Revealed key with automatic secure wiping
+     * RAII wrapper that wipes the unmasked key when destroyed
+     */
+    class RevealedKey {
+    public:
+        RevealedKey() : data_{} {}
+        ~RevealedKey() { secureWipe(data_.data(), N); }
+
+        // Non-copyable to prevent accidental key leaks
+        RevealedKey(const RevealedKey&) = delete;
+        RevealedKey& operator=(const RevealedKey&) = delete;
+
+        // Movable
+        RevealedKey(RevealedKey&& other) noexcept : data_(std::move(other.data_)) {
+            secureWipe(other.data_.data(), N);
+        }
+        RevealedKey& operator=(RevealedKey&& other) noexcept {
+            if (this != &other) {
+                secureWipe(data_.data(), N);
+                data_ = std::move(other.data_);
+                secureWipe(other.data_.data(), N);
+            }
+            return *this;
+        }
+
+        uint8_t* data() { return data_.data(); }
+        const uint8_t* data() const { return data_.data(); }
+        constexpr size_t size() const { return N; }
+
+        uint8_t& operator[](size_t i) { return data_[i]; }
+        const uint8_t& operator[](size_t i) const { return data_[i]; }
+
+    private:
+        friend class MaskedKey;
+        std::array<uint8_t, N> data_;
+    };
+
+    MaskedKey() : masked_{}, mask_{}, initialized_(false) {
+        // Initialize mask with random bytes
+        initializeMask();
+    }
+
+    ~MaskedKey() {
+        secureWipe(masked_.data(), N);
+        secureWipe(mask_.data(), N);
+    }
+
+    // Non-copyable to prevent accidental key duplication
+    MaskedKey(const MaskedKey&) = delete;
+    MaskedKey& operator=(const MaskedKey&) = delete;
+
+    // Movable
+    MaskedKey(MaskedKey&& other) noexcept
+        : masked_(other.masked_), mask_(other.mask_), initialized_(other.initialized_) {
+        secureWipe(other.masked_.data(), N);
+        secureWipe(other.mask_.data(), N);
+        other.initialized_ = false;
+    }
+
+    MaskedKey& operator=(MaskedKey&& other) noexcept {
+        if (this != &other) {
+            secureWipe(masked_.data(), N);
+            secureWipe(mask_.data(), N);
+            masked_ = other.masked_;
+            mask_ = other.mask_;
+            initialized_ = other.initialized_;
+            secureWipe(other.masked_.data(), N);
+            secureWipe(other.mask_.data(), N);
+            other.initialized_ = false;
+        }
+        return *this;
+    }
+
+    /**
+     * Store a key (masks it immediately)
+     * @param key Raw key bytes to store
+     */
+    void store(const uint8_t* key) {
+        if (!key) return;
+        for (size_t i = 0; i < N; ++i) {
+            masked_[i] = key[i] ^ mask_[i];
+        }
+        initialized_ = true;
+    }
+
+    /**
+     * Store a key from an array
+     */
+    void store(const std::array<uint8_t, N>& key) {
+        store(key.data());
+    }
+
+    /**
+     * Reveal the key (unmasks it temporarily)
+     * @return RevealedKey RAII wrapper that auto-wipes
+     */
+    RevealedKey reveal() const {
+        RevealedKey result;
+        if (initialized_) {
+            for (size_t i = 0; i < N; ++i) {
+                result.data_[i] = masked_[i] ^ mask_[i];
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Check if a key has been stored
+     */
+    bool isInitialized() const { return initialized_; }
+
+    /**
+     * Clear the stored key
+     */
+    void clear() {
+        secureWipe(masked_.data(), N);
+        initialized_ = false;
+        // Re-randomize mask for next use
+        initializeMask();
+    }
+
+    /**
+     * Re-mask with a new random mask (rotates protection)
+     * Call periodically for additional security
+     */
+    void rotateMask() {
+        if (!initialized_) {
+            initializeMask();
+            return;
+        }
+        // Reveal current key
+        auto revealed = reveal();
+        // Generate new mask
+        initializeMask();
+        // Re-mask with new mask
+        store(revealed.data());
+    }
+
+private:
+    void initializeMask();
+
+    std::array<uint8_t, N> masked_;
+    std::array<uint8_t, N> mask_;
+    bool initialized_;
+};
+
+/// Masked 32-byte key (for private keys)
+using MaskedKey32 = MaskedKey<32>;
+
+/// Masked 64-byte key (for seeds)
+using MaskedKey64 = MaskedKey<64>;
+
+// =============================================================================
 // C API for WASM Bindings
 // =============================================================================
 

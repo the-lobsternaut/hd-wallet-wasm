@@ -787,11 +787,13 @@ int32_t hd_btc_p2pkh_address(
   auto result = bitcoinP2PKH(pubkey, params);
   if (!result.ok()) return static_cast<int32_t>(result.error);
 
-  if (result.value.size() >= address_size) {
+  // Safe string copy with bounds checking (need space for null terminator)
+  if (result.value.size() + 1 > address_size) {
     return static_cast<int32_t>(Error::INSUFFICIENT_ENTROPY);
   }
 
-  std::strcpy(address_out, result.value.c_str());
+  std::memcpy(address_out, result.value.c_str(), result.value.size());
+  address_out[result.value.size()] = '\0';
   return static_cast<int32_t>(Error::OK);
 }
 
@@ -814,11 +816,13 @@ int32_t hd_btc_p2sh_address(
   auto result = bitcoinP2SH(pubkey, params);
   if (!result.ok()) return static_cast<int32_t>(result.error);
 
-  if (result.value.size() >= address_size) {
+  // Safe string copy with bounds checking (need space for null terminator)
+  if (result.value.size() + 1 > address_size) {
     return static_cast<int32_t>(Error::INSUFFICIENT_ENTROPY);
   }
 
-  std::strcpy(address_out, result.value.c_str());
+  std::memcpy(address_out, result.value.c_str(), result.value.size());
+  address_out[result.value.size()] = '\0';
   return static_cast<int32_t>(Error::OK);
 }
 
@@ -841,11 +845,13 @@ int32_t hd_btc_p2wpkh_address(
   auto result = bitcoinP2WPKH(pubkey, params);
   if (!result.ok()) return static_cast<int32_t>(result.error);
 
-  if (result.value.size() >= address_size) {
+  // Safe string copy with bounds checking (need space for null terminator)
+  if (result.value.size() + 1 > address_size) {
     return static_cast<int32_t>(Error::INSUFFICIENT_ENTROPY);
   }
 
-  std::strcpy(address_out, result.value.c_str());
+  std::memcpy(address_out, result.value.c_str(), result.value.size());
+  address_out[result.value.size()] = '\0';
   return static_cast<int32_t>(Error::OK);
 }
 
@@ -867,11 +873,13 @@ int32_t hd_btc_p2wsh_address(
   auto result = bitcoinP2WSH(script, params);
   if (!result.ok()) return static_cast<int32_t>(result.error);
 
-  if (result.value.size() >= address_size) {
+  // Safe string copy with bounds checking (need space for null terminator)
+  if (result.value.size() + 1 > address_size) {
     return static_cast<int32_t>(Error::INSUFFICIENT_ENTROPY);
   }
 
-  std::strcpy(address_out, result.value.c_str());
+  std::memcpy(address_out, result.value.c_str(), result.value.size());
+  address_out[result.value.size()] = '\0';
   return static_cast<int32_t>(Error::OK);
 }
 
@@ -893,11 +901,13 @@ int32_t hd_btc_p2tr_address(
   auto result = bitcoinP2TR(pubkey, params);
   if (!result.ok()) return static_cast<int32_t>(result.error);
 
-  if (result.value.size() >= address_size) {
+  // Safe string copy with bounds checking (need space for null terminator)
+  if (result.value.size() + 1 > address_size) {
     return static_cast<int32_t>(Error::INSUFFICIENT_ENTROPY);
   }
 
-  std::strcpy(address_out, result.value.c_str());
+  std::memcpy(address_out, result.value.c_str(), result.value.size());
+  address_out[result.value.size()] = '\0';
   return static_cast<int32_t>(Error::OK);
 }
 
@@ -985,11 +995,13 @@ int32_t hd_btc_to_wif(
   std::copy(private_key, private_key + 32, priv.begin());
 
   std::string wif = toWIF(priv, compressed != 0, params);
-  if (wif.size() >= wif_size) {
+  // Safe string copy with bounds checking (need space for null terminator)
+  if (wif.size() + 1 > wif_size) {
     return static_cast<int32_t>(Error::INSUFFICIENT_ENTROPY);
   }
 
-  std::strcpy(wif_out, wif.c_str());
+  std::memcpy(wif_out, wif.c_str(), wif.size());
+  wif_out[wif.size()] = '\0';
   return static_cast<int32_t>(Error::OK);
 }
 

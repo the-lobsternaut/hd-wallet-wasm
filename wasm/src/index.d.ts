@@ -606,10 +606,12 @@ export interface UtilsAPI {
 
 /**
  * Initialize the HD Wallet WASM module
+ * @param wasmPath - Optional path to WASM file
  */
-export default function init(): Promise<HDWalletModule>;
+export default function init(wasmPath?: string): Promise<HDWalletModule>;
 
 /**
  * Create HD Wallet instance (alternative syntax)
+ * @param wasmPath - Optional path to WASM file
  */
-export function createHDWallet(): Promise<HDWalletModule>;
+export function createHDWallet(wasmPath?: string): Promise<HDWalletModule>;

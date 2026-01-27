@@ -287,10 +287,24 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
 
       # ========== BIP-32 HD Keys ==========
       "_hd_key_from_seed"
+      "_hd_key_from_xprv"
+      "_hd_key_from_xpub"
       "_hd_key_derive_path"
+      "_hd_key_derive_child"
+      "_hd_key_derive_hardened"
       "_hd_key_get_private"
       "_hd_key_get_public"
       "_hd_key_get_chain_code"
+      "_hd_key_get_fingerprint"
+      "_hd_key_get_parent_fingerprint"
+      "_hd_key_get_depth"
+      "_hd_key_get_child_index"
+      "_hd_key_serialize_xprv"
+      "_hd_key_serialize_xpub"
+      "_hd_key_neutered"
+      "_hd_key_is_neutered"
+      "_hd_key_wipe"
+      "_hd_key_clone"
       "_hd_key_destroy"
 
       # ========== BIP-44 Paths ==========

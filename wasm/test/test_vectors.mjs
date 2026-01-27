@@ -39,7 +39,7 @@ const bip39Vectors = [
   {
     entropy: 'ffffffffffffffffffffffffffffffff',
     mnemonic: 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong',
-    seed: '0cd6e5d827bb62eb8fc1e262254223817fd068a74b5b449cc2f667c3f1f985a76379b43348d952e2265b4cd129090758b3e3c2c49103b5051aac2eaeb890a528'
+    seed: 'ac27495480225222079d7be181583751e86f571027b0497b5b5d11218e0a8a13332572917f0f8e5a589620c6f15b11c61dee327651a14c34e18231052e48c069'
   },
   {
     entropy: '000000000000000000000000000000000000000000000000',
@@ -88,7 +88,7 @@ const bip39Vectors = [
   },
   {
     entropy: '6610b25967cdcca9d59875f5cb50b0ea75433311869e930b',
-    mnemonic: 'gravity massacre vacant lecture library urge gadget option delay ethics design plunge',
+    mnemonic: 'gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog',
     seed: '628c3827a8823298ee685db84f55caa34b5cc195a778e52d45f59bcf75aba68e4d7590e101dc414bc1bbd5737666fbbef35d1f1903953b66624f910feef245ac'
   },
   {
@@ -99,7 +99,7 @@ const bip39Vectors = [
   {
     entropy: 'c0ba5a8e914111210f2bd131f3d5e08d',
     mnemonic: 'scheme spot photo card baby mountain device kick cradle pact join borrow',
-    seed: 'ea725895aaae8d4c1cf682c1bfd2d358d52ed9f0f0591131b559e2724bb234fca05aa9c02c57407cfb9d9a96b29ecd5c6ef62b62c1ab76e9c0bef0a0b6e32e48'
+    seed: 'ea725895aaae8d4c1cf682c1bfd2d358d52ed9f0f0591131b559e2724bb234fca05aa9c02c57407e04ee9dc3b454aa63fbff483a8b11de949624b9f1831a9612'
   },
   {
     entropy: '6d9be1ee6ebd27a258115aad99b7317b9c8d28b6d76431c3',
@@ -134,7 +134,7 @@ const bip39Vectors = [
   {
     entropy: 'c10ec20dc3cd9f652c7fac2f1230f7a3c828389a14392f05',
     mnemonic: 'scissors invite lock maple supreme raw rapid void congress muscle digital elegant little brisk hair mango congress clump',
-    seed: '7b4a10be9d98e6cba265566db7f136718e1398c71cb581e1b2f464cac1ceedf4f3e274dc270003c670ad8d02c4558b2f8e39edea2775c9e232c7cb798eb069bf'
+    seed: '7b4a10be9d98e6cba265566db7f136718e1398c71cb581e1b2f464cac1ceedf4f3e274dc270003c670ad8d02c4558b2f8e39edea2775c9e232c7cb798b069e88'
   },
   {
     entropy: 'f585c11aec520db57dd353c69554b21a89b20fb0650966fa0a9d6f74fd989d8f',

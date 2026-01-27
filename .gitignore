@@ -44,3 +44,4 @@ package-lock.json
 # Downloaded wordlists (regenerate from official source)
 src/bip39_english.txt
 build-wasi/
+build-wasi-pure/
