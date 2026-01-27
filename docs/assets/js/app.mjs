@@ -6,7 +6,32 @@
  * - Navigation handling
  * - Code example copying
  * - WASM module loading (with graceful fallback)
+ * - Wallet login/logout with passkey and PIN support
  */
+
+import * as WalletStorage from './wallet-storage.mjs';
+import { StorageMethod, isPasskeySupported } from './wallet-storage.mjs';
+
+// =============================================================================
+// DOM Helper
+// =============================================================================
+
+const $ = (id) => document.getElementById(id);
+
+// =============================================================================
+// Wallet State
+// =============================================================================
+
+const walletState = {
+  loggedIn: false,
+  mnemonic: null,
+  seed: null
+};
+
+// Track selected remember method (pin or passkey) for each login type
+const rememberMethod = {
+  seed: 'passkey'
+};
 
 // =============================================================================
 // Theme Management
@@ -504,6 +529,414 @@ export function initSmoothScroll() {
 }
 
 // =============================================================================
+// Login / Logout
+// =============================================================================
+
+/**
+ * Log in with the given seed phrase/mnemonic
+ */
+export function login(mnemonic, seed) {
+  walletState.loggedIn = true;
+  walletState.mnemonic = mnemonic;
+  walletState.seed = seed;
+
+  // Close login modal if open
+  $('login-modal')?.classList.remove('active');
+
+  // Show nav action buttons, hide login button
+  const navLogin = $('nav-login');
+  const navLogout = $('nav-logout');
+  if (navLogin) navLogin.style.display = 'none';
+  if (navLogout) navLogout.style.display = 'flex';
+
+  // Dispatch custom event for other components
+  window.dispatchEvent(new CustomEvent('wallet-login', { detail: { mnemonic, seed } }));
+}
+
+/**
+ * Log out and clear wallet state
+ */
+export function logout() {
+  walletState.loggedIn = false;
+  walletState.mnemonic = null;
+  walletState.seed = null;
+
+  // Show login button, hide other nav action buttons
+  const navLogin = $('nav-login');
+  const navLogout = $('nav-logout');
+  if (navLogin) navLogin.style.display = 'flex';
+  if (navLogout) navLogout.style.display = 'none';
+
+  // Clear form inputs
+  const seedEl = $('seed-phrase');
+  if (seedEl) seedEl.value = '';
+
+  // Dispatch custom event for other components
+  window.dispatchEvent(new CustomEvent('wallet-logout'));
+}
+
+/**
+ * Get the current wallet state
+ */
+export function getWalletState() {
+  return { ...walletState };
+}
+
+/**
+ * Check if user is logged in
+ */
+export function isLoggedIn() {
+  return walletState.loggedIn;
+}
+
+// =============================================================================
+// Login Handlers
+// =============================================================================
+
+function setupLoginHandlers() {
+  // Migrate from old storage format if needed
+  WalletStorage.migrateStorage();
+
+  // Check for stored wallet using new module
+  const storageMetadata = WalletStorage.getStorageMetadata();
+  const storageMethod = storageMetadata?.method || StorageMethod.NONE;
+
+  if (storageMethod !== StorageMethod.NONE) {
+    const storedTab = $('stored-tab');
+    if (storedTab) storedTab.style.display = '';
+
+    const dateEl = $('stored-wallet-date');
+    if (dateEl && storageMetadata?.date) {
+      dateEl.textContent = `Saved on ${storageMetadata.date}`;
+    }
+
+    // Show ONLY the appropriate unlock section based on storage method
+    const pinSection = $('stored-pin-section');
+    const passkeySection = $('stored-passkey-section');
+    const divider = $('stored-divider');
+
+    // Hide divider - we only show one method now
+    if (divider) divider.style.display = 'none';
+
+    if (storageMethod === StorageMethod.PIN) {
+      if (pinSection) pinSection.style.display = 'block';
+      if (passkeySection) passkeySection.style.display = 'none';
+    } else if (storageMethod === StorageMethod.PASSKEY) {
+      if (pinSection) pinSection.style.display = 'none';
+      if (passkeySection) passkeySection.style.display = 'block';
+    }
+
+    // Auto-switch to stored tab and open modal when a saved wallet exists
+    document.querySelectorAll('.method-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.method-content').forEach(c => c.classList.remove('active'));
+    if (storedTab) storedTab.classList.add('active');
+    const storedMethod = $('stored-method');
+    if (storedMethod) storedMethod.classList.add('active');
+
+    // Auto-open login modal when there's a stored wallet
+    const loginModal = $('login-modal');
+    if (loginModal) loginModal.classList.add('active');
+  }
+
+  // Hide passkey buttons if not supported
+  if (!isPasskeySupported()) {
+    const passkeyBtn = $('passkey-btn-seed');
+    if (passkeyBtn) passkeyBtn.style.display = 'none';
+  }
+
+  // Method tab switching
+  document.querySelectorAll('.method-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.method-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.method-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      const methodEl = $(`${tab.dataset.method}-method`);
+      if (methodEl) methodEl.classList.add('active');
+    });
+  });
+
+  // Remember method selector (PIN vs Passkey)
+  document.querySelectorAll('.remember-method-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.target; // 'seed'
+      const method = btn.dataset.method; // 'pin' or 'passkey'
+      rememberMethod[target] = method;
+
+      // Update active state
+      document.querySelectorAll(`.remember-method-btn[data-target="${target}"]`).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Toggle visibility
+      const pinGroup = $(`pin-group-${target}`);
+      const passkeyInfo = $(`passkey-info-${target}`);
+      if (pinGroup) pinGroup.style.display = method === 'pin' ? 'block' : 'none';
+      if (passkeyInfo) passkeyInfo.style.display = method === 'passkey' ? 'flex' : 'none';
+    });
+  });
+
+  // Remember wallet checkbox handlers - show/hide options
+  $('remember-wallet-seed')?.addEventListener('change', (e) => {
+    const options = $('remember-options-seed');
+    if (options) options.style.display = e.target.checked ? 'block' : 'none';
+    if (e.target.checked && rememberMethod.seed === 'pin') {
+      $('pin-input-seed')?.focus();
+    }
+  });
+
+  // PIN input validation - only allow digits
+  ['pin-input-seed', 'pin-input-unlock'].forEach(id => {
+    $(id)?.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+      // Enable unlock button when PIN is 6 digits
+      if (id === 'pin-input-unlock') {
+        const unlockBtn = $('unlock-stored-wallet');
+        if (unlockBtn) unlockBtn.disabled = e.target.value.length !== 6;
+      }
+    });
+  });
+
+  // Seed phrase validation
+  const seedInput = $('seed-phrase');
+  const deriveBtn = $('derive-from-seed');
+  if (seedInput && deriveBtn) {
+    seedInput.addEventListener('input', () => {
+      const phrase = seedInput.value.trim();
+      const words = phrase.split(/\s+/).filter(w => w.length > 0);
+      deriveBtn.disabled = ![12, 15, 18, 21, 24].includes(words.length);
+    });
+  }
+
+  // Generate seed button
+  $('generate-seed')?.addEventListener('click', async () => {
+    const wasmModule = getWasmModule();
+    if (wasmModule) {
+      const mnemonic = wasmModule.mnemonic.generate(24);
+      const seedInput = $('seed-phrase');
+      if (seedInput) seedInput.value = mnemonic;
+      if (deriveBtn) deriveBtn.disabled = false;
+    } else {
+      // Generate mock mnemonic for demo
+      const mockMnemonic = generateMockMnemonic(24);
+      const seedInput = $('seed-phrase');
+      if (seedInput) seedInput.value = mockMnemonic;
+      if (deriveBtn) deriveBtn.disabled = false;
+    }
+  });
+
+  // Login from seed phrase
+  $('derive-from-seed')?.addEventListener('click', async () => {
+    const phrase = $('seed-phrase')?.value?.trim();
+    if (!phrase) return;
+
+    const words = phrase.split(/\s+/).filter(w => w.length > 0);
+    if (![12, 15, 18, 21, 24].includes(words.length)) {
+      alert('Please enter a valid 12, 15, 18, 21, or 24 word seed phrase');
+      return;
+    }
+
+    const rememberWallet = $('remember-wallet-seed')?.checked;
+    const usePasskey = rememberMethod.seed === 'passkey';
+    const pin = $('pin-input-seed')?.value;
+
+    if (rememberWallet && !usePasskey && (!pin || pin.length !== 6)) {
+      alert('Please enter a 6-digit PIN to store your wallet');
+      return;
+    }
+
+    const btn = $('derive-from-seed');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+    }
+
+    try {
+      // Get seed from mnemonic
+      let seed;
+      const wasmModule = getWasmModule();
+      if (wasmModule) {
+        seed = wasmModule.mnemonic.toSeed(phrase);
+      } else {
+        seed = generateMockSeed();
+      }
+
+      // Store wallet if remember is checked
+      if (rememberWallet) {
+        const walletData = {
+          type: 'seed',
+          seedPhrase: phrase
+        };
+
+        if (usePasskey) {
+          // Temporarily lower modal z-index to allow passkey dialog to receive focus
+          const modal = $('login-modal');
+          const originalZIndex = modal?.style.zIndex;
+          if (modal) modal.style.zIndex = '1';
+          try {
+            await WalletStorage.storeWithPasskey(walletData, {
+              rpName: 'HD Wallet WASM Demo',
+              userName: 'seed-wallet',
+              userDisplayName: 'Seed Phrase Wallet'
+            });
+            // Show only passkey unlock for next time
+            const pinSection = $('stored-pin-section');
+            const passkeySection = $('stored-passkey-section');
+            if (pinSection) pinSection.style.display = 'none';
+            if (passkeySection) passkeySection.style.display = 'block';
+          } finally {
+            if (modal && originalZIndex !== undefined) modal.style.zIndex = originalZIndex;
+          }
+        } else {
+          await WalletStorage.storeWithPIN(pin, walletData);
+          // Show only PIN unlock for next time
+          const pinSection = $('stored-pin-section');
+          const passkeySection = $('stored-passkey-section');
+          if (pinSection) pinSection.style.display = 'block';
+          if (passkeySection) passkeySection.style.display = 'none';
+        }
+        // Show stored tab for next time
+        const storedTab = $('stored-tab');
+        const storedDivider = $('stored-divider');
+        const storedDate = $('stored-wallet-date');
+        if (storedTab) storedTab.style.display = '';
+        if (storedDivider) storedDivider.style.display = 'none';
+        if (storedDate) storedDate.textContent = `Saved on ${new Date().toLocaleDateString()}`;
+      }
+
+      login(phrase, seed);
+    } catch (err) {
+      console.error('Login error:', err);
+      alert('Error: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Login';
+      }
+    }
+  });
+
+  // Unlock stored wallet with PIN handler
+  $('unlock-stored-wallet')?.addEventListener('click', async () => {
+    const pin = $('pin-input-unlock')?.value;
+    if (!pin || pin.length !== 6) {
+      alert('Please enter a 6-digit PIN');
+      return;
+    }
+
+    const btn = $('unlock-stored-wallet');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Unlocking...';
+    }
+
+    try {
+      const walletData = await WalletStorage.retrieveWithPIN(pin);
+
+      // Restore wallet based on type
+      if (walletData.type === 'seed') {
+        let seed;
+        const wasmModule = getWasmModule();
+        if (wasmModule) {
+          seed = wasmModule.mnemonic.toSeed(walletData.seedPhrase);
+        } else {
+          seed = generateMockSeed();
+        }
+        login(walletData.seedPhrase, seed);
+      } else {
+        throw new Error('Unknown wallet type');
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+      const pinInput = $('pin-input-unlock');
+      if (pinInput) pinInput.value = '';
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Unlock with PIN';
+      }
+    }
+  });
+
+  // Unlock stored wallet with Passkey handler
+  $('unlock-with-passkey')?.addEventListener('click', async () => {
+    const btn = $('unlock-with-passkey');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/><rect x="3" y="10" width="18" height="12" rx="2"/><circle cx="12" cy="16" r="1"/></svg> Authenticating...';
+    }
+
+    // Temporarily lower modal z-index to allow passkey dialog to receive focus
+    const modal = $('login-modal');
+    const originalZIndex = modal?.style.zIndex;
+    if (modal) modal.style.zIndex = '1';
+
+    try {
+      const walletData = await WalletStorage.retrieveWithPasskey();
+
+      // Restore wallet based on type
+      if (walletData.type === 'seed') {
+        let seed;
+        const wasmModule = getWasmModule();
+        if (wasmModule) {
+          seed = wasmModule.mnemonic.toSeed(walletData.seedPhrase);
+        } else {
+          seed = generateMockSeed();
+        }
+        login(walletData.seedPhrase, seed);
+      } else {
+        throw new Error('Unknown wallet type');
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      if (modal && originalZIndex !== undefined) modal.style.zIndex = originalZIndex;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/><rect x="3" y="10" width="18" height="12" rx="2"/><circle cx="12" cy="16" r="1"/></svg> Unlock with Passkey';
+      }
+    }
+  });
+
+  // Forget stored wallet handler
+  $('forget-stored-wallet')?.addEventListener('click', () => {
+    if (confirm('Are you sure you want to forget your stored wallet? You will need to enter your seed phrase again.')) {
+      WalletStorage.clearStorage();
+      const storedTab = $('stored-tab');
+      const pinSection = $('stored-pin-section');
+      const passkeySection = $('stored-passkey-section');
+      const storedDivider = $('stored-divider');
+      if (storedTab) storedTab.style.display = 'none';
+      if (pinSection) pinSection.style.display = 'block';
+      if (passkeySection) passkeySection.style.display = 'none';
+      if (storedDivider) storedDivider.style.display = 'none';
+      // Switch to seed tab
+      document.querySelectorAll('.method-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.method-content').forEach(c => c.classList.remove('active'));
+      const seedMethod = $('seed-method');
+      const seedTab = document.querySelector('.method-tab[data-method="seed"]');
+      if (seedMethod) seedMethod.classList.add('active');
+      if (seedTab) seedTab.classList.add('active');
+    }
+  });
+}
+
+function setupMainAppHandlers() {
+  // Nav actions
+  $('nav-login')?.addEventListener('click', () => {
+    $('login-modal')?.classList.add('active');
+  });
+  $('nav-logout')?.addEventListener('click', logout);
+
+  // Modal close handlers
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.classList.contains('modal-close')) {
+        modal.classList.remove('active');
+      }
+    });
+  });
+}
+
+// =============================================================================
 // Initialize All
 // =============================================================================
 
@@ -523,6 +956,12 @@ export function initApp() {
   initWasmStatus();
   initSyntaxHighlighting();
   initSmoothScroll();
+
+  // Initialize login handlers if login modal exists
+  if ($('login-modal')) {
+    setupLoginHandlers();
+    setupMainAppHandlers();
+  }
 }
 
 // Auto-initialize when script is loaded
