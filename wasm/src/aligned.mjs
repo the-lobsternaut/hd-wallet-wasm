@@ -50,7 +50,7 @@ import {
   // Enums
   Curve as AlignedCurve,
   Error as AlignedErrorCode,
-} from '../../generated/aligned/hd_wallet_aligned.mjs';
+} from './generated/aligned/hd_wallet_aligned.mjs';
 
 // Re-export for external use
 export { AlignedCurve, AlignedErrorCode };
