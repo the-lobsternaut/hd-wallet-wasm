@@ -782,9 +782,9 @@ void MaskedKey<N>::initializeMask() {
         // Fallback: Use a deterministic but unpredictable pattern
         // This is less secure but better than nothing
         // Mix in the address of this object for some entropy
-        uintptr_t addr = reinterpret_cast<uintptr_t>(this);
+        uint64_t addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(this));
         for (size_t i = 0; i < N; ++i) {
-            // Simple PRNG-like mixing
+            // Simple PRNG-like mixing (LCG)
             addr = addr * 6364136223846793005ULL + 1442695040888963407ULL;
             mask_[i] = static_cast<uint8_t>(addr >> 56);
         }

@@ -11,6 +11,7 @@
 
 #include "hd_wallet/types.h"
 #include "hd_wallet/config.h"
+#include "hd_wallet/eddsa.h"
 
 #include <cryptopp/xed25519.h>
 #include <cryptopp/osrng.h>
@@ -583,8 +584,60 @@ bool verifyBatch(
 }
 
 // =============================================================================
-// C API Wrappers
+// C++ Wrapper Functions
 // =============================================================================
+
+Ed25519Signature ed25519Sign(
+    const Ed25519Seed& seed,
+    const uint8_t* message,
+    size_t messageLength
+) {
+    Ed25519Signature signature;
+    size_t sigLen = SIGNATURE_SIZE;
+    if (!sign(seed.data(), seed.size(), message, messageLength, signature.data(), &sigLen)) {
+        signature.fill(0);
+    }
+    return signature;
+}
+
+Ed25519Signature ed25519Sign(
+    const Ed25519Seed& seed,
+    const ByteVector& message
+) {
+    return ed25519Sign(seed, message.data(), message.size());
+}
+
+Ed25519Signature ed25519Sign(
+    const Ed25519Seed& seed,
+    const std::string& message
+) {
+    return ed25519Sign(seed, reinterpret_cast<const uint8_t*>(message.data()), message.size());
+}
+
+bool ed25519Verify(
+    const Ed25519PublicKey& publicKey,
+    const uint8_t* message,
+    size_t messageLength,
+    const Ed25519Signature& signature
+) {
+    return verify(publicKey.data(), publicKey.size(), message, messageLength, signature.data(), signature.size());
+}
+
+bool ed25519Verify(
+    const Ed25519PublicKey& publicKey,
+    const ByteVector& message,
+    const Ed25519Signature& signature
+) {
+    return ed25519Verify(publicKey, message.data(), message.size(), signature);
+}
+
+bool ed25519Verify(
+    const Ed25519PublicKey& publicKey,
+    const std::string& message,
+    const Ed25519Signature& signature
+) {
+    return ed25519Verify(publicKey, reinterpret_cast<const uint8_t*>(message.data()), message.size(), signature);
+}
 
 } // namespace eddsa
 } // namespace hd_wallet
@@ -613,18 +666,18 @@ int32_t hd_ed25519_derive_public(
 
 HD_WALLET_EXPORT
 int32_t hd_ed25519_sign(
-    const uint8_t* private_key,
-    size_t private_key_len,
+    const uint8_t* seed,
     const uint8_t* message,
     size_t message_len,
-    uint8_t* signature,
+    uint8_t* signature_out,
     size_t signature_size
 ) {
+    if (signature_size < hd_wallet::eddsa::SIGNATURE_SIZE) return -1;
     size_t sigLen = signature_size;
     if (hd_wallet::eddsa::sign(
-            private_key, private_key_len,
+            seed, hd_wallet::eddsa::PRIVATE_KEY_SIZE,
             message, message_len,
-            signature, &sigLen)) {
+            signature_out, &sigLen)) {
         return static_cast<int32_t>(sigLen);
     }
     return -1;
@@ -633,16 +686,14 @@ int32_t hd_ed25519_sign(
 HD_WALLET_EXPORT
 int32_t hd_ed25519_verify(
     const uint8_t* public_key,
-    size_t public_key_len,
     const uint8_t* message,
     size_t message_len,
-    const uint8_t* signature,
-    size_t signature_len
+    const uint8_t* signature
 ) {
     return hd_wallet::eddsa::verify(
-        public_key, public_key_len,
+        public_key, hd_wallet::eddsa::PUBLIC_KEY_SIZE,
         message, message_len,
-        signature, signature_len
+        signature, hd_wallet::eddsa::SIGNATURE_SIZE
     ) ? 1 : 0;
 }
 

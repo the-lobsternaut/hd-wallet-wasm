@@ -12,6 +12,7 @@
 
 #include "hd_wallet/types.h"
 #include "hd_wallet/config.h"
+#include "hd_wallet/ecdsa.h"
 
 #include <cryptopp/eccrypto.h>
 #include <cryptopp/ecp.h>
@@ -27,6 +28,7 @@
 #include <cstring>
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 
 namespace hd_wallet {
 namespace ecdsa {
@@ -160,14 +162,15 @@ CryptoPP::ECPPoint parsePublicKey(
 // =============================================================================
 
 /**
- * ECDSA signature with optional recovery ID
+ * Internal ECDSA signature representation with optional recovery ID
+ * Named SignatureData to avoid conflict with public Signature struct in header
  */
-struct Signature {
+struct SignatureData {
     ByteVector r;
     ByteVector s;
     int recoveryId;  // -1 if not available
 
-    Signature() : recoveryId(-1) {}
+    SignatureData() : recoveryId(-1) {}
 
     /**
      * Encode as DER format
@@ -254,8 +257,8 @@ struct Signature {
     /**
      * Parse from DER format
      */
-    static Signature fromDER(const uint8_t* der, size_t derLen) {
-        Signature sig;
+    static SignatureData fromDER(const uint8_t* der, size_t derLen) {
+        SignatureData sig;
 
         if (derLen < 8) throw std::invalid_argument("DER too short");
         if (der[0] != 0x30) throw std::invalid_argument("Invalid DER sequence tag");
@@ -284,12 +287,12 @@ struct Signature {
     /**
      * Parse from compact format
      */
-    static Signature fromCompact(const uint8_t* compact, size_t compactLen, size_t coordSize = 32) {
+    static SignatureData fromCompact(const uint8_t* compact, size_t compactLen, size_t coordSize = 32) {
         if (compactLen != coordSize * 2) {
             throw std::invalid_argument("Invalid compact signature length");
         }
 
-        Signature sig;
+        SignatureData sig;
         sig.r.assign(compact, compact + coordSize);
         sig.s.assign(compact + coordSize, compact + compactLen);
 
@@ -299,12 +302,12 @@ struct Signature {
     /**
      * Parse from recoverable format
      */
-    static Signature fromRecoverable(const uint8_t* rec, size_t recLen, size_t coordSize = 32) {
+    static SignatureData fromRecoverable(const uint8_t* rec, size_t recLen, size_t coordSize = 32) {
         if (recLen != 1 + coordSize * 2) {
             throw std::invalid_argument("Invalid recoverable signature length");
         }
 
-        Signature sig = fromCompact(rec + 1, recLen - 1, coordSize);
+        SignatureData sig = fromCompact(rec + 1, recLen - 1, coordSize);
 
         // Extract recovery ID
         uint8_t v = rec[0];
@@ -414,7 +417,7 @@ CryptoPP::Integer generateDeterministicK(
  * Core ECDSA signing with recovery ID computation
  */
 template<typename CurveType>
-Signature signWithRecovery(
+SignatureData signWithRecovery(
     const CurveType& curve,
     const uint8_t* privateKey,
     size_t privateKeyLen,
@@ -473,7 +476,7 @@ Signature signWithRecovery(
         recoveryId ^= 1;  // Flip y parity
     }
 
-    Signature sig;
+    SignatureData sig;
     sig.r.resize(coordSize);
     sig.s.resize(coordSize);
     r.Encode(sig.r.data(), coordSize);
@@ -532,7 +535,7 @@ bool sign(
     }
 
     try {
-        Signature sig;
+        SignatureData sig;
 
         switch (curve) {
             case Curve::SECP256K1:
@@ -588,7 +591,7 @@ bool signRecoverable(
     }
 
     try {
-        Signature sig;
+        SignatureData sig;
         size_t coordSize;
 
         switch (curve) {
@@ -640,7 +643,7 @@ bool signCompact(
     }
 
     try {
-        Signature sig;
+        SignatureData sig;
         size_t coordSize;
 
         switch (curve) {
@@ -708,7 +711,7 @@ bool verify(
     }
 
     try {
-        Signature sig = Signature::fromDER(signature, signatureLen);
+        SignatureData sig = SignatureData::fromDER(signature, signatureLen);
         return verifyCompact(curve, publicKey, publicKeyLen, hash, hashLen,
                             sig.toCompact(curve == Curve::P384 ? 48 : 32).data(),
                             sig.toCompact(curve == Curve::P384 ? 48 : 32).size());
@@ -1028,6 +1031,97 @@ bool recoverWithId(
 
     return recover(curve, hash, hashLen, recSig.data(), recSig.size(),
                    publicKey, publicKeyLen, compressed);
+}
+
+// =============================================================================
+// C++ Wrapper Functions
+// =============================================================================
+
+Result<CompactSignature> secp256k1Sign(
+    const Bytes32& privateKey,
+    const Bytes32& messageHash
+) {
+    CompactSignature signature;
+    size_t sigLen = signature.size();
+    int recoveryId;
+
+    if (signCompact(Curve::SECP256K1, privateKey.data(), privateKey.size(),
+                    messageHash.data(), messageHash.size(),
+                    signature.data(), &sigLen, &recoveryId)) {
+        return Result<CompactSignature>::success(std::move(signature));
+    }
+    return Result<CompactSignature>::fail(Error::INVALID_SIGNATURE);
+}
+
+Result<RecoverableSignature> secp256k1SignRecoverable(
+    const Bytes32& privateKey,
+    const Bytes32& messageHash
+) {
+    RecoverableSignature signature;
+    size_t sigLen = signature.size();
+
+    if (signRecoverable(Curve::SECP256K1, privateKey.data(), privateKey.size(),
+                        messageHash.data(), messageHash.size(),
+                        signature.data(), &sigLen)) {
+        return Result<RecoverableSignature>::success(std::move(signature));
+    }
+    return Result<RecoverableSignature>::fail(Error::INVALID_SIGNATURE);
+}
+
+bool secp256k1Verify(
+    const ByteVector& publicKey,
+    const Bytes32& messageHash,
+    const CompactSignature& signature
+) {
+    return verifyCompact(Curve::SECP256K1, publicKey.data(), publicKey.size(),
+                         messageHash.data(), messageHash.size(),
+                         signature.data(), signature.size());
+}
+
+bool secp256k1Verify(
+    const Bytes33& publicKey,
+    const Bytes32& messageHash,
+    const CompactSignature& signature
+) {
+    return verifyCompact(Curve::SECP256K1, publicKey.data(), publicKey.size(),
+                         messageHash.data(), messageHash.size(),
+                         signature.data(), signature.size());
+}
+
+Result<CompactSignature> p256Sign(
+    const Bytes32& privateKey,
+    const Bytes32& messageHash
+) {
+    CompactSignature signature;
+    size_t sigLen = signature.size();
+    int recoveryId;
+
+    if (signCompact(Curve::P256, privateKey.data(), privateKey.size(),
+                    messageHash.data(), messageHash.size(),
+                    signature.data(), &sigLen, &recoveryId)) {
+        return Result<CompactSignature>::success(std::move(signature));
+    }
+    return Result<CompactSignature>::fail(Error::INVALID_SIGNATURE);
+}
+
+bool p256Verify(
+    const ByteVector& publicKey,
+    const Bytes32& messageHash,
+    const CompactSignature& signature
+) {
+    return verifyCompact(Curve::P256, publicKey.data(), publicKey.size(),
+                         messageHash.data(), messageHash.size(),
+                         signature.data(), signature.size());
+}
+
+bool p256Verify(
+    const Bytes33& publicKey,
+    const Bytes32& messageHash,
+    const CompactSignature& signature
+) {
+    return verifyCompact(Curve::P256, publicKey.data(), publicKey.size(),
+                         messageHash.data(), messageHash.size(),
+                         signature.data(), signature.size());
 }
 
 } // namespace ecdsa
