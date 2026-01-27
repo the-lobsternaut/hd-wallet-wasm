@@ -231,7 +231,8 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
 
   if(EMSCRIPTEN)
     # WASM source files - core functionality only
-    # Excludes files that depend on unimplemented ECDSA functions
+    # wasm_exports.cpp contains unique C wrappers for hash/KDF/curve functions
+    # that are not already exported from the main library source files.
     set(HD_WALLET_WASM_SOURCES
       src/utils.cpp
       src/secure_memory.cpp
@@ -246,6 +247,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/ecdh.cpp
       src/wasi_bridge.cpp
       src/aligned_api.cpp
+      src/wasm_exports.cpp
     )
 
     # ==========================================================================
@@ -311,22 +313,61 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_path_build"
       "_hd_path_parse"
 
+      # ========== Curve Operations (Generic) ==========
+      "_hd_curve_pubkey_from_privkey"
+      "_hd_curve_compress_pubkey"
+      "_hd_curve_decompress_pubkey"
+      "_hd_curve_derive_secp256k1"
+      "_hd_curve_derive_ed25519"
+      "_hd_curve_derive_p256"
+      "_hd_curve_derive_p384"
+      "_hd_curve_derive_x25519"
+
+      # ========== secp256k1 Signing ==========
+      "_hd_secp256k1_sign"
+      "_hd_secp256k1_sign_recoverable"
+      "_hd_secp256k1_verify"
+      "_hd_secp256k1_recover"
+      "_hd_ecdh_secp256k1"
+
+      # ========== Generic ECDH ==========
+      "_hd_ecdh"
+
       # ========== Ed25519 ==========
       "_hd_ed25519_sign"
       "_hd_ed25519_verify"
+      "_hd_ed25519_pubkey_from_seed"
 
       # ========== X25519 ECDH ==========
       "_hd_ecdh_x25519"
+      "_hd_x25519_pubkey"
+
+      # ========== P-256 (NIST) ==========
+      "_hd_p256_sign"
+      "_hd_p256_verify"
+      "_hd_ecdh_p256"
+
+      # ========== P-384 (NIST) ==========
+      "_hd_p384_sign"
+      "_hd_p384_verify"
+      "_hd_ecdh_p384"
 
       # ========== Hash Functions ==========
       "_hd_hash_sha256"
       "_hd_hash_sha512"
+      "_hd_hash_keccak256"
+      "_hd_hash_ripemd160"
+      "_hd_hash_hash160"
+      "_hd_hash_blake2b"
+      "_hd_hash_blake2s"
+
+      # ========== Key Derivation Functions ==========
+      "_hd_kdf_hkdf"
+      "_hd_kdf_pbkdf2"
+      "_hd_kdf_scrypt"
 
       # ========== SLIP-10 Key Derivation ==========
       "_hd_slip10_ed25519_derive_path"
-      "_hd_ed25519_pubkey_from_seed"
-      "_hd_x25519_pubkey"
-      "_hd_ecdh_x25519"
 
       # ========== Aligned Binary API ==========
       "_hd_aligned_derive_batch"

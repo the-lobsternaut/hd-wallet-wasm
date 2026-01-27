@@ -283,8 +283,11 @@ int32_t hd_get_entropy_status() {
 
 // =============================================================================
 // BIP-39 Mnemonic
+// NOTE: These wrappers are disabled because the same functions are already
+// exported from bip39.cpp with identical signatures.
 // =============================================================================
 
+#if 0 // Disabled - already defined in bip39.cpp
 /**
  * Generate a random mnemonic phrase
  * @param output Buffer to write mnemonic string
@@ -511,11 +514,15 @@ extern "C" HD_WALLET_EXPORT
 int32_t hd_mnemonic_check_word(const char* word, int32_t language) {
     return bip39::findWord(word, static_cast<bip39::Language>(language));
 }
+#endif // Disabled BIP-39 wrappers
 
 // =============================================================================
 // BIP-32 HD Keys
+// NOTE: These wrappers are disabled because the same functions are already
+// exported from bip32.cpp with identical signatures.
 // =============================================================================
 
+#if 0 // Disabled - already defined in bip32.cpp
 // Internal helper to cast handles
 static bip32::ExtendedKey* toKey(bip32::hd_key_handle handle) {
     return reinterpret_cast<bip32::ExtendedKey*>(handle);
@@ -855,11 +862,15 @@ void hd_key_destroy(bip32::hd_key_handle key_handle) {
         delete key;
     }
 }
+#endif // Disabled BIP-32 wrappers
 
 // =============================================================================
 // BIP-44/49/84 Paths
+// NOTE: hd_path_build and hd_path_parse are disabled because they are already
+// exported from bip44.cpp with identical signatures.
 // =============================================================================
 
+#if 0 // Disabled - already defined in bip44.cpp
 /**
  * Build a derivation path string
  * @param out Buffer to write path string
@@ -930,6 +941,7 @@ int32_t hd_path_parse(
 
     return 0;
 }
+#endif // Disabled path wrappers
 
 // Static storage for path string
 static std::string g_path_string;
@@ -957,6 +969,10 @@ const char* hd_path_to_string(
     g_path_string = buf;
     return g_path_string.c_str();
 }
+
+// Forward declare hd_path_parse from bip44.cpp (since our local wrapper is disabled)
+extern "C" int32_t hd_path_parse(const char* path, uint32_t* purpose, uint32_t* coin_type,
+                                  uint32_t* account, uint32_t* change, uint32_t* index);
 
 // Path component getters
 extern "C" HD_WALLET_EXPORT uint32_t hd_path_get_purpose(const char* path) {

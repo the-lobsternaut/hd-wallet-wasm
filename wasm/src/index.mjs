@@ -1109,6 +1109,25 @@ function createModule(wasm) {
      */
     ed25519: {
       /**
+       * Derive Ed25519 public key from 32-byte seed
+       * @param {Uint8Array} seed - 32-byte seed (will be expanded internally)
+       * @returns {Uint8Array} 32-byte public key
+       */
+      publicKeyFromSeed(seed) {
+        const seedPtr = allocAndCopy(wasm, seed);
+        const pubPtr = wasm._hd_alloc(32);
+        try {
+          const result = wasm._hd_ed25519_pubkey_from_seed(seedPtr, pubPtr);
+          if (result < 0) throw new HDWalletError(result);
+          return readBytes(wasm, pubPtr, 32);
+        } finally {
+          wasm._hd_secure_wipe(seedPtr, 32);
+          wasm._hd_dealloc(seedPtr);
+          wasm._hd_dealloc(pubPtr);
+        }
+      },
+
+      /**
        * Sign message with Ed25519
        * @param {Uint8Array} message - Message to sign
        * @param {Uint8Array} privateKey - 32-byte private key
@@ -1260,6 +1279,31 @@ function createModule(wasm) {
      * X25519 key exchange
      */
     x25519: {
+      /**
+       * Derive X25519 public key from private key
+       * @param {Uint8Array} privateKey - 32-byte private key
+       * @returns {Uint8Array} 32-byte public key
+       */
+      publicKey(privateKey) {
+        const privPtr = allocAndCopy(wasm, privateKey);
+        const pubPtr = wasm._hd_alloc(32);
+        try {
+          const result = wasm._hd_x25519_pubkey(privPtr, pubPtr, 32);
+          if (result < 0) throw new HDWalletError(result);
+          return readBytes(wasm, pubPtr, 32);
+        } finally {
+          wasm._hd_secure_wipe(privPtr, 32);
+          wasm._hd_dealloc(privPtr);
+          wasm._hd_dealloc(pubPtr);
+        }
+      },
+
+      /**
+       * Perform X25519 ECDH key exchange
+       * @param {Uint8Array} privateKey - Our 32-byte private key
+       * @param {Uint8Array} publicKey - Their 32-byte public key
+       * @returns {Uint8Array} 32-byte shared secret
+       */
       ecdh(privateKey, publicKey) {
         const privPtr = allocAndCopy(wasm, privateKey);
         const pubPtr = allocAndCopy(wasm, publicKey);
