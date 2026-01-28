@@ -587,34 +587,21 @@ export interface UtilsAPI {
   blake2b(data: Uint8Array, outputLength?: number): Uint8Array;
   blake2s(data: Uint8Array, outputLength?: number): Uint8Array;
 
-  // Key derivation (sync - Crypto++)
+  // Key derivation
   hkdf(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Uint8Array;
   pbkdf2(password: Uint8Array, salt: Uint8Array, iterations: number, length: number): Uint8Array;
   scrypt(password: Uint8Array, salt: Uint8Array, n: number, r: number, p: number, length: number): Uint8Array;
 
-  // Key derivation (async - WebCrypto, hardware accelerated)
-  hkdfSha256Async(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array>;
-  hkdfSha384Async(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array>;
-
-  // AES-GCM encryption/decryption (async - WebCrypto, hardware accelerated)
+  // AES-GCM encryption/decryption (WASM/OpenSSL)
   aesGcm: {
-    encrypt(key: Uint8Array, plaintext: Uint8Array, iv: Uint8Array, aad?: Uint8Array): Promise<{ ciphertext: Uint8Array; tag: Uint8Array }>;
-    decrypt(key: Uint8Array, ciphertext: Uint8Array, tag: Uint8Array, iv: Uint8Array, aad?: Uint8Array): Promise<Uint8Array>;
-    generateIv(): Uint8Array;
-    generateKey(bits?: number): Uint8Array;
-  };
-
-  // AES-GCM encryption/decryption (sync - WASM/OpenSSL, for non-browser environments)
-  aesGcmSync: {
     encrypt(key: Uint8Array, plaintext: Uint8Array, iv: Uint8Array, aad?: Uint8Array): { ciphertext: Uint8Array; tag: Uint8Array };
     decrypt(key: Uint8Array, ciphertext: Uint8Array, tag: Uint8Array, iv: Uint8Array, aad?: Uint8Array): Uint8Array;
   };
 
-  // WebCrypto availability
-  isWebCryptoAvailable(): boolean;
-
   // Random number generation
   getRandomBytes(length: number): Uint8Array;
+  generateIv(): Uint8Array;
+  generateAesKey(bits?: number): Uint8Array;
 
   // Encoding
   encodeBase58(data: Uint8Array): string;

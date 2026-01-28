@@ -25,7 +25,6 @@
   "files": [
     "src/index.mjs",
     "src/index.d.ts",
-    "src/webcrypto.mjs",
     "src/aligned.mjs",
     "src/aligned.d.ts",
     "src/generated/",

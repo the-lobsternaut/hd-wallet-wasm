@@ -258,7 +258,7 @@ const isValid = wallet.ccall('hd_mnemonic_validate', 'number', ['string'], [mnem
 | `HD_WALLET_BUILD_WASM` | OFF | Build WebAssembly targets |
 | `HD_WALLET_BUILD_TESTS` | ON | Build test suite |
 | `HD_WALLET_USE_CRYPTOPP` | ON | Use Crypto++ backend |
-| `HD_WALLET_USE_OPENSSL` | OFF | Use OpenSSL for FIPS-approved algorithms |
+| `HD_WALLET_USE_OPENSSL` | ON | Use OpenSSL for FIPS-approved algorithms |
 | `HD_WALLET_FIPS_MODE` | OFF | Enable FIPS-compliant mode |
 | `HD_WALLET_ENABLE_BITCOIN` | ON | Enable Bitcoin support |
 | `HD_WALLET_ENABLE_ETHEREUM` | ON | Enable Ethereum support |

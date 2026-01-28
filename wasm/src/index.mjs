@@ -15,9 +15,6 @@
 // Import aligned API for batch operations
 import { AlignedAPI } from './aligned.mjs';
 
-// Import WebCrypto bridge for hardware-accelerated async operations
-import * as WebCrypto from './webcrypto.mjs';
-
 // =============================================================================
 // Enums (matching TypeScript definitions)
 // =============================================================================
@@ -2241,42 +2238,8 @@ function createModule(wasm) {
       }
     },
 
-    // Key derivation (async - uses WebCrypto for hardware acceleration)
-    hkdfSha256Async: WebCrypto.hkdfSha256,
-    hkdfSha384Async: WebCrypto.hkdfSha384,
-
-    // AES-GCM encryption/decryption (async - uses WebCrypto)
+    // AES-GCM encryption/decryption (uses WASM/Crypto++ or OpenSSL)
     aesGcm: {
-      /**
-       * Encrypt data with AES-GCM (WebCrypto)
-       * @param {Uint8Array} key - AES key (16, 24, or 32 bytes)
-       * @param {Uint8Array} plaintext - Data to encrypt
-       * @param {Uint8Array} iv - Initialization vector (12 bytes recommended)
-       * @param {Uint8Array} [aad] - Additional authenticated data
-       * @returns {Promise<{ciphertext: Uint8Array, tag: Uint8Array}>}
-       */
-      encrypt: WebCrypto.aesGcmEncrypt,
-
-      /**
-       * Decrypt data with AES-GCM (WebCrypto)
-       * @param {Uint8Array} key - AES key
-       * @param {Uint8Array} ciphertext - Encrypted data
-       * @param {Uint8Array} tag - Authentication tag (16 bytes)
-       * @param {Uint8Array} iv - Initialization vector
-       * @param {Uint8Array} [aad] - Additional authenticated data
-       * @returns {Promise<Uint8Array>} Decrypted plaintext
-       */
-      decrypt: WebCrypto.aesGcmDecrypt,
-
-      /** Generate a random IV (12 bytes) */
-      generateIv: WebCrypto.generateIv,
-
-      /** Generate a random AES key (default 256 bits) */
-      generateKey: WebCrypto.generateAesKey
-    },
-
-    // AES-GCM encryption/decryption (sync - uses WASM/Crypto++ or OpenSSL)
-    aesGcmSync: {
       /**
        * Encrypt data with AES-GCM (synchronous WASM)
        * @param {Uint8Array} key - AES-256 key (32 bytes)
@@ -2371,11 +2334,29 @@ function createModule(wasm) {
       }
     },
 
-    /** Check if WebCrypto is available */
-    isWebCryptoAvailable: WebCrypto.isWebCryptoAvailable,
-
     /** Generate cryptographically secure random bytes */
-    getRandomBytes: WebCrypto.getRandomBytes,
+    getRandomBytes(length) {
+      const bytes = new Uint8Array(length);
+      if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.getRandomValues) {
+        globalThis.crypto.getRandomValues(bytes);
+      } else {
+        throw new Error('No cryptographic random source available');
+      }
+      return bytes;
+    },
+
+    /** Generate a random IV for AES-GCM (12 bytes) */
+    generateIv() {
+      return this.getRandomBytes(12);
+    },
+
+    /** Generate a random AES key (default 256 bits) */
+    generateAesKey(bits = 256) {
+      if (![128, 192, 256].includes(bits)) {
+        throw new Error('AES key size must be 128, 192, or 256 bits');
+      }
+      return this.getRandomBytes(bits / 8);
+    },
 
     pbkdf2(password, salt, iterations, length) {
       const pwdPtr = allocAndCopy(wasm, password);

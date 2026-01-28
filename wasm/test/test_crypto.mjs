@@ -254,15 +254,10 @@ test('HKDF: derive key material', () => {
 });
 
 // =============================================================================
-// WebCrypto Bridge Tests (Async)
+// Random Bytes Tests
 // =============================================================================
 
-test('WebCrypto: isWebCryptoAvailable returns boolean', () => {
-  const available = wallet.utils.isWebCryptoAvailable();
-  assert(typeof available === 'boolean', 'isWebCryptoAvailable should return boolean');
-});
-
-test('WebCrypto: getRandomBytes generates random data', () => {
+test('getRandomBytes generates random data', () => {
   const bytes1 = wallet.utils.getRandomBytes(32);
   const bytes2 = wallet.utils.getRandomBytes(32);
   assertEqual(bytes1.length, 32, 'Should generate 32 bytes');
@@ -271,126 +266,57 @@ test('WebCrypto: getRandomBytes generates random data', () => {
   assert(bytesToHex(bytes1) !== bytesToHex(bytes2), 'Random bytes should differ');
 });
 
-await testAsync('WebCrypto: AES-GCM encrypt/decrypt round-trip', async () => {
-  const key = wallet.utils.aesGcm.generateKey(256);
-  const iv = wallet.utils.aesGcm.generateIv();
-  const plaintext = new TextEncoder().encode('Hello, WebCrypto!');
-
-  const { ciphertext, tag } = await wallet.utils.aesGcm.encrypt(key, plaintext, iv);
-  assert(ciphertext.length > 0, 'Ciphertext should not be empty');
-  assertEqual(tag.length, 16, 'Tag should be 16 bytes');
-
-  const decrypted = await wallet.utils.aesGcm.decrypt(key, ciphertext, tag, iv);
-  assertEqual(new TextDecoder().decode(decrypted), 'Hello, WebCrypto!', 'Decrypted text should match');
-});
-
-await testAsync('WebCrypto: AES-GCM with AAD', async () => {
-  const key = wallet.utils.aesGcm.generateKey(256);
-  const iv = wallet.utils.aesGcm.generateIv();
-  const plaintext = new TextEncoder().encode('Secret data');
-  const aad = new TextEncoder().encode('additional authenticated data');
-
-  const { ciphertext, tag } = await wallet.utils.aesGcm.encrypt(key, plaintext, iv, aad);
-  const decrypted = await wallet.utils.aesGcm.decrypt(key, ciphertext, tag, iv, aad);
-  assertEqual(new TextDecoder().decode(decrypted), 'Secret data', 'Decrypted text should match with AAD');
-});
-
-await testAsync('WebCrypto: AES-GCM fails with wrong key', async () => {
-  const key1 = wallet.utils.aesGcm.generateKey(256);
-  const key2 = wallet.utils.aesGcm.generateKey(256);
-  const iv = wallet.utils.aesGcm.generateIv();
-  const plaintext = new TextEncoder().encode('Secret');
-
-  const { ciphertext, tag } = await wallet.utils.aesGcm.encrypt(key1, plaintext, iv);
-
-  let failed = false;
-  try {
-    await wallet.utils.aesGcm.decrypt(key2, ciphertext, tag, iv);
-  } catch (e) {
-    failed = true;
-  }
-  assert(failed, 'Decryption with wrong key should fail');
-});
-
-await testAsync('WebCrypto: HKDF SHA-256 async', async () => {
-  const ikm = new TextEncoder().encode('input key material');
-  const salt = new TextEncoder().encode('salt');
-  const info = new TextEncoder().encode('info');
-
-  const okm = await wallet.utils.hkdfSha256Async(ikm, salt, info, 32);
-  assertEqual(okm.length, 32, 'HKDF SHA-256 should produce 32 bytes');
-});
-
-await testAsync('WebCrypto: HKDF SHA-384 async', async () => {
-  const ikm = new TextEncoder().encode('input key material');
-  const salt = new TextEncoder().encode('salt');
-  const info = new TextEncoder().encode('info');
-
-  const okm = await wallet.utils.hkdfSha384Async(ikm, salt, info, 48);
-  assertEqual(okm.length, 48, 'HKDF SHA-384 should produce 48 bytes');
-});
-
-await testAsync('WebCrypto: HKDF produces deterministic output', async () => {
-  const ikm = new TextEncoder().encode('test key');
-  const salt = new TextEncoder().encode('test salt');
-  const info = new TextEncoder().encode('test info');
-
-  const okm1 = await wallet.utils.hkdfSha256Async(ikm, salt, info, 32);
-  const okm2 = await wallet.utils.hkdfSha256Async(ikm, salt, info, 32);
-  assertEqual(bytesToHex(okm1), bytesToHex(okm2), 'Same inputs should produce same output');
-});
-
 // =============================================================================
-// AES-GCM Sync Tests (WASM/Crypto++ or OpenSSL)
+// AES-GCM Tests (WASM/Crypto++ or OpenSSL)
 // =============================================================================
 
-test('AES-GCM Sync: encrypt/decrypt round-trip', () => {
+test('AES-GCM: encrypt/decrypt round-trip', () => {
   const key = hexToBytes('0000000000000000000000000000000000000000000000000000000000000001'.padStart(64, '0'));
   const iv = hexToBytes('000000000000000000000001');
   const plaintext = new TextEncoder().encode('Hello, WASM AES-GCM!');
 
-  const { ciphertext, tag } = wallet.utils.aesGcmSync.encrypt(key, plaintext, iv);
+  const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key, plaintext, iv);
   assert(ciphertext.length > 0, 'Ciphertext should not be empty');
   assertEqual(tag.length, 16, 'Tag should be 16 bytes');
 
-  const decrypted = wallet.utils.aesGcmSync.decrypt(key, ciphertext, tag, iv);
+  const decrypted = wallet.utils.aesGcm.decrypt(key, ciphertext, tag, iv);
   assertEqual(new TextDecoder().decode(decrypted), 'Hello, WASM AES-GCM!', 'Decrypted text should match');
 });
 
-test('AES-GCM Sync: with AAD', () => {
+test('AES-GCM: with AAD', () => {
   const key = wallet.utils.getRandomBytes(32);
   const iv = wallet.utils.getRandomBytes(12);
   const plaintext = new TextEncoder().encode('Secret data');
   const aad = new TextEncoder().encode('additional authenticated data');
 
-  const { ciphertext, tag } = wallet.utils.aesGcmSync.encrypt(key, plaintext, iv, aad);
-  const decrypted = wallet.utils.aesGcmSync.decrypt(key, ciphertext, tag, iv, aad);
+  const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key, plaintext, iv, aad);
+  const decrypted = wallet.utils.aesGcm.decrypt(key, ciphertext, tag, iv, aad);
   assertEqual(new TextDecoder().decode(decrypted), 'Secret data', 'Decrypted text should match with AAD');
 });
 
-test('AES-GCM Sync: fails with wrong key', () => {
+test('AES-GCM: fails with wrong key', () => {
   const key1 = wallet.utils.getRandomBytes(32);
   const key2 = wallet.utils.getRandomBytes(32);
   const iv = wallet.utils.getRandomBytes(12);
   const plaintext = new TextEncoder().encode('Secret');
 
-  const { ciphertext, tag } = wallet.utils.aesGcmSync.encrypt(key1, plaintext, iv);
+  const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key1, plaintext, iv);
 
   let failed = false;
   try {
-    wallet.utils.aesGcmSync.decrypt(key2, ciphertext, tag, iv);
+    wallet.utils.aesGcm.decrypt(key2, ciphertext, tag, iv);
   } catch (e) {
     failed = true;
   }
   assert(failed, 'Decryption with wrong key should fail');
 });
 
-test('AES-GCM Sync: fails with tampered ciphertext', () => {
+test('AES-GCM: fails with tampered ciphertext', () => {
   const key = wallet.utils.getRandomBytes(32);
   const iv = wallet.utils.getRandomBytes(12);
   const plaintext = new TextEncoder().encode('Secret');
 
-  const { ciphertext, tag } = wallet.utils.aesGcmSync.encrypt(key, plaintext, iv);
+  const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key, plaintext, iv);
 
   // Tamper with ciphertext
   const tampered = new Uint8Array(ciphertext);
@@ -398,19 +324,19 @@ test('AES-GCM Sync: fails with tampered ciphertext', () => {
 
   let failed = false;
   try {
-    wallet.utils.aesGcmSync.decrypt(key, tampered, tag, iv);
+    wallet.utils.aesGcm.decrypt(key, tampered, tag, iv);
   } catch (e) {
     failed = true;
   }
   assert(failed, 'Decryption with tampered ciphertext should fail');
 });
 
-test('AES-GCM Sync: fails with tampered tag', () => {
+test('AES-GCM: fails with tampered tag', () => {
   const key = wallet.utils.getRandomBytes(32);
   const iv = wallet.utils.getRandomBytes(12);
   const plaintext = new TextEncoder().encode('Secret');
 
-  const { ciphertext, tag } = wallet.utils.aesGcmSync.encrypt(key, plaintext, iv);
+  const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key, plaintext, iv);
 
   // Tamper with tag
   const tamperedTag = new Uint8Array(tag);
@@ -418,7 +344,7 @@ test('AES-GCM Sync: fails with tampered tag', () => {
 
   let failed = false;
   try {
-    wallet.utils.aesGcmSync.decrypt(key, ciphertext, tamperedTag, iv);
+    wallet.utils.aesGcm.decrypt(key, ciphertext, tamperedTag, iv);
   } catch (e) {
     failed = true;
   }
@@ -426,13 +352,13 @@ test('AES-GCM Sync: fails with tampered tag', () => {
 });
 
 // NIST SP 800-38D Test Vector (Test Case 2)
-test('AES-GCM Sync: NIST test vector', () => {
+test('AES-GCM: NIST test vector', () => {
   // NIST SP 800-38D Test Case 2 (256-bit key, 96-bit IV, no AAD)
   const key = hexToBytes('00000000000000000000000000000000' + '00000000000000000000000000000000');
   const iv = hexToBytes('000000000000000000000000');
   const plaintext = hexToBytes('00000000000000000000000000000000'); // 16 zero bytes
 
-  const { ciphertext, tag } = wallet.utils.aesGcmSync.encrypt(key, plaintext, iv);
+  const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key, plaintext, iv);
 
   // Expected ciphertext for zero plaintext with zero key/IV
   // (The actual expected values depend on the specific test case used)
@@ -440,7 +366,7 @@ test('AES-GCM Sync: NIST test vector', () => {
   assertEqual(tag.length, 16, 'Tag should be 16 bytes');
 
   // Verify round-trip
-  const decrypted = wallet.utils.aesGcmSync.decrypt(key, ciphertext, tag, iv);
+  const decrypted = wallet.utils.aesGcm.decrypt(key, ciphertext, tag, iv);
   assertEqual(bytesToHex(decrypted), bytesToHex(plaintext), 'Decrypted should match plaintext');
 });
 
