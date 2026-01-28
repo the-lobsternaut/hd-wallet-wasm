@@ -41,6 +41,27 @@
   #define HD_WALLET_USE_CRYPTOPP 1
 #endif
 
+// OpenSSL FIPS backend (optional, set via CMake -DHD_WALLET_USE_OPENSSL=ON)
+// When enabled, FIPS-approved algorithms use OpenSSL 3.x EVP API:
+// - SHA-256, SHA-384, SHA-512
+// - HMAC-SHA256, HMAC-SHA512
+// - HKDF-SHA256, HKDF-SHA384
+// - PBKDF2-SHA512
+// - AES-256-GCM
+// - ECDSA P-256, P-384
+// - ECDH P-256, P-384
+//
+// Non-FIPS algorithms always use Crypto++:
+// - secp256k1 (Bitcoin/Ethereum)
+// - Ed25519, X25519 (Solana, Cosmos)
+// - Keccak-256 (Ethereum)
+// - BLAKE2b, BLAKE2s
+// - RIPEMD-160
+// - scrypt
+#ifndef HD_WALLET_USE_OPENSSL
+  #define HD_WALLET_USE_OPENSSL 0
+#endif
+
 // =============================================================================
 // FIPS Compliance Mode
 // =============================================================================

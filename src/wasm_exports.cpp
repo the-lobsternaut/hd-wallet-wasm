@@ -48,6 +48,12 @@ extern "C" int32_t hd_ecdh(
 #include <cryptopp/oids.h>
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/filters.h>
+#include <cryptopp/gcm.h>
+#include <cryptopp/aes.h>
+
+#if HD_WALLET_USE_OPENSSL
+#include "hd_wallet/crypto_openssl.h"
+#endif
 
 #include <cstring>
 #include <vector>
@@ -694,6 +700,95 @@ int32_t hd_ecdh_p384(
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
     }
+}
+
+// =============================================================================
+// AES-GCM Encryption
+// =============================================================================
+
+extern "C" HD_WALLET_EXPORT
+int32_t hd_aes_gcm_encrypt(
+    const uint8_t* key, size_t key_len,
+    const uint8_t* plaintext, size_t pt_len,
+    const uint8_t* iv, size_t iv_len,
+    const uint8_t* aad, size_t aad_len,
+    uint8_t* ciphertext,
+    uint8_t* tag
+) {
+    if (key_len != 32) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    if (iv_len != 12) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+
+#if HD_WALLET_USE_OPENSSL
+    return hd_ossl_aes_gcm_encrypt(key, key_len, plaintext, pt_len,
+                                   iv, iv_len, aad, aad_len, ciphertext, tag);
+#else
+    // Use non-throwing API due to WASM -fignore-exceptions
+    CryptoPP::GCM<CryptoPP::AES>::Encryption enc;
+    enc.SetKeyWithIV(key, key_len, iv, iv_len);
+
+    // Set data lengths for authentication (AAD length, plaintext length, footer length)
+    enc.SpecifyDataLengths(aad_len, pt_len, 0);
+
+    // Process AAD
+    if (aad && aad_len > 0) {
+        enc.Update(aad, aad_len);
+    }
+
+    // Encrypt plaintext
+    enc.ProcessData(ciphertext, plaintext, pt_len);
+
+    // Generate authentication tag
+    enc.TruncatedFinal(tag, 16);
+
+    return static_cast<int32_t>(pt_len);
+#endif
+}
+
+extern "C" HD_WALLET_EXPORT
+int32_t hd_aes_gcm_decrypt(
+    const uint8_t* key, size_t key_len,
+    const uint8_t* ciphertext, size_t ct_len,
+    const uint8_t* iv, size_t iv_len,
+    const uint8_t* aad, size_t aad_len,
+    const uint8_t* tag,
+    uint8_t* plaintext
+) {
+    if (key_len != 32) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    if (iv_len != 12) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+
+#if HD_WALLET_USE_OPENSSL
+    return hd_ossl_aes_gcm_decrypt(key, key_len, ciphertext, ct_len,
+                                   iv, iv_len, aad, aad_len, tag, plaintext);
+#else
+    // Use non-throwing API due to WASM -fignore-exceptions
+    CryptoPP::GCM<CryptoPP::AES>::Decryption dec;
+    dec.SetKeyWithIV(key, key_len, iv, iv_len);
+
+    // For GCM, we need to:
+    // 1. Process AAD
+    // 2. Decrypt ciphertext
+    // 3. Verify the authentication tag
+
+    // Set data lengths for authentication
+    dec.SpecifyDataLengths(aad_len, ct_len, 0);
+
+    // Process AAD
+    if (aad && aad_len > 0) {
+        dec.Update(aad, aad_len);
+    }
+
+    // Decrypt ciphertext
+    dec.ProcessData(plaintext, ciphertext, ct_len);
+
+    // Verify the tag (TruncatedVerify returns true if tag matches)
+    if (!dec.TruncatedVerify(tag, 16)) {
+        // Authentication failed - zero out plaintext for safety
+        std::memset(plaintext, 0, ct_len);
+        return -static_cast<int32_t>(Error::VERIFICATION_FAILED);
+    }
+
+    return static_cast<int32_t>(ct_len);
+#endif
 }
 
 } // namespace hd_wallet

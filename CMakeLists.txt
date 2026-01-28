@@ -44,6 +44,7 @@ project(HDWalletWasm
 option(HD_WALLET_BUILD_WASM "Build WebAssembly module" OFF)
 option(HD_WALLET_BUILD_TESTS "Build tests" ON)
 option(HD_WALLET_USE_CRYPTOPP "Use Crypto++ for cryptographic operations" ON)
+option(HD_WALLET_USE_OPENSSL "Use OpenSSL for FIPS-approved algorithms" ON)
 option(HD_WALLET_FIPS_MODE "Enable FIPS-compliant mode" OFF)
 option(HD_WALLET_ENABLE_BITCOIN "Enable Bitcoin support" ON)
 option(HD_WALLET_ENABLE_ETHEREUM "Enable Ethereum support" ON)
@@ -84,6 +85,37 @@ if(HD_WALLET_USE_CRYPTOPP)
   FetchContent_MakeAvailable(cryptopp-cmake)
   add_definitions(-DHD_WALLET_USE_CRYPTOPP=1)
   message(STATUS "Using Crypto++ for cryptographic operations")
+endif()
+
+# =============================================================================
+# OpenSSL FIPS Backend (Optional)
+# =============================================================================
+
+if(HD_WALLET_USE_OPENSSL)
+  if(EMSCRIPTEN)
+    # For WASM builds, use pre-built OpenSSL from openssl-fips/dist
+    set(OPENSSL_FIPS_DIR "${CMAKE_SOURCE_DIR}/openssl-fips/dist")
+    if(EXISTS "${OPENSSL_FIPS_DIR}/lib/libcrypto.a")
+      message(STATUS "Using OpenSSL FIPS from ${OPENSSL_FIPS_DIR}")
+      set(OPENSSL_FIPS_INCLUDE "${OPENSSL_FIPS_DIR}/include")
+      set(OPENSSL_FIPS_LIB "${OPENSSL_FIPS_DIR}/lib/libcrypto.a")
+      add_definitions(-DHD_WALLET_USE_OPENSSL=1)
+    else()
+      message(WARNING "OpenSSL FIPS not found. Run openssl-fips/build.sh first.")
+      message(WARNING "Falling back to Crypto++ only.")
+      set(HD_WALLET_USE_OPENSSL OFF)
+    endif()
+  else()
+    # For native builds, use system OpenSSL
+    find_package(OpenSSL 3.0)
+    if(OpenSSL_FOUND)
+      message(STATUS "Using system OpenSSL ${OPENSSL_VERSION}")
+      add_definitions(-DHD_WALLET_USE_OPENSSL=1)
+    else()
+      message(WARNING "OpenSSL 3.0+ not found. Falling back to Crypto++ only.")
+      set(HD_WALLET_USE_OPENSSL OFF)
+    endif()
+  endif()
 endif()
 
 # =============================================================================
@@ -250,6 +282,11 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/wasm_exports.cpp
     )
 
+    # Add OpenSSL wrapper when enabled
+    if(HD_WALLET_USE_OPENSSL)
+      list(APPEND HD_WALLET_WASM_SOURCES src/crypto_openssl.c)
+    endif()
+
     # ==========================================================================
     # Exported Functions - Core API for Go/WASI integration
     # Only includes functions that are actually implemented in the minimal build
@@ -383,6 +420,16 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_aligned_signature_entry_size"
       "_hd_aligned_extended_key_data_size"
       "_hd_aligned_batch_derive_request_size"
+
+      # ========== AES-GCM Encryption ==========
+      "_hd_aes_gcm_encrypt"
+      "_hd_aes_gcm_decrypt"
+
+      # ========== OpenSSL FIPS (when enabled) ==========
+      "_hd_openssl_init_fips"
+      "_hd_openssl_init_default"
+      "_hd_openssl_cleanup"
+      "_hd_openssl_is_fips"
     )
     string(JOIN "," EXPORTED_FUNCS_STR ${WASM_EXPORTED_FUNCTIONS})
 
@@ -412,12 +459,16 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     target_include_directories(hd_wallet_wasm PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/generated/aligned
+      $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
     # Build with exceptions enabled but trap on throw
     # This allows Crypto++ to compile but will abort if an exception is thrown
     # -fignore-exceptions tells the compiler to ignore try/catch blocks (no-op)
     target_compile_options(hd_wallet_wasm PRIVATE ${WASM_COMPILE_OPTIONS} -fignore-exceptions)
     target_link_libraries(hd_wallet_wasm PRIVATE cryptopp)
+    if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
+      target_link_libraries(hd_wallet_wasm PRIVATE "${OPENSSL_FIPS_LIB}")
+    endif()
     set_target_properties(hd_wallet_wasm PROPERTIES
       OUTPUT_NAME "hd-wallet"
       SUFFIX ".wasm"
@@ -627,9 +678,13 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     target_include_directories(hd_wallet_wasm_js PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/generated/aligned
+      $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
     target_compile_options(hd_wallet_wasm_js PRIVATE ${WASM_COMPILE_OPTIONS} -fexceptions)
     target_link_libraries(hd_wallet_wasm_js PRIVATE cryptopp)
+    if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
+      target_link_libraries(hd_wallet_wasm_js PRIVATE "${OPENSSL_FIPS_LIB}")
+    endif()
     set_target_properties(hd_wallet_wasm_js PROPERTIES
       OUTPUT_NAME "hd-wallet"
       SUFFIX ".js"
@@ -665,9 +720,13 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     target_include_directories(hd_wallet_wasm_inline PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/generated/aligned
+      $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
     target_compile_options(hd_wallet_wasm_inline PRIVATE ${WASM_COMPILE_OPTIONS} -fexceptions)
     target_link_libraries(hd_wallet_wasm_inline PRIVATE cryptopp)
+    if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
+      target_link_libraries(hd_wallet_wasm_inline PRIVATE "${OPENSSL_FIPS_LIB}")
+    endif()
     set_target_properties(hd_wallet_wasm_inline PROPERTIES
       OUTPUT_NAME "hd-wallet-inline"
       SUFFIX ".js"

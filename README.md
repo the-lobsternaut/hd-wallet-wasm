@@ -106,7 +106,7 @@ cmake --build build
 ### Generating a Mnemonic
 
 ```javascript
-import HDWalletWasm from 'hd-wallet-wasm';
+import HDWalletWasm, { Curve, BitcoinAddressType, Network, WasiFeature } from 'hd-wallet-wasm';
 
 const wallet = await HDWalletWasm();
 
@@ -150,9 +150,9 @@ masterKey.wipe();
 ```javascript
 // Bitcoin addresses (various formats)
 const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
-const p2wpkh = wallet.bitcoin.getAddress(btcKey.publicKey(), 'P2WPKH');
-const p2pkh = wallet.bitcoin.getAddress(btcKey.publicKey(), 'P2PKH');
-const taproot = wallet.bitcoin.getAddress(btcKey.publicKey(), 'P2TR');
+const p2wpkh = wallet.bitcoin.getAddress(btcKey.publicKey(), BitcoinAddressType.P2WPKH);
+const p2pkh = wallet.bitcoin.getAddress(btcKey.publicKey(), BitcoinAddressType.P2PKH);
+const taproot = wallet.bitcoin.getAddress(btcKey.publicKey(), BitcoinAddressType.P2TR);
 
 // Ethereum address
 const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
@@ -161,7 +161,7 @@ const checksumAddress = wallet.ethereum.getChecksumAddress(ethAddress);
 
 // Solana address (Ed25519)
 const solSeed = wallet.mnemonic.toSeed(mnemonic);
-const solKey = wallet.hdkey.fromSeed(solSeed, 'ED25519');
+const solKey = wallet.hdkey.fromSeed(solSeed, Curve.ED25519);
 const solAddress = wallet.solana.getAddress(solKey.derivePath("m/44'/501'/0'/0'").publicKey());
 
 // Cosmos address
@@ -189,8 +189,8 @@ const typedSignature = wallet.ethereum.signTypedData(typedData, ethKey.privateKe
 
 // Raw curve signing
 const messageHash = wallet.utils.keccak256(new TextEncoder().encode('message'));
-const signature = wallet.curves.secp256k1.sign(messageHash, privateKey);
-const recovered = wallet.curves.secp256k1.recover(messageHash, signature.signature, signature.recoveryId);
+const { signature, recoveryId } = wallet.curves.secp256k1.signRecoverable(messageHash, privateKey);
+const recovered = wallet.curves.secp256k1.recover(messageHash, signature, recoveryId);
 ```
 
 ### Building Transactions
@@ -258,6 +258,7 @@ const isValid = wallet.ccall('hd_mnemonic_validate', 'number', ['string'], [mnem
 | `HD_WALLET_BUILD_WASM` | OFF | Build WebAssembly targets |
 | `HD_WALLET_BUILD_TESTS` | ON | Build test suite |
 | `HD_WALLET_USE_CRYPTOPP` | ON | Use Crypto++ backend |
+| `HD_WALLET_USE_OPENSSL` | OFF | Use OpenSSL for FIPS-approved algorithms |
 | `HD_WALLET_FIPS_MODE` | OFF | Enable FIPS-compliant mode |
 | `HD_WALLET_ENABLE_BITCOIN` | ON | Enable Bitcoin support |
 | `HD_WALLET_ENABLE_ETHEREUM` | ON | Enable Ethereum support |
@@ -304,6 +305,57 @@ cmake --build build-wasm --parallel
 
 # Output in build-wasm/wasm/ and wasm/dist/
 ```
+
+### FIPS-Compliant Build (OpenSSL)
+
+For FIPS 140-3 compliance, the library can be built with OpenSSL 3.0.9 FIPS Provider:
+
+```bash
+# Step 1: Build OpenSSL for WASM (first time only)
+cd openssl-fips
+./build.sh
+cd ..
+
+# Step 2: Build with OpenSSL backend
+emcmake cmake -B build-wasm -S . \
+  -DHD_WALLET_BUILD_WASM=ON \
+  -DHD_WALLET_USE_OPENSSL=ON \
+  -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build-wasm --parallel
+```
+
+**Algorithm Routing with OpenSSL:**
+
+| Algorithm | OpenSSL Mode | Default Mode |
+|-----------|--------------|--------------|
+| SHA-256/384/512 | OpenSSL FIPS | Crypto++ |
+| HMAC-SHA256/512 | OpenSSL FIPS | Crypto++ |
+| HKDF-SHA256/384 | OpenSSL FIPS | Crypto++ |
+| PBKDF2-SHA512 | OpenSSL FIPS | Crypto++ |
+| AES-256-GCM | OpenSSL FIPS | Crypto++ |
+| ECDSA P-256/P-384 | OpenSSL FIPS | Crypto++ |
+| ECDH P-256/P-384 | OpenSSL FIPS | Crypto++ |
+| secp256k1 | Crypto++ | Crypto++ |
+| Ed25519/X25519 | Crypto++ | Crypto++ |
+| Keccak-256 | Crypto++ | Crypto++ |
+| BLAKE2b/s | Crypto++ | Crypto++ |
+
+**Initializing FIPS mode at runtime:**
+
+```javascript
+const wallet = await HDWalletWasm();
+
+// Initialize FIPS mode (if compiled with OpenSSL)
+const fipsEnabled = wallet.initFips();
+console.log('FIPS mode:', fipsEnabled);
+
+// Check if OpenSSL backend is active
+console.log('OpenSSL:', wallet.isOpenSSL());
+console.log('FIPS active:', wallet.isOpenSSLFips());
+```
+
+**Note:** secp256k1 (Bitcoin/Ethereum) and Ed25519 (Solana) are not FIPS-approved and always use Crypto++.
 
 ## Testing
 
@@ -375,8 +427,8 @@ When running in WASI environments:
 The library provides runtime warnings when features are unavailable:
 
 ```javascript
-if (!wallet.wasiHasFeature('RANDOM')) {
-  console.warn(wallet.wasiGetWarningMessage('RANDOM'));
+if (!wallet.wasiHasFeature(WasiFeature.RANDOM)) {
+  console.warn(wallet.wasiGetWarningMessage(WasiFeature.RANDOM));
   // "Random number generation requires entropy injection in WASI environment"
 }
 ```

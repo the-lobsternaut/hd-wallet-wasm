@@ -2275,6 +2275,102 @@ function createModule(wasm) {
       generateKey: WebCrypto.generateAesKey
     },
 
+    // AES-GCM encryption/decryption (sync - uses WASM/Crypto++ or OpenSSL)
+    aesGcmSync: {
+      /**
+       * Encrypt data with AES-GCM (synchronous WASM)
+       * @param {Uint8Array} key - AES-256 key (32 bytes)
+       * @param {Uint8Array} plaintext - Data to encrypt
+       * @param {Uint8Array} iv - Initialization vector (12 bytes)
+       * @param {Uint8Array} [aad] - Additional authenticated data
+       * @returns {{ciphertext: Uint8Array, tag: Uint8Array}}
+       */
+      encrypt(key, plaintext, iv, aad = new Uint8Array(0)) {
+        if (key.length !== 32) throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'Key must be 32 bytes');
+        if (iv.length !== 12) throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'IV must be 12 bytes');
+
+        const keyPtr = allocAndCopy(wasm, key);
+        const ptPtr = allocAndCopy(wasm, plaintext);
+        const ivPtr = allocAndCopy(wasm, iv);
+        const aadPtr = aad.length > 0 ? allocAndCopy(wasm, aad) : 0;
+        const ctPtr = wasm._hd_alloc(plaintext.length);
+        const tagPtr = wasm._hd_alloc(16);
+
+        try {
+          const result = wasm._hd_aes_gcm_encrypt(
+            keyPtr, key.length,
+            ptPtr, plaintext.length,
+            ivPtr, iv.length,
+            aadPtr, aad.length,
+            ctPtr, tagPtr
+          );
+          if (result < 0) throw new HDWalletError(-result);
+
+          return {
+            ciphertext: readBytes(wasm, ctPtr, plaintext.length),
+            tag: readBytes(wasm, tagPtr, 16)
+          };
+        } finally {
+          wasm._hd_secure_wipe(keyPtr, key.length);
+          wasm._hd_dealloc(keyPtr);
+          wasm._hd_dealloc(ptPtr);
+          wasm._hd_dealloc(ivPtr);
+          if (aadPtr) wasm._hd_dealloc(aadPtr);
+          wasm._hd_dealloc(ctPtr);
+          wasm._hd_dealloc(tagPtr);
+        }
+      },
+
+      /**
+       * Decrypt data with AES-GCM (synchronous WASM)
+       * @param {Uint8Array} key - AES-256 key (32 bytes)
+       * @param {Uint8Array} ciphertext - Encrypted data
+       * @param {Uint8Array} tag - Authentication tag (16 bytes)
+       * @param {Uint8Array} iv - Initialization vector (12 bytes)
+       * @param {Uint8Array} [aad] - Additional authenticated data
+       * @returns {Uint8Array} Decrypted plaintext
+       * @throws {HDWalletError} If authentication fails
+       */
+      decrypt(key, ciphertext, tag, iv, aad = new Uint8Array(0)) {
+        if (key.length !== 32) throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'Key must be 32 bytes');
+        if (iv.length !== 12) throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'IV must be 12 bytes');
+        if (tag.length !== 16) throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'Tag must be 16 bytes');
+
+        const keyPtr = allocAndCopy(wasm, key);
+        const ctPtr = allocAndCopy(wasm, ciphertext);
+        const ivPtr = allocAndCopy(wasm, iv);
+        const tagPtr = allocAndCopy(wasm, tag);
+        const aadPtr = aad.length > 0 ? allocAndCopy(wasm, aad) : 0;
+        const ptPtr = wasm._hd_alloc(ciphertext.length);
+
+        try {
+          const result = wasm._hd_aes_gcm_decrypt(
+            keyPtr, key.length,
+            ctPtr, ciphertext.length,
+            ivPtr, iv.length,
+            aadPtr, aad.length,
+            tagPtr, ptPtr
+          );
+          if (result < 0) {
+            throw new HDWalletError(
+              result === -2 ? ErrorCode.VERIFICATION_FAILED : -result,
+              result === -2 ? 'AES-GCM authentication failed' : undefined
+            );
+          }
+
+          return readBytes(wasm, ptPtr, ciphertext.length);
+        } finally {
+          wasm._hd_secure_wipe(keyPtr, key.length);
+          wasm._hd_dealloc(keyPtr);
+          wasm._hd_dealloc(ctPtr);
+          wasm._hd_dealloc(ivPtr);
+          wasm._hd_dealloc(tagPtr);
+          if (aadPtr) wasm._hd_dealloc(aadPtr);
+          wasm._hd_dealloc(ptPtr);
+        }
+      }
+    },
+
     /** Check if WebCrypto is available */
     isWebCryptoAvailable: WebCrypto.isWebCryptoAvailable,
 
@@ -2523,6 +2619,50 @@ function createModule(wasm) {
 
     getEntropyStatus() {
       return wasm._hd_get_entropy_status();
+    },
+
+    // OpenSSL FIPS support
+    /**
+     * Initialize OpenSSL in FIPS mode
+     * @returns {boolean} True if FIPS mode activated, false if using default provider
+     */
+    initFips() {
+      // Check if the function exists (only when built with HD_WALLET_USE_OPENSSL)
+      if (typeof wasm._hd_openssl_init_fips !== 'function') {
+        console.warn('[HD Wallet] OpenSSL not compiled in, skipping FIPS init');
+        return false;
+      }
+      const result = wasm._hd_openssl_init_fips();
+      if (result === 1) {
+        console.log('[HD Wallet] OpenSSL FIPS mode activated');
+        return true;
+      } else if (result === -1) {
+        console.warn('[HD Wallet] FIPS provider not available, using default OpenSSL');
+        wasm._hd_openssl_init_default();
+        return false;
+      } else {
+        console.error('[HD Wallet] Failed to initialize OpenSSL');
+        return false;
+      }
+    },
+
+    /**
+     * Check if OpenSSL backend is being used
+     * @returns {boolean}
+     */
+    isOpenSSL() {
+      return typeof wasm._hd_openssl_init_fips === 'function';
+    },
+
+    /**
+     * Check if running in FIPS mode (OpenSSL FIPS provider active)
+     * @returns {boolean}
+     */
+    isOpenSSLFips() {
+      if (typeof wasm._hd_openssl_is_fips !== 'function') {
+        return false;
+      }
+      return wasm._hd_openssl_is_fips() !== 0;
     },
 
     // APIs

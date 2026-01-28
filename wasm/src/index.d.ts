@@ -24,6 +24,14 @@ export interface HDWalletModule {
   getSupportedCoins(): string[];
   getSupportedCurves(): string[];
 
+  // OpenSSL FIPS support (when built with HD_WALLET_USE_OPENSSL)
+  /** Initialize OpenSSL in FIPS mode. Returns true if FIPS mode activated, false if using fallback. */
+  initFips(): boolean;
+  /** Check if OpenSSL backend is being used for FIPS algorithms */
+  isOpenSSL(): boolean;
+  /** Check if running in FIPS mode (OpenSSL FIPS provider active) */
+  isOpenSSLFips(): boolean;
+
   // WASI bridge
   wasiHasFeature(feature: WasiFeature): boolean;
   wasiGetWarning(feature: WasiFeature): WasiWarning;
@@ -594,6 +602,12 @@ export interface UtilsAPI {
     decrypt(key: Uint8Array, ciphertext: Uint8Array, tag: Uint8Array, iv: Uint8Array, aad?: Uint8Array): Promise<Uint8Array>;
     generateIv(): Uint8Array;
     generateKey(bits?: number): Uint8Array;
+  };
+
+  // AES-GCM encryption/decryption (sync - WASM/OpenSSL, for non-browser environments)
+  aesGcmSync: {
+    encrypt(key: Uint8Array, plaintext: Uint8Array, iv: Uint8Array, aad?: Uint8Array): { ciphertext: Uint8Array; tag: Uint8Array };
+    decrypt(key: Uint8Array, ciphertext: Uint8Array, tag: Uint8Array, iv: Uint8Array, aad?: Uint8Array): Uint8Array;
   };
 
   // WebCrypto availability
