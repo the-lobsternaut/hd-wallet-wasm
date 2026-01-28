@@ -664,18 +664,21 @@ int32_t hd_ed25519_derive_public(
     return -1;
 }
 
+// Ed25519 sign - matches JS wrapper signature (message first, then key)
 HD_WALLET_EXPORT
 int32_t hd_ed25519_sign(
-    const uint8_t* seed,
     const uint8_t* message,
     size_t message_len,
+    const uint8_t* private_key,
     uint8_t* signature_out,
-    size_t signature_size
+    size_t out_size
 ) {
-    if (signature_size < hd_wallet::eddsa::SIGNATURE_SIZE) return -1;
-    size_t sigLen = signature_size;
+    if (!private_key || !signature_out) return -1;
+    if (out_size < hd_wallet::eddsa::SIGNATURE_SIZE) return -1;
+
+    size_t sigLen = out_size;
     if (hd_wallet::eddsa::sign(
-            seed, hd_wallet::eddsa::PRIVATE_KEY_SIZE,
+            private_key, hd_wallet::eddsa::PRIVATE_KEY_SIZE,
             message, message_len,
             signature_out, &sigLen)) {
         return static_cast<int32_t>(sigLen);
@@ -683,13 +686,20 @@ int32_t hd_ed25519_sign(
     return -1;
 }
 
+// Ed25519 verify - matches JS wrapper signature
 HD_WALLET_EXPORT
 int32_t hd_ed25519_verify(
-    const uint8_t* public_key,
     const uint8_t* message,
     size_t message_len,
-    const uint8_t* signature
+    const uint8_t* signature,
+    size_t signature_len,
+    const uint8_t* public_key,
+    size_t public_key_len
 ) {
+    if (!signature || !public_key) return 0;
+    if (signature_len != hd_wallet::eddsa::SIGNATURE_SIZE) return 0;
+    if (public_key_len != hd_wallet::eddsa::PUBLIC_KEY_SIZE) return 0;
+
     return hd_wallet::eddsa::verify(
         public_key, hd_wallet::eddsa::PUBLIC_KEY_SIZE,
         message, message_len,

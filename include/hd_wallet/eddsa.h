@@ -329,19 +329,21 @@ int32_t hd_ed25519_pubkey_from_seed(
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 int32_t hd_ed25519_sign(
-    const uint8_t* seed,
     const uint8_t* message,
     size_t message_len,
+    const uint8_t* private_key,
     uint8_t* signature_out,
-    size_t signature_size
+    size_t out_size
 );
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 int32_t hd_ed25519_verify(
-    const uint8_t* public_key,
     const uint8_t* message,
     size_t message_len,
-    const uint8_t* signature
+    const uint8_t* signature,
+    size_t signature_len,
+    const uint8_t* public_key,
+    size_t public_key_len
 );
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT

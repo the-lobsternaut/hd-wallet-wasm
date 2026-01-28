@@ -113,6 +113,9 @@ async function runTests() {
     console.log('\n\x1b[1mTest Vectors:\x1b[0m');
     await import('./test_vectors.mjs');
 
+    console.log('\n\x1b[1mCrypto Tests:\x1b[0m');
+    await import('./test_crypto.mjs');
+
   } catch (error) {
     console.error('\nTest suite error:', error.message);
     if (error.message.includes('Cannot find module') || error.message.includes('WASM')) {

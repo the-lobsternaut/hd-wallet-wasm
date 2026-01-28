@@ -1275,59 +1275,8 @@ int32_t hd_secp256k1_recover(
 // =============================================================================
 // Ed25519 Signing
 // =============================================================================
-
-#if HD_WALLET_USE_CRYPTOPP && HD_WALLET_ENABLE_ED25519
-
-/**
- * Sign message with Ed25519
- */
-extern "C" HD_WALLET_EXPORT
-int32_t hd_ed25519_sign(
-    const uint8_t* message,
-    size_t message_len,
-    const uint8_t* private_key,
-    uint8_t* signature_out,
-    size_t out_size
-) {
-    if (out_size < 64) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
-
-    try {
-        CryptoPP::ed25519Signer signer(private_key);
-        CryptoPP::AutoSeededRandomPool rng;
-
-        signer.SignMessage(rng, message, message_len, signature_out);
-        return 64;
-    } catch (...) {
-        return static_cast<int32_t>(Error::INTERNAL);
-    }
-}
-
-/**
- * Verify Ed25519 signature
- */
-extern "C" HD_WALLET_EXPORT
-int32_t hd_ed25519_verify(
-    const uint8_t* message,
-    size_t message_len,
-    const uint8_t* signature,
-    size_t signature_len,
-    const uint8_t* public_key,
-    size_t public_key_len
-) {
-    if (signature_len != 64 || public_key_len != 32) {
-        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
-    }
-
-    try {
-        CryptoPP::ed25519Verifier verifier(public_key);
-        bool valid = verifier.VerifyMessage(message, message_len, signature, signature_len);
-        return valid ? 1 : 0;
-    } catch (...) {
-        return static_cast<int32_t>(Error::INTERNAL);
-    }
-}
-
-#endif // HD_WALLET_USE_CRYPTOPP && HD_WALLET_ENABLE_ED25519
+// NOTE: Ed25519 sign/verify functions are defined in eddsa.cpp with correct
+// signatures matching the JS wrapper expectations
 
 // =============================================================================
 // P-256 / P-384 Signing

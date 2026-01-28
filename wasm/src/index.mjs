@@ -1117,7 +1117,7 @@ function createModule(wasm) {
         const seedPtr = allocAndCopy(wasm, seed);
         const pubPtr = wasm._hd_alloc(32);
         try {
-          const result = wasm._hd_ed25519_pubkey_from_seed(seedPtr, pubPtr);
+          const result = wasm._hd_ed25519_pubkey_from_seed(seedPtr, pubPtr, 32);
           if (result < 0) throw new HDWalletError(result);
           return readBytes(wasm, pubPtr, 32);
         } finally {
