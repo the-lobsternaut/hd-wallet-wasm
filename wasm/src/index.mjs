@@ -15,6 +15,9 @@
 // Import aligned API for batch operations
 import { AlignedAPI } from './aligned.mjs';
 
+// Import WebCrypto bridge for hardware-accelerated async operations
+import * as WebCrypto from './webcrypto.mjs';
+
 // =============================================================================
 // Enums (matching TypeScript definitions)
 // =============================================================================
@@ -2219,7 +2222,7 @@ function createModule(wasm) {
       }
     },
 
-    // Key derivation
+    // Key derivation (sync - uses Crypto++ in WASM)
     hkdf(ikm, salt, info, length) {
       const ikmPtr = allocAndCopy(wasm, ikm);
       const saltPtr = allocAndCopy(wasm, salt);
@@ -2237,6 +2240,46 @@ function createModule(wasm) {
         wasm._hd_dealloc(outPtr);
       }
     },
+
+    // Key derivation (async - uses WebCrypto for hardware acceleration)
+    hkdfSha256Async: WebCrypto.hkdfSha256,
+    hkdfSha384Async: WebCrypto.hkdfSha384,
+
+    // AES-GCM encryption/decryption (async - uses WebCrypto)
+    aesGcm: {
+      /**
+       * Encrypt data with AES-GCM (WebCrypto)
+       * @param {Uint8Array} key - AES key (16, 24, or 32 bytes)
+       * @param {Uint8Array} plaintext - Data to encrypt
+       * @param {Uint8Array} iv - Initialization vector (12 bytes recommended)
+       * @param {Uint8Array} [aad] - Additional authenticated data
+       * @returns {Promise<{ciphertext: Uint8Array, tag: Uint8Array}>}
+       */
+      encrypt: WebCrypto.aesGcmEncrypt,
+
+      /**
+       * Decrypt data with AES-GCM (WebCrypto)
+       * @param {Uint8Array} key - AES key
+       * @param {Uint8Array} ciphertext - Encrypted data
+       * @param {Uint8Array} tag - Authentication tag (16 bytes)
+       * @param {Uint8Array} iv - Initialization vector
+       * @param {Uint8Array} [aad] - Additional authenticated data
+       * @returns {Promise<Uint8Array>} Decrypted plaintext
+       */
+      decrypt: WebCrypto.aesGcmDecrypt,
+
+      /** Generate a random IV (12 bytes) */
+      generateIv: WebCrypto.generateIv,
+
+      /** Generate a random AES key (default 256 bits) */
+      generateKey: WebCrypto.generateAesKey
+    },
+
+    /** Check if WebCrypto is available */
+    isWebCryptoAvailable: WebCrypto.isWebCryptoAvailable,
+
+    /** Generate cryptographically secure random bytes */
+    getRandomBytes: WebCrypto.getRandomBytes,
 
     pbkdf2(password, salt, iterations, length) {
       const pwdPtr = allocAndCopy(wasm, password);
