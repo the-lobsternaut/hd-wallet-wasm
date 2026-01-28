@@ -34,8 +34,10 @@
 #include <openssl/bn.h>
 #include <openssl/param_build.h>
 #include <openssl/hmac.h>
+#include <openssl/crypto.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -44,8 +46,20 @@
 #define HD_OSSL_EXPORT
 #endif
 
+// Thread safety for platforms that support it
+#if defined(__EMSCRIPTEN__) && defined(__EMSCRIPTEN_PTHREADS__)
+#include <pthread.h>
+static pthread_mutex_t openssl_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK_OPENSSL() pthread_mutex_lock(&openssl_mutex)
+#define UNLOCK_OPENSSL() pthread_mutex_unlock(&openssl_mutex)
+#else
+// Single-threaded WASM - no locking needed
+#define LOCK_OPENSSL() ((void)0)
+#define UNLOCK_OPENSSL() ((void)0)
+#endif
+
 // =============================================================================
-// Global Context
+// Global Context (protected by mutex in threaded builds)
 // =============================================================================
 
 static OSSL_LIB_CTX *fips_libctx = NULL;
@@ -53,43 +67,88 @@ static OSSL_PROVIDER *fips_prov = NULL;
 static OSSL_PROVIDER *base_prov = NULL;
 static int openssl_initialized = 0;
 static int fips_mode_active = 0;
+static char fips_error_message[1024] = {0};
 
 // =============================================================================
 // Initialization
 // =============================================================================
 
 /**
+ * Get the last FIPS error message
+ * @return Error message string (empty if no error)
+ */
+HD_OSSL_EXPORT
+const char* hd_openssl_get_error(void) {
+    return fips_error_message;
+}
+
+/**
  * Initialize OpenSSL FIPS mode
  * @return 1 on success, -1 if FIPS not available (fallback mode), 0 on error
+ *
+ * WARNING: FIPS mode requires:
+ * 1. OpenSSL 3.x built with FIPS provider
+ * 2. FIPS module file (fips.so/fips.dll) accessible via OPENSSL_MODULES path
+ * 3. FIPS self-tests to pass at runtime
+ *
+ * In WASM environments, FIPS mode will likely fail due to:
+ * - No filesystem access for FIPS module loading
+ * - No persistent storage for FIPS installation status
+ *
+ * Use hd_openssl_get_error() to get detailed failure information.
  */
 HD_OSSL_EXPORT
 int32_t hd_openssl_init_fips(void) {
+    LOCK_OPENSSL();
+
     if (openssl_initialized) {
-        return fips_mode_active ? 1 : -1;
+        int result = fips_mode_active ? 1 : -1;
+        UNLOCK_OPENSSL();
+        return result;
     }
+
+    fips_error_message[0] = '\0';
 
     // Create a library context for FIPS
     fips_libctx = OSSL_LIB_CTX_new();
     if (fips_libctx == NULL) {
+        unsigned long err = ERR_get_error();
+        snprintf(fips_error_message, sizeof(fips_error_message),
+                 "Failed to create OpenSSL library context: %s",
+                 ERR_error_string(err, NULL));
+        UNLOCK_OPENSSL();
         return 0;
     }
 
     // Load the FIPS provider
     fips_prov = OSSL_PROVIDER_load(fips_libctx, "fips");
     if (fips_prov == NULL) {
-        // FIPS provider not available, fall back to default
+        // FIPS provider not available, record error and fall back to default
+        unsigned long err = ERR_get_error();
+        snprintf(fips_error_message, sizeof(fips_error_message),
+                 "FIPS provider not available (check OPENSSL_MODULES path): %s. "
+                 "Falling back to non-FIPS mode.",
+                 ERR_error_string(err, NULL));
+
         OSSL_LIB_CTX_free(fips_libctx);
         fips_libctx = NULL;
         openssl_initialized = 1;
         fips_mode_active = 0;
+        UNLOCK_OPENSSL();
         return -1; // Indicate fallback mode
     }
 
     // Load base provider for non-crypto operations
     base_prov = OSSL_PROVIDER_load(fips_libctx, "base");
+    if (base_prov == NULL) {
+        // Base provider needed, but continue anyway
+        snprintf(fips_error_message, sizeof(fips_error_message),
+                 "Warning: base provider failed to load, some operations may fail");
+    }
 
     openssl_initialized = 1;
     fips_mode_active = 1;
+    UNLOCK_OPENSSL();
     return 1;
 }
 
@@ -99,13 +158,16 @@ int32_t hd_openssl_init_fips(void) {
  */
 HD_OSSL_EXPORT
 int32_t hd_openssl_init_default(void) {
+    LOCK_OPENSSL();
     if (openssl_initialized) {
+        UNLOCK_OPENSSL();
         return 1;
     }
 
     // OpenSSL default provider is loaded automatically
     openssl_initialized = 1;
     fips_mode_active = 0;
+    UNLOCK_OPENSSL();
     return 1;
 }
 
@@ -114,6 +176,7 @@ int32_t hd_openssl_init_default(void) {
  */
 HD_OSSL_EXPORT
 void hd_openssl_cleanup(void) {
+    LOCK_OPENSSL();
     if (fips_prov) {
         OSSL_PROVIDER_unload(fips_prov);
         fips_prov = NULL;
@@ -128,6 +191,8 @@ void hd_openssl_cleanup(void) {
     }
     openssl_initialized = 0;
     fips_mode_active = 0;
+    fips_error_message[0] = '\0';
+    UNLOCK_OPENSSL();
 }
 
 /**
@@ -145,13 +210,15 @@ int32_t hd_openssl_is_fips(void) {
 
 /**
  * SHA-256 hash
- * @param data Input data
+ * @param data Input data (must not be NULL)
  * @param len Input length
- * @param out Output buffer (32 bytes)
+ * @param out Output buffer (32 bytes, must not be NULL)
  * @return 32 on success, negative on error
  */
 HD_OSSL_EXPORT
 int32_t hd_ossl_sha256(const uint8_t* data, size_t len, uint8_t* out) {
+    if (data == NULL || out == NULL) return -3;  // Invalid argument
+
     EVP_MD_CTX *ctx = NULL;
     EVP_MD *md = NULL;
     unsigned int hash_len = 32;
@@ -655,7 +722,7 @@ int32_t hd_ossl_ecdsa_sign(int curve_nid,
     ret = 0;
 
 cleanup:
-    BN_free(priv_bn);
+    BN_clear_free(priv_bn);
     OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(bld);
     EVP_PKEY_free(pkey);
@@ -786,7 +853,7 @@ int32_t hd_ossl_ec_pubkey_from_privkey(int curve_nid,
     ret = 0;
 
 cleanup:
-    BN_free(priv_bn);
+    BN_clear_free(priv_bn);
     OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(bld);
     EVP_PKEY_free(pkey);
@@ -846,7 +913,7 @@ int32_t hd_ossl_ecdh_keygen(int curve_nid,
     ret = 0;
 
 cleanup:
-    BN_free(priv_bn);
+    BN_clear_free(priv_bn);
     EVP_PKEY_free(pkey);
     EVP_PKEY_CTX_free(pctx);
     return ret;
@@ -938,7 +1005,7 @@ int32_t hd_ossl_ecdh_compute(int curve_nid,
     ret = 0;
 
 cleanup:
-    BN_free(priv_bn);
+    BN_clear_free(priv_bn);
     OSSL_PARAM_free(params);
     OSSL_PARAM_BLD_free(bld);
     EVP_PKEY_free(priv_pkey);

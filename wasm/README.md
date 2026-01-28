@@ -7,9 +7,10 @@ A comprehensive HD (Hierarchical Deterministic) wallet implementation compiled t
 - **BIP-32/39/44/49/84** - Complete HD wallet derivation standards
 - **Multi-curve support** - secp256k1, Ed25519, P-256, P-384, X25519
 - **Multi-chain** - Bitcoin, Ethereum, Solana, Cosmos, Polkadot
+- **AES-256-GCM** - Authenticated encryption via WASM (Crypto++/OpenSSL)
 - **Hardware wallet ready** - Trezor, Ledger, KeepKey abstraction layer
 - **Secure** - Crypto++ backend, secure memory handling
-- **Fast** - WebAssembly performance
+- **Fast** - WebAssembly performance, synchronous cryptographic operations
 - **TypeScript** - Full type definitions included
 
 ## Installation
@@ -222,6 +223,40 @@ const pbkdf2 = wallet.utils.pbkdf2(password, salt, 100000, 32);
 
 // Secure wipe
 wallet.utils.secureWipe(sensitiveData);
+```
+
+### AES-GCM Encryption
+
+```javascript
+// Generate key and IV
+const key = wallet.utils.generateAesKey(256); // 32 bytes for AES-256
+const iv = wallet.utils.generateIv(); // 12 bytes
+
+// Encrypt
+const plaintext = new TextEncoder().encode('Secret data');
+const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(key, plaintext, iv);
+
+// Decrypt
+const decrypted = wallet.utils.aesGcm.decrypt(key, ciphertext, tag, iv);
+
+// With additional authenticated data (AAD)
+const aad = new TextEncoder().encode('context');
+const enc = wallet.utils.aesGcm.encrypt(key, plaintext, iv, aad);
+const dec = wallet.utils.aesGcm.decrypt(key, enc.ciphertext, enc.tag, iv, aad);
+```
+
+### Random Number Generation
+
+```javascript
+// Generate cryptographically secure random bytes
+const randomBytes = wallet.utils.getRandomBytes(32);
+
+// Generate random IV for AES-GCM (12 bytes)
+const iv = wallet.utils.generateIv();
+
+// Generate random AES key (128, 192, or 256 bits)
+const aes128Key = wallet.utils.generateAesKey(128);
+const aes256Key = wallet.utils.generateAesKey(256);
 ```
 
 ## Coin Types (SLIP-44)

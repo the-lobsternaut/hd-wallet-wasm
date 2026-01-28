@@ -50,15 +50,20 @@ HD Wallet WASM provides a complete implementation of BIP-32/39/44 hierarchical d
   - Transaction and message signing via device
 
 - **Security**
-  - Secure memory wiping (prevents compiler optimization)
-  - SecureVector/SecureArray for automatic cleanup
+  - Secure memory wiping with volatile pointers and memory barriers
+  - SecureVector/SecureArray with secure allocator (wipes on reallocation)
+  - MaskedKey XOR-masking for private keys at rest
+  - Constant-time signature verification (DER encoding)
+  - Thread-safe callback registration
   - Memory locking to prevent swapping (mlock)
   - Optional FIPS-compliant mode
 
 - **Cryptographic Utilities**
   - Hash functions: SHA-256, SHA-512, Keccak-256, RIPEMD-160, BLAKE2b/s
   - Key derivation: HKDF, PBKDF2, scrypt
+  - Encryption: AES-256-GCM (authenticated encryption)
   - Encoding: Base58, Base58Check, Bech32, Hex, Base64
+  - Random: Secure random bytes, IV generation, AES key generation
 
 ## Installation
 
@@ -193,6 +198,27 @@ const { signature, recoveryId } = wallet.curves.secp256k1.signRecoverable(messag
 const recovered = wallet.curves.secp256k1.recover(messageHash, signature, recoveryId);
 ```
 
+### AES-GCM Encryption
+
+```javascript
+// Generate a key and IV
+const aesKey = wallet.utils.generateAesKey(256); // 32 bytes
+const iv = wallet.utils.generateIv(); // 12 bytes
+
+// Encrypt data
+const plaintext = new TextEncoder().encode('Secret message');
+const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(aesKey, plaintext, iv);
+
+// Decrypt data
+const decrypted = wallet.utils.aesGcm.decrypt(aesKey, ciphertext, tag, iv);
+console.log(new TextDecoder().decode(decrypted)); // 'Secret message'
+
+// With additional authenticated data (AAD)
+const aad = new TextEncoder().encode('associated data');
+const encrypted = wallet.utils.aesGcm.encrypt(aesKey, plaintext, iv, aad);
+const decryptedWithAad = wallet.utils.aesGcm.decrypt(aesKey, encrypted.ciphertext, encrypted.tag, iv, aad);
+```
+
 ### Building Transactions
 
 ```javascript
@@ -237,7 +263,7 @@ Full API documentation is available at [https://digitalarsenal.github.io/hd-wall
 | `polkadot` | Polkadot/Substrate addresses and signing |
 | `hardware` | Hardware wallet abstraction (KeepKey, Trezor, Ledger) |
 | `keyring` | Multi-wallet key management |
-| `utils` | Hash functions, encoding, key derivation |
+| `utils` | Hash functions, encoding, key derivation, AES-GCM encryption |
 
 ### Low-Level C API
 
@@ -412,9 +438,23 @@ key.wipe(); // Securely wipes memory
 
 Key security features:
 
-- **Secure wiping**: Uses volatile writes to prevent compiler optimization from removing memory clearing
+- **Secure wiping**: Uses volatile writes with compiler memory barriers (`__asm__ __volatile__`) to prevent optimization from removing memory clearing
+- **Secure allocator**: `SecureAllocator<T>` wipes memory on deallocation, including during `std::vector` reallocation -- freed buffers are always wiped
+- **MaskedKey**: Private keys stored XOR-masked with a random session key; only revealed temporarily via RAII `RevealedKey` that auto-wipes
+- **Constant-time operations**: Signature verification uses fixed-size buffers; comparison uses XOR accumulation
+- **Thread safety**: Callback registration protected by mutex; global string buffers use `thread_local` storage
 - **Memory locking**: On supported platforms, sensitive memory is locked to prevent swapping to disk
-- **Automatic cleanup**: SecureVector, SecureArray, and SecureString types automatically wipe on destruction
+- **Exception-safe WASI**: Integer parsing uses safe manual parsers instead of `std::stoull` to avoid `abort()` in no-exceptions builds
+
+### WASM Memory Model
+
+WebAssembly's linear memory has inherent limitations for cryptographic applications:
+
+- **Flat address space**: All data (including private keys) exists in a single contiguous memory region accessible via the host language (e.g., `HEAPU8.buffer` in JavaScript)
+- **No memory protection**: WASM lacks hardware memory protection (NX bits, guard pages, ASLR)
+- **Memory cannot shrink**: `memory.grow` is one-directional; wiped data remains in the allocated region
+
+The library mitigates these limitations through MaskedKey XOR-masking, secure wiping, and RAII cleanup patterns. However, applications handling high-value keys should consider additional isolation measures at the host level (Content Security Policy, Subresource Integrity, restricted script access).
 
 ### WASI Considerations
 

@@ -851,23 +851,37 @@ int32_t hd_slip10_ed25519_derive_path(
             component.pop_back();
         }
 
-        // Parse index
-        uint32_t index;
-        try {
-            index = static_cast<uint32_t>(std::stoul(component));
-        } catch (...) {
+        // Parse index (without std::stoul to avoid exceptions in WASI)
+        if (component.empty() || component.size() > 10) {
             CryptoPP::SecureWipeArray(currentKey, 32);
             CryptoPP::SecureWipeArray(currentChainCode, 32);
             return -1;
         }
+        uint64_t parsed = 0;
+        bool parseOk = true;
+        for (char c : component) {
+            if (c < '0' || c > '9') { parseOk = false; break; }
+            parsed = parsed * 10 + static_cast<uint64_t>(c - '0');
+            if (parsed > 0xFFFFFFFF) { parseOk = false; break; }
+        }
+        if (!parseOk) {
+            CryptoPP::SecureWipeArray(currentKey, 32);
+            CryptoPP::SecureWipeArray(currentChainCode, 32);
+            return -1;
+        }
+        uint32_t index = static_cast<uint32_t>(parsed);
 
-        // For Ed25519, all derivation must be hardened
+        // SECURITY FIX [HIGH-02]: Ed25519 SLIP-10 requires hardened derivation.
+        // Instead of silently auto-hardening (which could cause key mismatch on
+        // wallet recovery), we now return an error for non-hardened paths.
+        // Callers MUST use hardened notation (e.g., m/44'/501'/0'/0') for Ed25519.
         if (!hardened) {
-            // Auto-harden for Ed25519
-            hardened = true;
+            CryptoPP::SecureWipeArray(currentKey, 32);
+            CryptoPP::SecureWipeArray(currentChainCode, 32);
+            return -2;  // Error: Ed25519 requires hardened derivation
         }
 
-        // Add hardened flag
+        // Add hardened flag (hardened is always true at this point)
         index |= 0x80000000;
 
         // Derive child

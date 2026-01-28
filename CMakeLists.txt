@@ -224,6 +224,11 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(hd_wallet PUBLIC cryptopp)
   endif()
 
+  # macOS requires Security framework for SecRandomCopyBytes
+  if(APPLE AND NOT EMSCRIPTEN)
+    target_link_libraries(hd_wallet PUBLIC "-framework Security")
+  endif()
+
   if(HD_WALLET_FIPS_MODE)
     target_compile_definitions(hd_wallet PUBLIC HD_WALLET_FIPS_MODE=1)
   endif()

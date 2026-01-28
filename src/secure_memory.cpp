@@ -245,7 +245,7 @@ public:
 
     // Construct from regular vector
     explicit SecureVector(const std::vector<uint8_t>& vec)
-        : data_(vec) {}
+        : data_(vec.begin(), vec.end()) {}
 
     // ----- Destructor -----
 
@@ -304,20 +304,9 @@ public:
     size_t capacity() const { return data_.capacity(); }
 
     void reserve(size_t new_cap) {
-        // When reserving more space, the old buffer might be reallocated
-        // We need to wipe the old buffer if it moves
-        if (new_cap > data_.capacity()) {
-            uint8_t* old_data = data_.data();
-            size_t old_cap = data_.capacity();
-
-            data_.reserve(new_cap);
-
-            // If pointer changed, old memory was freed without wiping
-            // Unfortunately we can't wipe it after reallocation
-            // This is a limitation of std::vector
-            (void)old_data;
-            (void)old_cap;
-        }
+        // SecureAllocator::deallocate() wipes old buffer automatically
+        // when std::vector reallocates, so this is safe.
+        data_.reserve(new_cap);
     }
 
     void shrink_to_fit() {
@@ -410,7 +399,7 @@ public:
      * Convert to regular vector (copies data)
      */
     std::vector<uint8_t> toVector() const {
-        return data_;
+        return std::vector<uint8_t>(data_.begin(), data_.end());
     }
 
     /**
@@ -418,7 +407,8 @@ public:
      * WARNING: The returned vector will NOT be auto-wiped
      */
     std::vector<uint8_t> release() {
-        std::vector<uint8_t> result = std::move(data_);
+        std::vector<uint8_t> result(data_.begin(), data_.end());
+        wipe();
         data_.clear();
         return result;
     }
@@ -434,7 +424,7 @@ public:
     }
 
 private:
-    std::vector<uint8_t> data_;
+    std::vector<uint8_t, hd_wallet::SecureAllocator<uint8_t>> data_;
 };
 
 // Free function for secure comparison
@@ -779,15 +769,24 @@ void MaskedKey<N>::initializeMask() {
     int32_t result = bridge.getEntropy(mask_.data(), N);
 
     if (result != static_cast<int32_t>(N)) {
-        // Fallback: Use a deterministic but unpredictable pattern
-        // This is less secure but better than nothing
-        // Mix in the address of this object for some entropy
-        uint64_t addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(this));
-        for (size_t i = 0; i < N; ++i) {
-            // Simple PRNG-like mixing (LCG)
-            addr = addr * 6364136223846793005ULL + 1442695040888963407ULL;
-            mask_[i] = static_cast<uint8_t>(addr >> 56);
-        }
+        // SECURITY FIX [CRITICAL-01]: Fail hard instead of using weak PRNG fallback.
+        // Using a weak mask defeats the purpose of memory protection and could
+        // lead to private key exposure. Callers MUST ensure entropy is available
+        // before using MaskedKey.
+        //
+        // To fix: Call hd_inject_entropy() before creating MaskedKey objects,
+        // or ensure the WASI runtime provides random_get capability.
+#if defined(__wasi__) || defined(HD_WALLET_NO_EXCEPTIONS)
+        // In WASI/no-exceptions mode, we cannot throw. Zero the mask and set
+        // a flag that will cause operations to fail safely.
+        std::memset(mask_.data(), 0, N);
+        // Note: initialized_ will remain false, causing reveal() to return zeros
+#else
+        throw std::runtime_error(
+            "MaskedKey: entropy unavailable. Call hd_inject_entropy() before "
+            "using secure key storage, or ensure WASI random_get is available."
+        );
+#endif
     }
 }
 

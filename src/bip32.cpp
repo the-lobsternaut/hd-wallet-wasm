@@ -94,6 +94,36 @@ static void secureWipe(void* ptr, size_t size) {
 #endif
 }
 
+/**
+ * SECURITY FIX [HIGH-03]: Constant-time memory comparison
+ *
+ * Compares two memory regions in constant time to prevent timing attacks.
+ * Traditional memcmp/std::equal return early on first difference, which can
+ * leak information about the comparison through timing side-channels.
+ *
+ * @param a First memory region
+ * @param b Second memory region
+ * @param size Number of bytes to compare
+ * @return true if equal, false otherwise
+ */
+static bool secureCompare(const void* a, const void* b, size_t size) {
+    if (size == 0) return true;
+    if (a == nullptr || b == nullptr) return false;
+
+    const volatile uint8_t* va = static_cast<const volatile uint8_t*>(a);
+    const volatile uint8_t* vb = static_cast<const volatile uint8_t*>(b);
+
+    volatile uint8_t diff = 0;
+
+    // XOR all bytes together - any difference will show up in diff
+    for (size_t i = 0; i < size; ++i) {
+        diff |= va[i] ^ vb[i];
+    }
+
+    // Return true only if no differences found
+    return diff == 0;
+}
+
 // =============================================================================
 // Cryptographic Primitives using Crypto++
 // =============================================================================
@@ -413,8 +443,16 @@ static std::string base58EncodeOptimized(const ByteVector& data) {
         ++leadingZeros;
     }
 
+    // SECURITY FIX [MEDIUM-01]: Check for integer overflow before multiplication
+    // Extended keys are 78 bytes max, but check anyway for defense in depth
+    size_t nonZeroBytes = data.size() - leadingZeros;
+    if (nonZeroBytes > SIZE_MAX / 138) {
+        // Would overflow - return empty string (invalid input)
+        return "";
+    }
+
     // Allocate enough space for result
-    size_t size = (data.size() - leadingZeros) * 138 / 100 + 1;
+    size_t size = nonZeroBytes * 138 / 100 + 1;
     std::vector<uint8_t> b58(size);
 
     // Process the bytes
@@ -456,8 +494,15 @@ static ByteVector base58Decode(const std::string& str) {
         ++leadingOnes;
     }
 
+    // SECURITY FIX [MEDIUM-01]: Check for integer overflow before multiplication
+    size_t nonOneChars = str.size() - leadingOnes;
+    if (nonOneChars > SIZE_MAX / 733) {
+        // Would overflow - return empty (invalid input)
+        return {};
+    }
+
     // Allocate enough space
-    size_t size = (str.size() - leadingOnes) * 733 / 1000 + 1;
+    size_t size = nonOneChars * 733 / 1000 + 1;
     std::vector<uint8_t> bin(size);
 
     // Process the string
@@ -519,10 +564,10 @@ static Result<ByteVector> base58CheckDecode(const std::string& str) {
     ByteVector payload(decoded.begin(), decoded.end() - 4);
     ByteVector checksum(decoded.end() - 4, decoded.end());
 
-    // Verify checksum
+    // Verify checksum using constant-time comparison (SECURITY FIX [HIGH-03])
     Bytes32 calculatedChecksum = doubleSha256(payload.data(), payload.size());
 
-    if (!std::equal(checksum.begin(), checksum.end(), calculatedChecksum.begin())) {
+    if (!secureCompare(checksum.data(), calculatedChecksum.data(), 4)) {
         return Result<ByteVector>::fail(Error::INVALID_CHECKSUM);
     }
 
@@ -577,13 +622,21 @@ Result<DerivationPath> DerivationPath::parse(const std::string& path) {
             return Result<DerivationPath>::fail(Error::INVALID_PATH);
         }
 
-        // Convert to index
+        // Convert to index (without std::stoull to avoid exceptions in WASI)
         std::string numStr = normalized.substr(numStart, pos - numStart);
-        uint64_t index;
-        try {
-            index = std::stoull(numStr);
-        } catch (...) {
+        if (numStr.empty() || numStr.size() > 10) {
+            // Max valid index is 2^31-1 = 2147483647 (10 digits)
             return Result<DerivationPath>::fail(Error::INVALID_PATH);
+        }
+        uint64_t index = 0;
+        for (char c : numStr) {
+            if (c < '0' || c > '9') {
+                return Result<DerivationPath>::fail(Error::INVALID_PATH);
+            }
+            index = index * 10 + static_cast<uint64_t>(c - '0');
+            if (index > 0xFFFFFFFF) {
+                return Result<DerivationPath>::fail(Error::INVALID_CHILD_INDEX);
+            }
         }
 
         // Check for overflow

@@ -1,6 +1,9 @@
 # Build directories
 build/
+build-native/
 build-wasm/
+build-wasi/
+build-wasi-pure/
 cmake-build-*/
 .cache/
 
@@ -43,5 +46,3 @@ package-lock.json
 
 # Downloaded wordlists (regenerate from official source)
 src/bip39_english.txt
-build-wasi/
-build-wasi-pure/

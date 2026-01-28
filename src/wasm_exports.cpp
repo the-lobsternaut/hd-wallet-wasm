@@ -50,6 +50,8 @@ extern "C" int32_t hd_ecdh(
 #include <cryptopp/filters.h>
 #include <cryptopp/gcm.h>
 #include <cryptopp/aes.h>
+#include <cryptopp/hmac.h>
+#include <cryptopp/secblock.h>
 
 #if HD_WALLET_USE_OPENSSL
 #include "hd_wallet/crypto_openssl.h"
@@ -64,11 +66,125 @@ namespace hd_wallet {
 using Error = hd_wallet::Error;
 
 // =============================================================================
+// RFC 6979 Deterministic Nonce Generation
+// =============================================================================
+
+namespace {
+
+/**
+ * RFC 6979 deterministic k generation for ECDSA
+ * This eliminates the need for random number generation during signing,
+ * preventing nonce-reuse attacks that could leak private keys.
+ */
+template<typename HashType>
+CryptoPP::Integer generateDeterministicK(
+    const CryptoPP::Integer& privateKey,
+    const uint8_t* hash,
+    size_t hashLen,
+    const CryptoPP::Integer& order
+) {
+    size_t qLen = order.ByteCount();
+    size_t hLen = HashType::DIGESTSIZE;
+
+    CryptoPP::SecByteBlock v(hLen);
+    std::memset(v.data(), 0x01, hLen);
+    CryptoPP::SecByteBlock k(hLen);
+    std::memset(k.data(), 0x00, hLen);
+
+    // Encode private key as fixed-length big-endian
+    CryptoPP::SecByteBlock x(qLen);
+    privateKey.Encode(x.data(), qLen);
+
+    // K = HMAC_K(V || 0x00 || int2octets(x) || bits2octets(h1))
+    CryptoPP::HMAC<HashType> hmac;
+
+    std::vector<uint8_t> hmacInput;
+    hmacInput.reserve(hLen + 1 + qLen + hashLen);
+    hmacInput.insert(hmacInput.end(), v.begin(), v.end());
+    hmacInput.push_back(0x00);
+    hmacInput.insert(hmacInput.end(), x.begin(), x.end());
+    hmacInput.insert(hmacInput.end(), hash, hash + hashLen);
+
+    hmac.SetKey(k.data(), k.size());
+    hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
+
+    // V = HMAC_K(V)
+    hmac.SetKey(k.data(), k.size());
+    hmac.CalculateDigest(v.data(), v.data(), v.size());
+
+    // K = HMAC_K(V || 0x01 || int2octets(x) || bits2octets(h1))
+    hmacInput.clear();
+    hmacInput.insert(hmacInput.end(), v.begin(), v.end());
+    hmacInput.push_back(0x01);
+    hmacInput.insert(hmacInput.end(), x.begin(), x.end());
+    hmacInput.insert(hmacInput.end(), hash, hash + hashLen);
+
+    hmac.SetKey(k.data(), k.size());
+    hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
+
+    // V = HMAC_K(V)
+    hmac.SetKey(k.data(), k.size());
+    hmac.CalculateDigest(v.data(), v.data(), v.size());
+
+    // Generate k candidates until we get a valid one
+    while (true) {
+        CryptoPP::SecByteBlock t;
+        t.resize(0);
+
+        while (t.size() < qLen) {
+            // V = HMAC_K(V)
+            hmac.SetKey(k.data(), k.size());
+            hmac.CalculateDigest(v.data(), v.data(), v.size());
+            size_t oldSize = t.size();
+            t.Grow(oldSize + v.size());
+            std::memcpy(t.data() + oldSize, v.data(), v.size());
+        }
+
+        CryptoPP::Integer candidate(t.data(), qLen);
+
+        // Valid k: 1 <= k < order
+        if (candidate >= 1 && candidate < order) {
+            // Securely wipe sensitive data
+            std::memset(x.data(), 0, x.size());
+            return candidate;
+        }
+
+        // K = HMAC_K(V || 0x00)
+        hmacInput.clear();
+        hmacInput.insert(hmacInput.end(), v.begin(), v.end());
+        hmacInput.push_back(0x00);
+
+        hmac.SetKey(k.data(), k.size());
+        hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
+
+        // V = HMAC_K(V)
+        hmac.SetKey(k.data(), k.size());
+        hmac.CalculateDigest(v.data(), v.data(), v.size());
+    }
+}
+
+/**
+ * Securely wipe a CryptoPP::Integer by encoding to buffer, then wiping
+ */
+inline void secureWipeInteger(CryptoPP::Integer& val) {
+    size_t byteCount = val.ByteCount();
+    if (byteCount > 0) {
+        CryptoPP::SecByteBlock buf(byteCount);
+        val.Encode(buf.data(), byteCount);
+        std::memset(buf.data(), 0, byteCount);
+    }
+    val = CryptoPP::Integer::Zero();
+}
+
+} // anonymous namespace
+
+// =============================================================================
 // Hash Functions
 // =============================================================================
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_sha256(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size) {
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     if (out_size < 32) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     CryptoPP::SHA256 hash;
     hash.CalculateDigest(hash_out, data, data_len);
@@ -77,6 +193,7 @@ int32_t hd_hash_sha256(const uint8_t* data, size_t data_len, uint8_t* hash_out, 
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_sha512(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size) {
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     if (out_size < 64) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     CryptoPP::SHA512 hash;
     hash.CalculateDigest(hash_out, data, data_len);
@@ -85,6 +202,7 @@ int32_t hd_hash_sha512(const uint8_t* data, size_t data_len, uint8_t* hash_out, 
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_keccak256(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size) {
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     if (out_size < 32) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     CryptoPP::Keccak_256 hash;
     hash.CalculateDigest(hash_out, data, data_len);
@@ -93,6 +211,7 @@ int32_t hd_hash_keccak256(const uint8_t* data, size_t data_len, uint8_t* hash_ou
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_ripemd160(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size) {
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     if (out_size < 20) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     CryptoPP::RIPEMD160 hash;
     hash.CalculateDigest(hash_out, data, data_len);
@@ -101,6 +220,7 @@ int32_t hd_hash_ripemd160(const uint8_t* data, size_t data_len, uint8_t* hash_ou
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_hash160(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size) {
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
     if (out_size < 20) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     // Hash160 = RIPEMD160(SHA256(data))
     uint8_t sha_out[32];
@@ -108,12 +228,15 @@ int32_t hd_hash_hash160(const uint8_t* data, size_t data_len, uint8_t* hash_out,
     sha.CalculateDigest(sha_out, data, data_len);
     CryptoPP::RIPEMD160 ripemd;
     ripemd.CalculateDigest(hash_out, sha_out, 32);
+    // Wipe intermediate hash
+    std::memset(sha_out, 0, sizeof(sha_out));
     return 20;
 }
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_blake2b(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size, size_t digest_size) {
-    if (out_size < digest_size || digest_size > 64) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    if (out_size < digest_size || digest_size > 64 || digest_size == 0) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     CryptoPP::BLAKE2b hash(false, digest_size);
     hash.CalculateDigest(hash_out, data, data_len);
     return static_cast<int32_t>(digest_size);
@@ -121,7 +244,8 @@ int32_t hd_hash_blake2b(const uint8_t* data, size_t data_len, uint8_t* hash_out,
 
 extern "C" HD_WALLET_EXPORT
 int32_t hd_hash_blake2s(const uint8_t* data, size_t data_len, uint8_t* hash_out, size_t out_size, size_t digest_size) {
-    if (out_size < digest_size || digest_size > 32) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+    if (data == nullptr || hash_out == nullptr) return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    if (out_size < digest_size || digest_size > 32 || digest_size == 0) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
     CryptoPP::BLAKE2s hash(false, digest_size);
     hash.CalculateDigest(hash_out, data, data_len);
     return static_cast<int32_t>(digest_size);
@@ -250,7 +374,7 @@ int32_t hd_curve_pubkey_from_privkey(
 }
 
 // =============================================================================
-// secp256k1 Signing
+// secp256k1 Signing (RFC 6979 Deterministic)
 // =============================================================================
 
 extern "C" HD_WALLET_EXPORT
@@ -259,29 +383,77 @@ int32_t hd_secp256k1_sign(
     const uint8_t* private_key,
     uint8_t* signature_out, size_t out_size
 ) {
-    if (out_size < 72) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+    // Return compact R||S format (64 bytes) for consistency with blockchain usage
+    if (out_size < 64) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+    if (message == nullptr || private_key == nullptr || signature_out == nullptr) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
 
     try {
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PrivateKey key;
-        CryptoPP::Integer privKeyInt(private_key, 32);
-        key.Initialize(CryptoPP::ASN1::secp256k1(), privKeyInt);
+        // Get curve parameters
+        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
+        params.Initialize(CryptoPP::ASN1::secp256k1());
+        const CryptoPP::ECP& ec = params.GetCurve();
+        const CryptoPP::Integer& n = params.GetGroupOrder();
+        const CryptoPP::Integer halfN = n >> 1;
 
-        CryptoPP::AutoSeededRandomPool rng;
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::Signer signer(key);
+        // Parse private key
+        CryptoPP::Integer d(private_key, 32);
 
-        std::string signature;
-        CryptoPP::StringSource ss(message, message_len, true,
-            new CryptoPP::SignerFilter(rng, signer,
-                new CryptoPP::StringSink(signature)
-            )
-        );
-
-        if (signature.size() > out_size) {
-            return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+        // Validate private key range
+        if (d <= 0 || d >= n) {
+            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
         }
 
-        std::memcpy(signature_out, signature.data(), signature.size());
-        return static_cast<int32_t>(signature.size());
+        // Hash message with SHA-256 (standard for secp256k1 ECDSA)
+        uint8_t msgHash[32];
+        CryptoPP::SHA256 sha;
+        sha.CalculateDigest(msgHash, message, message_len);
+
+        // Generate deterministic k using RFC 6979
+        CryptoPP::Integer k = generateDeterministicK<CryptoPP::SHA256>(d, msgHash, 32, n);
+
+        // Compute R = k * G
+        CryptoPP::ECPPoint R = ec.ScalarMultiply(params.GetSubgroupGenerator(), k);
+
+        // r = R.x mod n
+        CryptoPP::Integer r = R.x % n;
+        if (r.IsZero()) {
+            secureWipeInteger(d);
+            secureWipeInteger(k);
+            return static_cast<int32_t>(Error::INTERNAL);
+        }
+
+        // z = hash (interpreted as integer)
+        CryptoPP::Integer z(msgHash, 32);
+
+        // s = k^-1 * (z + r*d) mod n
+        CryptoPP::Integer kInv = k.InverseMod(n);
+        CryptoPP::Integer s = (kInv * (z + r * d)) % n;
+
+        if (s.IsZero()) {
+            secureWipeInteger(d);
+            secureWipeInteger(k);
+            return static_cast<int32_t>(Error::INTERNAL);
+        }
+
+        // Low-S normalization (BIP-62/BIP-146)
+        if (s > halfN) {
+            s = n - s;
+        }
+
+        // Encode as compact R||S (64 bytes)
+        std::memset(signature_out, 0, 64);
+        r.Encode(signature_out, 32);
+        s.Encode(signature_out + 32, 32);
+
+        // Secure cleanup
+        secureWipeInteger(d);
+        secureWipeInteger(k);
+        secureWipeInteger(kInv);
+        std::memset(msgHash, 0, sizeof(msgHash));
+
+        return 64;
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
     }
@@ -336,30 +508,39 @@ int32_t hd_secp256k1_verify(
         }
 
         // Convert R||S (64 bytes) to DER format
+        // Uses fixed-size buffer to avoid timing side channels
         if (signature_len != 64) {
             return static_cast<int32_t>(Error::INVALID_SIGNATURE);
         }
-        std::vector<uint8_t> derSig;
-        derSig.push_back(0x30); // SEQUENCE
-        derSig.push_back(0); // length placeholder
 
-        // R
-        derSig.push_back(0x02);
-        bool rPad = (signature[0] & 0x80) != 0;
-        derSig.push_back(rPad ? 33 : 32);
-        if (rPad) derSig.push_back(0);
-        derSig.insert(derSig.end(), signature, signature + 32);
+        // Max DER signature: 2 (header) + 2 (R tag+len) + 33 (R) + 2 (S tag+len) + 33 (S) = 72
+        uint8_t derSig[72];
+        size_t pos = 0;
 
-        // S
-        derSig.push_back(0x02);
-        bool sPad = (signature[32] & 0x80) != 0;
-        derSig.push_back(sPad ? 33 : 32);
-        if (sPad) derSig.push_back(0);
-        derSig.insert(derSig.end(), signature + 32, signature + 64);
+        derSig[pos++] = 0x30; // SEQUENCE
+        derSig[pos++] = 0;    // length placeholder (filled at end)
 
-        derSig[1] = derSig.size() - 2;
+        // R component
+        derSig[pos++] = 0x02; // INTEGER
+        uint8_t rPad = (signature[0] >> 7); // 1 if high bit set, 0 otherwise
+        derSig[pos++] = 32 + rPad;
+        derSig[pos] = 0;      // padding byte (only meaningful if rPad==1)
+        pos += rPad;
+        std::memcpy(derSig + pos, signature, 32);
+        pos += 32;
 
-        return verifier.VerifyMessage(message, message_len, derSig.data(), derSig.size()) ? 1 : 0;
+        // S component
+        derSig[pos++] = 0x02; // INTEGER
+        uint8_t sPad = (signature[32] >> 7);
+        derSig[pos++] = 32 + sPad;
+        derSig[pos] = 0;
+        pos += sPad;
+        std::memcpy(derSig + pos, signature + 32, 32);
+        pos += 32;
+
+        derSig[1] = static_cast<uint8_t>(pos - 2);
+
+        return verifier.VerifyMessage(message, message_len, derSig, pos) ? 1 : 0;
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
     }
@@ -481,7 +662,7 @@ int32_t hd_ecdh_secp256k1(
 }
 
 // =============================================================================
-// P-256 (NIST secp256r1)
+// P-256 (NIST secp256r1) - RFC 6979 Deterministic
 // =============================================================================
 
 extern "C" HD_WALLET_EXPORT
@@ -491,33 +672,73 @@ int32_t hd_p256_sign(
     uint8_t* signature_out, size_t out_size
 ) {
     if (out_size < 64) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+    if (message == nullptr || private_key == nullptr || signature_out == nullptr) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
 
     try {
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PrivateKey privKey;
-        CryptoPP::Integer privKeyInt(private_key, 32);
-        privKey.Initialize(CryptoPP::ASN1::secp256r1(), privKeyInt);
+        // Get curve parameters
+        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
+        params.Initialize(CryptoPP::ASN1::secp256r1());
+        const CryptoPP::ECP& ec = params.GetCurve();
+        const CryptoPP::Integer& n = params.GetGroupOrder();
+        const CryptoPP::Integer halfN = n >> 1;
 
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::Signer signer(privKey);
-        CryptoPP::AutoSeededRandomPool rng;
+        // Parse private key
+        CryptoPP::Integer d(private_key, 32);
 
-        size_t sigLen = signer.MaxSignatureLength();
-        std::vector<uint8_t> derSig(sigLen);
-        sigLen = signer.SignMessage(rng, message, message_len, derSig.data());
+        // Validate private key range
+        if (d <= 0 || d >= n) {
+            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
+        }
 
-        // Convert DER to R||S format
-        size_t pos = 3;
-        size_t rLen = derSig[pos++];
-        const uint8_t* rStart = derSig.data() + pos;
-        if (rLen == 33 && rStart[0] == 0) { rStart++; rLen--; }
-        pos += derSig[pos-1] == 33 ? 33 : rLen;
-        pos++;
-        size_t sLen = derSig[pos++];
-        const uint8_t* sStart = derSig.data() + pos;
-        if (sLen == 33 && sStart[0] == 0) { sStart++; sLen--; }
+        // Hash message with SHA-256
+        uint8_t msgHash[32];
+        CryptoPP::SHA256 sha;
+        sha.CalculateDigest(msgHash, message, message_len);
 
+        // Generate deterministic k using RFC 6979
+        CryptoPP::Integer k = generateDeterministicK<CryptoPP::SHA256>(d, msgHash, 32, n);
+
+        // Compute R = k * G
+        CryptoPP::ECPPoint R = ec.ScalarMultiply(params.GetSubgroupGenerator(), k);
+
+        // r = R.x mod n
+        CryptoPP::Integer r = R.x % n;
+        if (r.IsZero()) {
+            secureWipeInteger(d);
+            secureWipeInteger(k);
+            return static_cast<int32_t>(Error::INTERNAL);
+        }
+
+        // z = hash (interpreted as integer)
+        CryptoPP::Integer z(msgHash, 32);
+
+        // s = k^-1 * (z + r*d) mod n
+        CryptoPP::Integer kInv = k.InverseMod(n);
+        CryptoPP::Integer s = (kInv * (z + r * d)) % n;
+
+        if (s.IsZero()) {
+            secureWipeInteger(d);
+            secureWipeInteger(k);
+            return static_cast<int32_t>(Error::INTERNAL);
+        }
+
+        // Low-S normalization for signature malleability protection
+        if (s > halfN) {
+            s = n - s;
+        }
+
+        // Encode as compact R||S (64 bytes)
         std::memset(signature_out, 0, 64);
-        std::memcpy(signature_out + (32 - rLen), rStart, rLen);
-        std::memcpy(signature_out + 32 + (32 - sLen), sStart, sLen);
+        r.Encode(signature_out, 32);
+        s.Encode(signature_out + 32, 32);
+
+        // Secure cleanup
+        secureWipeInteger(d);
+        secureWipeInteger(k);
+        secureWipeInteger(kInv);
+        std::memset(msgHash, 0, sizeof(msgHash));
 
         return 64;
     } catch (...) {
@@ -592,7 +813,7 @@ int32_t hd_ecdh_p256(
 }
 
 // =============================================================================
-// P-384 (NIST secp384r1)
+// P-384 (NIST secp384r1) - RFC 6979 Deterministic
 // =============================================================================
 
 extern "C" HD_WALLET_EXPORT
@@ -602,33 +823,73 @@ int32_t hd_p384_sign(
     uint8_t* signature_out, size_t out_size
 ) {
     if (out_size < 96) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+    if (message == nullptr || private_key == nullptr || signature_out == nullptr) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
 
     try {
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA384>::PrivateKey privKey;
-        CryptoPP::Integer privKeyInt(private_key, 48);
-        privKey.Initialize(CryptoPP::ASN1::secp384r1(), privKeyInt);
+        // Get curve parameters
+        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
+        params.Initialize(CryptoPP::ASN1::secp384r1());
+        const CryptoPP::ECP& ec = params.GetCurve();
+        const CryptoPP::Integer& n = params.GetGroupOrder();
+        const CryptoPP::Integer halfN = n >> 1;
 
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA384>::Signer signer(privKey);
-        CryptoPP::AutoSeededRandomPool rng;
+        // Parse private key (48 bytes for P-384)
+        CryptoPP::Integer d(private_key, 48);
 
-        size_t sigLen = signer.MaxSignatureLength();
-        std::vector<uint8_t> derSig(sigLen);
-        sigLen = signer.SignMessage(rng, message, message_len, derSig.data());
+        // Validate private key range
+        if (d <= 0 || d >= n) {
+            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
+        }
 
-        // Parse DER and extract R||S (96 bytes for P-384)
-        size_t pos = 3;
-        size_t rLen = derSig[pos++];
-        const uint8_t* rStart = derSig.data() + pos;
-        if (rLen == 49 && rStart[0] == 0) { rStart++; rLen--; }
-        pos += derSig[pos-1] == 49 ? 49 : rLen;
-        pos++;
-        size_t sLen = derSig[pos++];
-        const uint8_t* sStart = derSig.data() + pos;
-        if (sLen == 49 && sStart[0] == 0) { sStart++; sLen--; }
+        // Hash message with SHA-384
+        uint8_t msgHash[48];
+        CryptoPP::SHA384 sha;
+        sha.CalculateDigest(msgHash, message, message_len);
 
+        // Generate deterministic k using RFC 6979 with SHA-384
+        CryptoPP::Integer k = generateDeterministicK<CryptoPP::SHA384>(d, msgHash, 48, n);
+
+        // Compute R = k * G
+        CryptoPP::ECPPoint R = ec.ScalarMultiply(params.GetSubgroupGenerator(), k);
+
+        // r = R.x mod n
+        CryptoPP::Integer r = R.x % n;
+        if (r.IsZero()) {
+            secureWipeInteger(d);
+            secureWipeInteger(k);
+            return static_cast<int32_t>(Error::INTERNAL);
+        }
+
+        // z = hash (interpreted as integer)
+        CryptoPP::Integer z(msgHash, 48);
+
+        // s = k^-1 * (z + r*d) mod n
+        CryptoPP::Integer kInv = k.InverseMod(n);
+        CryptoPP::Integer s = (kInv * (z + r * d)) % n;
+
+        if (s.IsZero()) {
+            secureWipeInteger(d);
+            secureWipeInteger(k);
+            return static_cast<int32_t>(Error::INTERNAL);
+        }
+
+        // Low-S normalization for signature malleability protection
+        if (s > halfN) {
+            s = n - s;
+        }
+
+        // Encode as compact R||S (96 bytes)
         std::memset(signature_out, 0, 96);
-        std::memcpy(signature_out + (48 - rLen), rStart, rLen);
-        std::memcpy(signature_out + 48 + (48 - sLen), sStart, sLen);
+        r.Encode(signature_out, 48);
+        s.Encode(signature_out + 48, 48);
+
+        // Secure cleanup
+        secureWipeInteger(d);
+        secureWipeInteger(k);
+        secureWipeInteger(kInv);
+        std::memset(msgHash, 0, sizeof(msgHash));
 
         return 96;
     } catch (...) {

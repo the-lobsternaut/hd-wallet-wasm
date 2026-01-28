@@ -336,6 +336,19 @@ Error validateMnemonic(const std::string& mnemonic, Language lang) {
 Result<Bytes64> mnemonicToSeed(const std::string& mnemonic, const std::string& passphrase) {
     std::string normalized = normalizeMnemonic(mnemonic);
 
+    // SECURITY NOTE [MEDIUM-05]: BIP-39 specifies NFKD Unicode normalization for
+    // both mnemonic and passphrase. This implementation normalizes the mnemonic
+    // (converting to lowercase and single spaces) but does NOT perform full NFKD
+    // normalization on the passphrase.
+    //
+    // For maximum compatibility with other BIP-39 implementations:
+    // - Use ASCII-only passphrases (letters, numbers, basic punctuation)
+    // - Avoid accented characters, emoji, or non-Latin scripts in passphrases
+    //
+    // If you use non-ASCII passphrases, the derived seed may differ from other
+    // wallets that implement full NFKD normalization. This could cause issues
+    // when importing your mnemonic into another wallet.
+    //
     // Salt = "mnemonic" + passphrase
     std::string salt = "mnemonic" + passphrase;
 

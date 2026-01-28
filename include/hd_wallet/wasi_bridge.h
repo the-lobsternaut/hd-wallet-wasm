@@ -56,6 +56,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -296,6 +297,9 @@ private:
   ~WasiBridge() = default;
   WasiBridge(const WasiBridge&) = delete;
   WasiBridge& operator=(const WasiBridge&) = delete;
+
+  // Thread safety for callback registration
+  mutable std::mutex callback_mutex_;
 
   // Entropy state
   callbacks::EntropyCallback entropy_callback_;

@@ -25,6 +25,10 @@
 #include <mutex>
 #include <string>
 
+#include <cryptopp/sha.h>
+#include <cryptopp/hmac.h>
+#include <cryptopp/secblock.h>
+
 #if HD_WALLET_IS_WASI
 // WASI random_get syscall
 extern "C" {
@@ -57,44 +61,61 @@ namespace hd_wallet {
 namespace {
 
 /**
- * Thread-safe entropy pool
+ * Thread-safe entropy pool with HMAC-based extraction
  *
- * Collects injected entropy and provides it to cryptographic operations.
- * Uses a simple mixing function to combine entropy sources.
+ * This implementation uses HMAC-SHA256 for both mixing injected entropy
+ * and extracting random bytes, providing cryptographic security guarantees.
+ *
+ * The pool maintains:
+ * - A 32-byte key (K) updated with each injection
+ * - A 32-byte state (V) updated with each extraction
+ * - A counter to ensure unique outputs
+ *
+ * Based on HMAC-DRBG (NIST SP 800-90A) design principles.
  */
 class EntropyPool {
 public:
-    static constexpr size_t POOL_SIZE = 256;
+    static constexpr size_t KEY_SIZE = 32;
     static constexpr size_t MIN_ENTROPY = 32;
 
-    EntropyPool() : pool_(POOL_SIZE, 0), index_(0), total_injected_(0) {}
+    EntropyPool() : total_injected_(0), reseed_counter_(0) {
+        // Initialize K and V to fixed values (will be updated on first inject)
+        std::memset(K_.data(), 0x00, KEY_SIZE);
+        std::memset(V_.data(), 0x01, KEY_SIZE);
+    }
 
     /**
-     * Inject entropy into the pool
+     * Inject entropy into the pool using HMAC-based mixing
+     *
+     * Updates both K and V:
+     *   K = HMAC-SHA256(K, V || 0x00 || entropy)
+     *   V = HMAC-SHA256(K, V)
+     *   K = HMAC-SHA256(K, V || 0x01 || entropy)
+     *   V = HMAC-SHA256(K, V)
      */
     void inject(const uint8_t* data, size_t length) {
         std::lock_guard<std::mutex> lock(mutex_);
 
-        for (size_t i = 0; i < length; ++i) {
-            // XOR with existing pool data and mix
-            pool_[index_] ^= data[i];
+        // K = HMAC(K, V || 0x00 || entropy)
+        update(data, length, 0x00);
 
-            // Simple mixing: rotate and XOR neighboring bytes
-            size_t prev = (index_ + POOL_SIZE - 1) % POOL_SIZE;
-            size_t next = (index_ + 1) % POOL_SIZE;
-            pool_[index_] ^= static_cast<uint8_t>((pool_[prev] >> 3) | (pool_[next] << 5));
-
-            index_ = (index_ + 1) % POOL_SIZE;
-        }
+        // K = HMAC(K, V || 0x01 || entropy)
+        update(data, length, 0x01);
 
         total_injected_ += length;
+        reseed_counter_ = 0;  // Reset reseed counter after new entropy
     }
 
     /**
-     * Extract entropy from the pool
+     * Extract entropy from the pool using HMAC-based generation
      *
-     * Uses a deterministic extraction that updates the pool state.
-     * Returns actual bytes extracted.
+     * For each 32 bytes of output:
+     *   V = HMAC-SHA256(K, V)
+     *   output = V
+     *
+     * After extraction, update state:
+     *   K = HMAC-SHA256(K, V || 0x00)
+     *   V = HMAC-SHA256(K, V)
      */
     size_t extract(uint8_t* output, size_t length) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -103,18 +124,23 @@ public:
             return 0;
         }
 
-        for (size_t i = 0; i < length; ++i) {
-            // Extract from current position
-            output[i] = pool_[index_];
+        // Generate output bytes
+        size_t generated = 0;
+        while (generated < length) {
+            // V = HMAC(K, V)
+            CryptoPP::HMAC<CryptoPP::SHA256> hmac(K_.data(), KEY_SIZE);
+            hmac.CalculateDigest(V_.data(), V_.data(), KEY_SIZE);
 
-            // Update pool state (feedback)
-            pool_[index_] ^= static_cast<uint8_t>(i + 1);
-            size_t prev = (index_ + POOL_SIZE - 1) % POOL_SIZE;
-            pool_[prev] ^= output[i];
-
-            index_ = (index_ + 1) % POOL_SIZE;
+            // Copy to output
+            size_t to_copy = std::min(KEY_SIZE, length - generated);
+            std::memcpy(output + generated, V_.data(), to_copy);
+            generated += to_copy;
         }
 
+        // Update state after extraction (backtracking resistance)
+        update(nullptr, 0, 0x00);
+
+        reseed_counter_++;
         return length;
     }
 
@@ -135,26 +161,57 @@ public:
     }
 
     /**
-     * Clear the entropy pool
+     * Clear the entropy pool securely
      */
     void clear() {
         std::lock_guard<std::mutex> lock(mutex_);
 
-        // Secure wipe
-        volatile uint8_t* volatile_ptr = pool_.data();
-        for (size_t i = 0; i < pool_.size(); ++i) {
-            volatile_ptr[i] = 0;
+        // Secure wipe using SecByteBlock's secure memory
+        CryptoPP::SecByteBlock wipe(KEY_SIZE);
+        std::memset(wipe.data(), 0, KEY_SIZE);
+
+        // Copy zeros to K and V using volatile to prevent optimization
+        volatile uint8_t* volatile_k = K_.data();
+        volatile uint8_t* volatile_v = V_.data();
+        for (size_t i = 0; i < KEY_SIZE; ++i) {
+            volatile_k[i] = 0x00;
+            volatile_v[i] = 0x01;
         }
 
-        index_ = 0;
         total_injected_ = 0;
+        reseed_counter_ = 0;
     }
 
 private:
+    /**
+     * Internal update function
+     * K = HMAC(K, V || separator || data)
+     * V = HMAC(K, V)
+     */
+    void update(const uint8_t* data, size_t length, uint8_t separator) {
+        // Build input: V || separator || data
+        std::vector<uint8_t> input;
+        input.reserve(KEY_SIZE + 1 + length);
+        input.insert(input.end(), V_.begin(), V_.end());
+        input.push_back(separator);
+        if (data != nullptr && length > 0) {
+            input.insert(input.end(), data, data + length);
+        }
+
+        // K = HMAC(K, input)
+        CryptoPP::HMAC<CryptoPP::SHA256> hmac(K_.data(), KEY_SIZE);
+        hmac.CalculateDigest(K_.data(), input.data(), input.size());
+
+        // V = HMAC(K, V)
+        hmac.SetKey(K_.data(), KEY_SIZE);
+        hmac.CalculateDigest(V_.data(), V_.data(), KEY_SIZE);
+    }
+
     mutable std::mutex mutex_;
-    std::vector<uint8_t> pool_;
-    size_t index_;
+    CryptoPP::SecByteBlock K_{KEY_SIZE};  // HMAC key
+    CryptoPP::SecByteBlock V_{KEY_SIZE};  // State value
     size_t total_injected_;
+    size_t reseed_counter_;
 };
 
 // Global entropy pool instance
@@ -304,6 +361,7 @@ std::string WasiBridge::getWarningMessage(WasiFeature feature) const {
 // ----- Entropy -----
 
 void WasiBridge::setEntropyCallback(callbacks::EntropyCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     entropy_callback_ = std::move(callback);
 }
 
@@ -379,22 +437,27 @@ bool WasiBridge::hasEntropy() const {
 // ----- USB/HID -----
 
 void WasiBridge::setHidEnumerateCallback(callbacks::HidEnumerateCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     hid_enumerate_ = std::move(callback);
 }
 
 void WasiBridge::setHidOpenCallback(callbacks::HidOpenCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     hid_open_ = std::move(callback);
 }
 
 void WasiBridge::setHidCloseCallback(callbacks::HidCloseCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     hid_close_ = std::move(callback);
 }
 
 void WasiBridge::setHidWriteCallback(callbacks::HidWriteCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     hid_write_ = std::move(callback);
 }
 
 void WasiBridge::setHidReadCallback(callbacks::HidReadCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     hid_read_ = std::move(callback);
 }
 
@@ -436,6 +499,7 @@ int32_t WasiBridge::hidRead(int32_t handle, uint8_t* buffer,
 // ----- Network -----
 
 void WasiBridge::setHttpRequestCallback(callbacks::HttpRequestCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     http_request_ = std::move(callback);
 }
 
@@ -453,18 +517,22 @@ callbacks::HttpResponse WasiBridge::httpRequest(
 // ----- Filesystem -----
 
 void WasiBridge::setFileReadCallback(callbacks::FileReadCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     file_read_ = std::move(callback);
 }
 
 void WasiBridge::setFileWriteCallback(callbacks::FileWriteCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     file_write_ = std::move(callback);
 }
 
 void WasiBridge::setFileExistsCallback(callbacks::FileExistsCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     file_exists_ = std::move(callback);
 }
 
 void WasiBridge::setFileDeleteCallback(callbacks::FileDeleteCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     file_delete_ = std::move(callback);
 }
 
@@ -499,6 +567,7 @@ bool WasiBridge::fileDelete(const std::string& path) {
 // ----- Clock -----
 
 void WasiBridge::setGetTimeCallback(callbacks::GetTimeCallback callback) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
     get_time_ = std::move(callback);
 }
 
@@ -678,8 +747,8 @@ int32_t hd_has_cryptopp() {
 #endif
 }
 
-// Static storage for coin list string
-static std::string g_supported_coins;
+// Thread-local storage for coin list string
+static thread_local std::string g_supported_coins;
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 const char* hd_get_supported_coins() {
@@ -707,8 +776,8 @@ const char* hd_get_supported_coins() {
     return g_supported_coins.c_str();
 }
 
-// Static storage for curves list string
-static std::string g_supported_curves;
+// Thread-local storage for curves list string
+static thread_local std::string g_supported_curves;
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 const char* hd_get_supported_curves() {

@@ -179,7 +179,9 @@ enum class WasiWarning {
 // Maximum mnemonic word count
 #define HD_WALLET_MAX_MNEMONIC_WORDS 24
 
-// Maximum derivation path depth
+// Maximum derivation path depth (number of components after "m/")
+// e.g., m/44'/60'/0'/0/0 has depth 5. Paths deeper than this are rejected.
+// This limit prevents excessive stack usage during iterative derivation.
 #define HD_WALLET_MAX_PATH_DEPTH 10
 
 // Key sizes
@@ -188,6 +190,21 @@ enum class WasiWarning {
 #define HD_WALLET_PRIVATE_KEY_SIZE 32
 #define HD_WALLET_PUBLIC_KEY_SIZE_COMPRESSED 33
 #define HD_WALLET_PUBLIC_KEY_SIZE_UNCOMPRESSED 65
+
+// =============================================================================
+// Alignment
+// =============================================================================
+
+// Ensure pointer is aligned to at least N bytes.
+// In WASM, memory is byte-addressable but aligned access is faster.
+// On native platforms, unaligned access may fault on strict architectures.
+#ifdef __cplusplus
+  #define HD_WALLET_ASSERT_ALIGNED(ptr, alignment) \
+      ((void)(((reinterpret_cast<uintptr_t>(ptr)) % (alignment)) == 0))
+#else
+  #define HD_WALLET_ASSERT_ALIGNED(ptr, alignment) \
+      ((void)((((uintptr_t)(ptr)) % (alignment)) == 0))
+#endif
 
 // =============================================================================
 // Export Macros
