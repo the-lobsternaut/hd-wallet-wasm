@@ -23,9 +23,9 @@ const isDev = import.meta.env?.DEV ?? false;
 const proxyMap = {
   'https://blockchain.info': '/api/blockchain',
   'https://cloudflare-eth.com': '/api/eth',
-  'https://solana-mainnet.g.alchemy.com': '/api/solana/alchemy',
-  'https://rpc.ankr.com': '/api/solana/ankr',
   'https://api.mainnet-beta.solana.com': '/api/solana/official',
+  'https://solana-rpc.publicnode.com': '/api/solana/publicnode',
+  'https://mainnet.helius-rpc.com': '/api/solana/helius',
   'https://fullnode.mainnet.sui.io:443': '/api/sui',
   'https://testnet-rpc.monad.xyz': '/api/monad',
   'https://api.koios.rest': '/api/koios',
@@ -434,9 +434,9 @@ export async function fetchEthBalance(address) {
  */
 export async function fetchSolBalance(address) {
   const endpoints = [
-    'https://solana-mainnet.g.alchemy.com/v2/demo',
-    'https://rpc.ankr.com/solana',
     'https://api.mainnet-beta.solana.com',
+    'https://solana-rpc.publicnode.com',
+    'https://mainnet.helius-rpc.com/?api-key=1d8740dc-e5f4-421c-b823-e1bad1889eda',
   ];
 
   for (const endpoint of endpoints) {

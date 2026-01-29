@@ -71,20 +71,20 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/eth/, ''),
       },
-      '/api/solana/alchemy': {
-        target: 'https://solana-mainnet.g.alchemy.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/solana\/alchemy/, ''),
-      },
-      '/api/solana/ankr': {
-        target: 'https://rpc.ankr.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/solana\/ankr/, ''),
-      },
       '/api/solana/official': {
         target: 'https://api.mainnet-beta.solana.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/solana\/official/, ''),
+      },
+      '/api/solana/publicnode': {
+        target: 'https://solana-rpc.publicnode.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/solana\/publicnode/, ''),
+      },
+      '/api/solana/helius': {
+        target: 'https://mainnet.helius-rpc.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/solana\/helius/, ''),
       },
       '/api/sui': {
         target: 'https://fullnode.mainnet.sui.io:443',
