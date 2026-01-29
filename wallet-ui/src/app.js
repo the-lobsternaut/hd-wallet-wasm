@@ -65,9 +65,19 @@ import {
 // =============================================================================
 
 let _root = document;
-const $ = (id) => (_root.getElementById ? _root.getElementById(id) : _root.querySelector(`#${id}`));
-const $q = (sel) => _root.querySelector(sel);
-const $qa = (sel) => _root.querySelectorAll(sel);
+const $ = (id) => {
+  const el = _root.getElementById ? _root.getElementById(id) : _root.querySelector(`#${id}`);
+  if (el) return el;
+  // Fallback to document for elements in the light DOM (e.g. widget mode)
+  if (_root !== document) return document.getElementById(id);
+  return null;
+};
+const $q = (sel) => _root.querySelector(sel) || (_root !== document ? document.querySelector(sel) : null);
+const $qa = (sel) => {
+  const list = _root.querySelectorAll(sel);
+  if (list.length > 0 || _root === document) return list;
+  return document.querySelectorAll(sel);
+};
 
 // =============================================================================
 // Wallet Info Box (dismissible notice)
@@ -1345,7 +1355,7 @@ function parseAndDisplayVCF(vcfText) {
 // =============================================================================
 
 function initGridAnimation() {
-  const canvas = $('grid-canvas');
+  const canvas = $('grid-canvas') || document.getElementById('grid-canvas');
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');

@@ -12,7 +12,157 @@
   <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=SF+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-  <wallet-widget auto-open></wallet-widget>
+  <canvas id="grid-canvas" class="grid-background"></canvas>
+  <div class="blurred-background"></div>
+  <nav class="glass-nav">
+    <div class="nav-content">
+      <a href="#" class="nav-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+        </svg>
+        <span>HD Wallet</span>
+        <span style="font-size:0.65rem;opacity:0.5;margin-left:8px">WEB COMPONENT</span>
+      </a>
+      <div class="nav-actions">
+        <button id="host-login" class="nav-btn glass-btn primary">Login</button>
+        <button id="host-account" class="nav-icon-btn" style="display:none;" title="Account">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </button>
+        <button id="host-logout" class="nav-btn glass-btn" style="display:none;">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content (same as standalone — widget only provides the modals) -->
+  <main class="wallet-main">
+    <div class="adversarial-login-required" id="adversarial-login-required">
+      <div class="login-prompt">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--white-40)" stroke-width="1.5">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <p>Login to derive addresses from your keys and check live balances across multiple blockchain networks.</p>
+      </div>
+    </div>
+
+    <div class="adversarial-balances" id="adversarial-balances" style="display: none;">
+      <div class="balances-header">
+        <h3 class="card-subtitle">Your Derived Addresses</h3>
+        <button id="refresh-balances-host" class="glass-btn small">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+      <p class="balances-intro">These addresses are mathematically derived from your HD wallet keys. Anyone can verify the derivation and send funds to increase trust in your keys.</p>
+      <div class="wallet-networks-grid" id="wallet-networks-grid">
+        <div class="wallet-network-card" id="wallet-btc-card">
+          <div class="network-icon btc"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-1.67v-1.89c-1.05-.1-2.07-.45-2.81-.95l.47-1.84c.82.43 1.82.79 2.75.79.82 0 1.42-.29 1.42-.95 0-.63-.52-.97-1.73-1.39-1.73-.6-2.92-1.43-2.92-3.07 0-1.48 1.08-2.64 2.82-2.98V6h1.67v1.69c.82.08 1.59.29 2.22.59l-.43 1.77c-.63-.26-1.43-.55-2.32-.55-.92 0-1.24.38-1.24.83 0 .53.5.87 1.9 1.39 1.92.7 2.76 1.63 2.76 3.17-.01 1.53-1.12 2.72-2.89 3.1z"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">Bitcoin</span><span class="derivation-path">m/44'/0'/0'/0/0</span></div>
+            <a href="#" id="wallet-btc-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-btc-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-btc-balance">--</span><span class="balance-unit">BTC</span></div>
+          </div>
+        </div>
+        <div class="wallet-network-card" id="wallet-eth-card">
+          <div class="network-icon eth"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l-7 10.8 7 4.2 7-4.2-7-10.8zm0 15.6l-7-4.2 7 9.6 7-9.6-7 4.2z"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">Ethereum</span><span class="derivation-path">m/44'/60'/0'/0/0</span></div>
+            <a href="#" id="wallet-eth-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-eth-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-eth-balance">--</span><span class="balance-unit">ETH</span></div>
+          </div>
+        </div>
+        <div class="wallet-network-card" id="wallet-sol-card">
+          <div class="network-icon sol"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">Solana</span><span class="derivation-path">m/44'/501'/0'/0'</span></div>
+            <a href="#" id="wallet-sol-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-sol-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-sol-balance">--</span><span class="balance-unit">SOL</span></div>
+          </div>
+        </div>
+        <div class="wallet-network-card" id="wallet-sui-card">
+          <div class="network-icon sui"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="#4DA2FF"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">SUI</span><span class="derivation-path">m/44'/784'/0'/0'/0'</span></div>
+            <a href="#" id="wallet-sui-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-sui-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-sui-balance">--</span><span class="balance-unit">SUI</span></div>
+          </div>
+        </div>
+        <div class="wallet-network-card" id="wallet-monad-card">
+          <div class="network-icon monad"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="#836EF9"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">Monad</span><span class="derivation-path">m/44'/60'/0'/0/0</span></div>
+            <a href="#" id="wallet-monad-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-monad-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-monad-balance">--</span><span class="balance-unit">MON</span></div>
+          </div>
+        </div>
+        <div class="wallet-network-card" id="wallet-ada-card">
+          <div class="network-icon ada"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="var(--black)"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">Cardano</span><span class="derivation-path">m/1852'/1815'/0'/0/0</span></div>
+            <a href="#" id="wallet-ada-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-ada-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-ada-balance">--</span><span class="balance-unit">ADA</span></div>
+          </div>
+        </div>
+        <div class="wallet-network-card" id="wallet-xrp-card">
+          <div class="network-icon xrp"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 3h3l2.5 4L14.5 3h3l-4.5 7 4.5 7h-3l-2.5-4-2.5 4h-3l4.5-7z"/></svg></div>
+          <div class="network-info">
+            <div class="network-name-row"><span class="network-name">XRP</span><span class="derivation-path">m/44'/144'/0'/0/0</span></div>
+            <a href="#" id="wallet-xrp-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-xrp-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+            <div class="network-balance-row"><span class="balance-value" id="wallet-xrp-balance">--</span><span class="balance-unit">XRP</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <wallet-widget></wallet-widget>
+
   <script type="module" src="src/wallet-widget.js"></script>
+  <script type="module">
+    const widget = document.querySelector('wallet-widget');
+
+    document.getElementById('host-login').addEventListener('click', () => {
+      const loginModal = widget.shadowRoot.getElementById('login-modal');
+      if (loginModal) loginModal.classList.add('active');
+    });
+
+    document.getElementById('host-account').addEventListener('click', () => {
+      const keysModal = widget.shadowRoot.getElementById('keys-modal');
+      if (keysModal) keysModal.classList.add('active');
+    });
+
+    document.getElementById('host-logout').addEventListener('click', () => {
+      // Trigger logout inside the widget
+      const logoutBtn = widget.shadowRoot.getElementById('nav-logout');
+      if (logoutBtn) logoutBtn.click();
+      document.getElementById('host-login').style.display = '';
+      document.getElementById('host-account').style.display = 'none';
+      document.getElementById('host-logout').style.display = 'none';
+    });
+
+    // Watch for login state changes inside the widget
+    const observer = new MutationObserver(() => {
+      const keysModal = widget.shadowRoot?.getElementById('keys-modal');
+      const hasKeys = keysModal?.querySelector('.key-value')?.textContent?.length > 5;
+      if (hasKeys) {
+        document.getElementById('host-login').style.display = 'none';
+        document.getElementById('host-account').style.display = 'flex';
+        document.getElementById('host-logout').style.display = 'flex';
+      }
+    });
+    // Start observing once widget is connected
+    requestAnimationFrame(() => {
+      if (widget.shadowRoot) {
+        observer.observe(widget.shadowRoot, { subtree: true, childList: true, attributes: true });
+      }
+    });
+  </script>
 </body>
 </html>

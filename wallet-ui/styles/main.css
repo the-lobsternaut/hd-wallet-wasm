@@ -200,6 +200,31 @@ body:has(.modal.active) .nav-bar {
   gap: 12px;
 }
 
+.nav-icon-btn {
+  background: none;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.2s, border-color 0.2s;
+  padding: 0;
+}
+
+.nav-icon-btn:hover {
+  background: var(--white-10);
+  border-color: var(--white-20);
+}
+
+.nav-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 /* Mobile menu button */
 .nav-menu-btn {
   display: none;
