@@ -30,9 +30,11 @@ const proxyMap = {
   'https://testnet-rpc.monad.xyz': '/api/monad',
   'https://api.koios.rest': '/api/koios',
   'https://s1.ripple.com:51234': '/api/xrp',
+  'https://api.coinbase.com': '/api/coinbase',
+  'https://api.hiro.so': '/api/hiro',
 };
 
-function apiUrl(url) {
+export function apiUrl(url) {
   if (!isDev) return url;
   for (const [origin, proxy] of Object.entries(proxyMap)) {
     if (url.startsWith(origin)) {

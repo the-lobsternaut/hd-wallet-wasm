@@ -2,7 +2,7 @@
 <div id="keys-modal" class="modal">
   <div class="modal-glass modal-wide">
     <div class="modal-header">
-      <h3>Account</h3>
+      <h3 id="account-title">Account</h3>
       <button class="modal-close">&times;</button>
     </div>
     <div class="modal-body">
@@ -438,12 +438,21 @@
           <div class="trust-meter">
             <div class="trust-meter-label">
               <span>Aggregate Security Bond</span>
-              <span class="trust-total" id="trust-total-value">0</span>
+              <span class="trust-meter-right">
+                <span class="trust-total" id="trust-total-value">$0.00</span>
+                <button class="bond-currency-gear" id="bond-currency-gear" title="Change currency">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                </button>
+                <div class="bond-currency-popover" id="bond-currency-popover"></div>
+              </span>
             </div>
             <div class="trust-meter-bar">
               <div class="trust-meter-fill" id="trust-meter-fill"></div>
             </div>
-            <p class="trust-note" id="trust-note">Send funds to these addresses to increase trust level.</p>
+            <p class="trust-note" id="trust-note">$0.00 total value locked.</p>
           </div>
         </div>
       </div>

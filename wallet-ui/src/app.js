@@ -14,6 +14,7 @@ import { x25519, ed25519 } from '@noble/curves/ed25519';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { p256 } from '@noble/curves/p256';
 import { sha256 as sha256Noble } from '@noble/hashes/sha256';
+import { keccak_256 } from '@noble/hashes/sha3';
 import QRCode from 'qrcode';
 import { Buffer } from 'buffer';
 import { createV3 } from 'vcard-cryptoperson';
@@ -58,6 +59,7 @@ import {
   fetchAdaBalance,
   generateXrpAddress,
   fetchXrpBalance,
+  apiUrl,
 } from './address-derivation.js';
 
 // =============================================================================
@@ -908,9 +910,16 @@ function login(keys) {
   // Open Account modal so user can see the wallet they just loaded
   $('keys-modal')?.classList.add('active');
   deriveAndDisplayAddress();
+
+  // Resolve names and update title
+  clearNameCache();
+  resolveNames().then(names => updateAccountTitle(names));
 }
 
 function logout() {
+  clearNameCache();
+  const titleEl = $('account-title');
+  if (titleEl) titleEl.textContent = 'Account';
   state.loggedIn = false;
   state.wallet = { x25519: null, ed25519: null, secp256k1: null, p256: null };
   state.encryptionKey = null;
@@ -1128,6 +1137,253 @@ function populateWalletAddresses() {
   });
 }
 
+// =============================================================================
+// Currency Conversion (Coinbase API)
+// =============================================================================
+
+const CURRENCY_SYMBOLS = {
+  USD: '$', EUR: '€', GBP: '£', JPY: '¥', CAD: 'C$', AUD: 'A$',
+  CHF: 'CHF', CNY: '¥', BTC: '₿',
+};
+
+const CURRENCY_OPTIONS = Object.keys(CURRENCY_SYMBOLS);
+
+let priceCache = { data: null, currency: null, timestamp: 0 };
+
+function getSelectedCurrency() {
+  return localStorage.getItem('bond-currency') || 'USD';
+}
+
+function setSelectedCurrency(currency) {
+  localStorage.setItem('bond-currency', currency);
+}
+
+async function fetchCryptoPrices(currency) {
+  const now = Date.now();
+  if (priceCache.data && priceCache.currency === currency && now - priceCache.timestamp < 60000) {
+    return priceCache.data;
+  }
+
+  const cryptos = ['BTC', 'ETH', 'SOL', 'SUI', 'MONAD', 'ADA', 'XRP'];
+  const prices = {};
+
+  if (currency === 'BTC') {
+    // For BTC denomination, fetch each crypto's price in BTC
+    prices.BTC = 1;
+    const others = ['ETH', 'SOL', 'SUI', 'ADA', 'XRP'];
+    const results = await Promise.allSettled(
+      others.map(async (crypto) => {
+        const url = apiUrl(`https://api.coinbase.com/v2/exchange-rates?currency=${crypto}`);
+        const res = await fetch(url);
+        const json = await res.json();
+        return { crypto, rate: parseFloat(json.data?.rates?.BTC) || 0 };
+      })
+    );
+    results.forEach(r => {
+      if (r.status === 'fulfilled') prices[r.value.crypto] = r.value.rate;
+    });
+    prices.MONAD = 0; // Testnet token, no market price
+  } else {
+    // Fetch exchange rates with USD as base, then convert
+    const results = await Promise.allSettled(
+      cryptos.filter(c => c !== 'MONAD').map(async (crypto) => {
+        const url = apiUrl(`https://api.coinbase.com/v2/prices/${crypto}-${currency}/spot`);
+        const res = await fetch(url);
+        const json = await res.json();
+        return { crypto, price: parseFloat(json.data?.amount) || 0 };
+      })
+    );
+    results.forEach(r => {
+      if (r.status === 'fulfilled') prices[r.value.crypto] = r.value.price;
+    });
+    prices.MONAD = 0;
+  }
+
+  priceCache = { data: prices, currency, timestamp: now };
+  return prices;
+}
+
+function formatCurrencyValue(value, currency) {
+  const symbol = CURRENCY_SYMBOLS[currency] || currency;
+  if (currency === 'BTC') {
+    return `${symbol}${value.toFixed(8)}`;
+  }
+  if (currency === 'JPY' || currency === 'CNY') {
+    return `${symbol}${Math.round(value).toLocaleString()}`;
+  }
+  return `${symbol}${value.toFixed(2)}`;
+}
+
+// =============================================================================
+// Name Resolution (ENS, BNS, Solana Names)
+// =============================================================================
+
+let nameCache = null;
+
+async function resolveENSName(ethAddress) {
+  if (!ethAddress) return null;
+  try {
+    // ENS reverse resolution: call addr.reverse resolver
+    const addr = ethAddress.toLowerCase().slice(2);
+    // namehash of <addr>.addr.reverse
+    const node = await ensReverseNode(addr);
+    // Call the ENS universal resolver
+    const data = '0x691f3431' + node.slice(2); // name(bytes32)
+    const response = await fetch(apiUrl('https://cloudflare-eth.com'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'eth_call',
+        params: [{ to: '0xa58E81fe9b61B5c3fE2AFD33CF304c454AbFc7Cb', data }, 'latest'],
+      }),
+    });
+    const json = await response.json();
+    if (json.result && json.result !== '0x' && json.result.length > 130) {
+      const name = decodeENSName(json.result);
+      if (name && name.endsWith('.eth')) return name;
+    }
+  } catch (e) { console.warn('ENS resolution failed:', e); }
+  return null;
+}
+
+async function ensReverseNode(addrHex) {
+  // namehash for <addr>.addr.reverse
+  // Start with namehash('') = 0x0...0
+  let node = new Uint8Array(32);
+  node = keccak_256(new Uint8Array([...node, ...keccak_256(new TextEncoder().encode('reverse'))]));
+  node = keccak_256(new Uint8Array([...node, ...keccak_256(new TextEncoder().encode('addr'))]));
+  node = keccak_256(new Uint8Array([...node, ...keccak_256(new TextEncoder().encode(addrHex))]));
+  return '0x' + Array.from(node).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function decodeENSName(hexResult) {
+  try {
+    // ABI-decode the string result
+    const bytes = hexResult.slice(2);
+    const offset = parseInt(bytes.slice(0, 64), 16) * 2;
+    const length = parseInt(bytes.slice(offset, offset + 64), 16);
+    const nameHex = bytes.slice(offset + 64, offset + 64 + length * 2);
+    let name = '';
+    for (let i = 0; i < nameHex.length; i += 2) {
+      name += String.fromCharCode(parseInt(nameHex.slice(i, i + 2), 16));
+    }
+    return name;
+  } catch { return null; }
+}
+
+async function resolveBNSName(btcAddress) {
+  if (!btcAddress) return null;
+  try {
+    const response = await fetch(apiUrl(`https://api.hiro.so/v1/addresses/stacks/${btcAddress}`));
+    if (!response.ok) return null;
+    const json = await response.json();
+    const names = json.names || [];
+    if (names.length > 0) return names[0]; // Returns e.g. "alice.btc"
+  } catch (e) { console.warn('BNS resolution failed:', e); }
+  return null;
+}
+
+async function resolveSolanaName(solAddress) {
+  if (!solAddress) return null;
+  try {
+    // Use Solana Name Service reverse lookup via public API
+    const response = await fetch(`https://sns-sdk-proxy.bonfida.workers.dev/v2/domain/${solAddress}`);
+    if (!response.ok) return null;
+    const json = await response.json();
+    if (json.result && json.result.length > 0) {
+      return json.result[0] + '.sol';
+    }
+  } catch (e) { console.warn('Solana name resolution failed:', e); }
+  return null;
+}
+
+async function resolveNames() {
+  if (nameCache) return nameCache;
+
+  const btcAddress = state.addresses?.btc;
+  const ethAddress = state.addresses?.eth;
+  const solAddress = state.addresses?.sol;
+
+  const [bns, ens, sol] = await Promise.allSettled([
+    resolveBNSName(btcAddress),
+    resolveENSName(ethAddress),
+    resolveSolanaName(solAddress),
+  ]);
+
+  nameCache = {
+    bns: bns.status === 'fulfilled' ? bns.value : null,
+    ens: ens.status === 'fulfilled' ? ens.value : null,
+    sol: sol.status === 'fulfilled' ? sol.value : null,
+  };
+  return nameCache;
+}
+
+function clearNameCache() {
+  nameCache = null;
+}
+
+function updateAccountTitle(names) {
+  const titleEl = $('account-title');
+  if (!titleEl) return;
+
+  const resolved = [];
+  if (names.bns) resolved.push({ name: names.bns, service: 'BNS' });
+  if (names.ens) resolved.push({ name: names.ens, service: 'ENS' });
+  if (names.sol) resolved.push({ name: names.sol, service: 'SOL' });
+
+  if (resolved.length === 0) {
+    // Fallback to truncated xpub
+    const xpub = state.hdRoot?.toXpub?.() || '';
+    titleEl.innerHTML = xpub ? middleTruncate(xpub, 12, 8) : 'Account';
+    return;
+  }
+
+  titleEl.innerHTML = resolved.map(({ name, service }) =>
+    `${name}<sub class="name-service-label">${service}</sub>`
+  ).join(' · ');
+}
+
+// =============================================================================
+// Currency Selector UI
+// =============================================================================
+
+function initCurrencySelector() {
+  const gearBtn = $('bond-currency-gear');
+  const popover = $('bond-currency-popover');
+  if (!gearBtn || !popover) return;
+
+  // Populate options
+  const current = getSelectedCurrency();
+  popover.innerHTML = CURRENCY_OPTIONS.map(c =>
+    `<button class="currency-option${c === current ? ' active' : ''}" data-currency="${c}">${CURRENCY_SYMBOLS[c]} ${c}</button>`
+  ).join('');
+
+  gearBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    popover.classList.toggle('visible');
+  });
+
+  popover.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-currency]');
+    if (!btn) return;
+    const currency = btn.dataset.currency;
+    setSelectedCurrency(currency);
+    popover.querySelectorAll('.currency-option').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    popover.classList.remove('visible');
+    priceCache = { data: null, currency: null, timestamp: 0 }; // invalidate
+    await updateAdversarialSecurity();
+  });
+
+  // Close popover on outside click
+  document.addEventListener('click', () => popover.classList.remove('visible'));
+}
+
+// =============================================================================
+// Adversarial Security / Bond Balances
+// =============================================================================
+
 async function updateAdversarialSecurity() {
   const loginRequired = $('adversarial-login-required');
   const balancesSection = $('adversarial-balances');
@@ -1232,29 +1488,44 @@ async function updateAdversarialSecurity() {
     if (card) card.classList.toggle('has-balance', val > 0);
   });
 
-  const totalValue =
-    (parseFloat(btcResult.balance) || 0) +
-    (parseFloat(ethResult.balance) || 0) +
-    (parseFloat(solResult.balance) || 0) +
-    (parseFloat(suiResult.balance) || 0) +
-    (parseFloat(monadResult.balance) || 0) +
-    (parseFloat(adaResult.balance) || 0) +
-    (parseFloat(xrpResult.balance) || 0);
+  // Convert to selected currency
+  const currency = getSelectedCurrency();
+  let totalConverted = 0;
+  const trustTotalEl = $('trust-total-value');
+
+  try {
+    const prices = await fetchCryptoPrices(currency);
+    const balances = {
+      BTC: parseFloat(btcResult.balance) || 0,
+      ETH: parseFloat(ethResult.balance) || 0,
+      SOL: parseFloat(solResult.balance) || 0,
+      SUI: parseFloat(suiResult.balance) || 0,
+      MONAD: parseFloat(monadResult.balance) || 0,
+      ADA: parseFloat(adaResult.balance) || 0,
+      XRP: parseFloat(xrpResult.balance) || 0,
+    };
+
+    for (const [crypto, bal] of Object.entries(balances)) {
+      totalConverted += bal * (prices[crypto] || 0);
+    }
+  } catch (e) {
+    console.warn('Price conversion failed:', e);
+  }
+
+  if (trustTotalEl) {
+    trustTotalEl.textContent = formatCurrencyValue(totalConverted, currency);
+  }
 
   const trustFill = $('trust-meter-fill');
   if (trustFill) {
-    const trustPercent = Math.min(100, Math.log10(totalValue + 1) * 33);
+    const trustPercent = Math.min(100, Math.log10(totalConverted + 1) * 33);
     trustFill.style.width = `${trustPercent}%`;
   }
 
   if (trustNote) {
-    if (totalValue === 0) {
-      trustNote.textContent = '0 total value locked.';
-    } else if (totalValue < 1) {
-      trustNote.textContent = `${totalValue.toFixed(4)} total value locked.`;
-    } else {
-      trustNote.textContent = `${totalValue.toFixed(2)} total value locked.`;
-    }
+    trustNote.textContent = totalConverted === 0
+      ? `${formatCurrencyValue(0, currency)} total value locked.`
+      : `${formatCurrencyValue(totalConverted, currency)} total value locked.`;
   }
 }
 
@@ -1903,9 +2174,13 @@ function setupMainAppHandlers() {
     $('login-modal')?.classList.add('active');
   });
   $('nav-logout')?.addEventListener('click', logout);
-  $('nav-keys')?.addEventListener('click', () => {
+  $('nav-keys')?.addEventListener('click', async () => {
     $('keys-modal')?.classList.add('active');
     deriveAndDisplayAddress();
+    if (state.loggedIn) {
+      const names = await resolveNames();
+      updateAccountTitle(names);
+    }
   });
 
   // Modal close handlers
@@ -2389,6 +2664,7 @@ export async function init(rootElement) {
 
     setupLoginHandlers();
     setupMainAppHandlers();
+    initCurrencySelector();
 
     // Handle initial hash navigation
     const initialHash = window.location.hash.slice(1);

@@ -1863,10 +1863,86 @@ body:has(.modal.active) .nav-bar {
   color: var(--white-70);
 }
 
+.trust-meter-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
 .trust-total {
   font-size: 18px;
   font-weight: 700;
   color: var(--success);
+}
+
+.bond-currency-gear {
+  background: none;
+  border: none;
+  color: var(--white-50);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.bond-currency-gear:hover {
+  color: var(--white-90);
+}
+
+.bond-currency-popover {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  z-index: 100;
+  backdrop-filter: blur(20px);
+  min-width: 100px;
+}
+
+.bond-currency-popover.visible {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.currency-option {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--white-70);
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.currency-option:hover {
+  background: var(--white-10);
+  color: var(--white-90);
+}
+
+.currency-option.active {
+  background: var(--success);
+  color: #000;
+  font-weight: 600;
+}
+
+/* Name service labels in modal title */
+.name-service-label {
+  font-size: 10px;
+  color: var(--white-40);
+  margin-left: 2px;
+  font-weight: 400;
+  vertical-align: sub;
 }
 
 .trust-meter-bar {

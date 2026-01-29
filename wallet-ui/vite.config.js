@@ -106,6 +106,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/xrp/, ''),
       },
+      '/api/coinbase': {
+        target: 'https://api.coinbase.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/coinbase/, ''),
+      },
+      '/api/hiro': {
+        target: 'https://api.hiro.so',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/hiro/, ''),
+      },
     },
   },
   publicDir: 'public',
