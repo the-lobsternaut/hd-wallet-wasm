@@ -318,19 +318,11 @@ async function deriveKeysFromPassword(username, password) {
   state.mnemonic = null; // Not available for password-derived wallets
   console.log('HD wallet initialized from password, hdRoot:', !!state.hdRoot);
 
-  // Derive deterministic seeds for each curve
-  const ed25519Seed = await hkdf(masterKey, new Uint8Array(0), encoder.encode('ed25519-seed'), 32);
-
-  const keys = {
-    x25519: generateKeyPair(Curve.X25519),
-    ed25519: {
-      privateKey: ed25519Seed,
-      publicKey: ed25519.getPublicKey(ed25519Seed),
-    },
-    secp256k1: generateKeyPair(Curve.SECP256K1),
-    p256: await p256GenerateKeyPairAsync(),
-    p384: await p384GenerateKeyPairAsync(),
-  };
+  const keys = deriveKeysFromHDRoot(state.hdRoot);
+  // Also derive auxiliary keys for encryption / key agreement
+  keys.x25519 = generateKeyPair(Curve.X25519);
+  keys.p256 = await p256GenerateKeyPairAsync();
+  keys.p384 = await p384GenerateKeyPairAsync();
 
   return keys;
 }
@@ -354,20 +346,71 @@ async function deriveKeysFromSeed(seedPhrase) {
   state.mnemonic = seedPhrase;
   console.log('HD wallet initialized from seed phrase, hdRoot:', !!state.hdRoot);
 
-  const ed25519Seed = await hkdf(masterKey, new Uint8Array(0), encoder.encode('ed25519-seed'), 32);
-
-  const keys = {
-    x25519: generateKeyPair(Curve.X25519),
-    ed25519: {
-      privateKey: ed25519Seed,
-      publicKey: ed25519.getPublicKey(ed25519Seed),
-    },
-    secp256k1: generateKeyPair(Curve.SECP256K1),
-    p256: await p256GenerateKeyPairAsync(),
-    p384: await p384GenerateKeyPairAsync(),
-  };
+  const keys = deriveKeysFromHDRoot(state.hdRoot);
+  keys.x25519 = generateKeyPair(Curve.X25519);
+  keys.p256 = await p256GenerateKeyPairAsync();
+  keys.p384 = await p384GenerateKeyPairAsync();
 
   return keys;
+}
+
+/**
+ * Derive secp256k1 and ed25519 signing keys from the HD root using BIP44 signing paths.
+ * This ensures addresses match what the HD derivation grid produces.
+ */
+function deriveKeysFromHDRoot(hdRoot) {
+  // BTC signing path m/44'/0'/0'/0/0 — secp256k1
+  const btcKey = hdRoot.derivePath(buildSigningPath(0, 0, 0));
+  const secp256k1PrivKey = btcKey.privateKey();
+  const secp256k1PubKey = btcKey.publicKey();
+
+  // SOL signing path m/44'/501'/0'/0/0 — ed25519
+  const solKey = hdRoot.derivePath(buildSigningPath(501, 0, 0));
+  const ed25519PrivKey = solKey.privateKey();
+  const ed25519PubKey = ed25519.getPublicKey(ed25519PrivKey);
+
+  return {
+    secp256k1: { privateKey: secp256k1PrivKey, publicKey: secp256k1PubKey },
+    ed25519: { privateKey: ed25519PrivKey, publicKey: ed25519PubKey },
+  };
+}
+
+/**
+ * Derive all blockchain addresses from the HD root using signing paths.
+ * Each coin uses its own BIP44 signing path: m/44'/{coinType}'/0'/0/0
+ */
+function deriveAllAddressesFromHD() {
+  if (!state.hdRoot) return {};
+
+  const deriveAddress = (coinType) => {
+    try {
+      const path = buildSigningPath(coinType, 0, 0);
+      const derived = state.hdRoot.derivePath(path);
+      const pubKey = derived.publicKey();
+      return generateAddressForCoin(pubKey, coinType);
+    } catch (e) {
+      console.error(`Failed to derive address for coinType ${coinType}:`, e);
+      return null;
+    }
+  };
+
+  // For SOL, derive ed25519 key and use it directly
+  let solAddress = null;
+  try {
+    const solPath = buildSigningPath(501, 0, 0);
+    const solDerived = state.hdRoot.derivePath(solPath);
+    const solPrivKey = solDerived.privateKey();
+    solAddress = generateSolAddress(ed25519.getPublicKey(solPrivKey));
+  } catch (e) {
+    console.error('Failed to derive SOL address:', e);
+  }
+
+  return {
+    btc: deriveAddress(0),
+    eth: deriveAddress(60),
+    sol: solAddress,
+    xrp: deriveAddress(144),
+  };
 }
 
 function generateSeedPhrase() {
@@ -769,7 +812,7 @@ async function generatePKIKeyPairs() {
 function login(keys) {
   state.loggedIn = true;
   state.wallet = keys;
-  state.addresses = generateAddresses(keys);
+  state.addresses = deriveAllAddressesFromHD();
   state.selectedCrypto = 'btc';
 
   // Close login modal if open
@@ -1006,17 +1049,32 @@ function populateWalletAddresses() {
   const solAddress = state.addresses?.sol || '--';
 
   let suiAddress = '--';
-  let monadAddress = '--';
+  let monadAddress = ethAddress; // Monad uses same address as ETH (same coin type 60)
   let adaAddress = '--';
 
-  if (state.wallet.ed25519?.publicKey) {
-    const ed25519Pub = ensureUint8Array(state.wallet.ed25519.publicKey);
-    suiAddress = deriveSuiAddress(ed25519Pub, 'ed25519');
-    adaAddress = deriveCardanoAddress(ed25519Pub);
-  }
+  // Derive SUI and ADA from HD root using their signing paths
+  if (state.hdRoot) {
+    try {
+      // SUI: coin type 784, uses ed25519
+      const suiPath = buildSigningPath(784, 0, 0);
+      const suiDerived = state.hdRoot.derivePath(suiPath);
+      const suiPrivKey = suiDerived.privateKey();
+      const suiPubKey = ed25519.getPublicKey(suiPrivKey);
+      suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
+    } catch (e) {
+      console.error('Failed to derive SUI address:', e);
+    }
 
-  if (state.wallet.secp256k1?.publicKey) {
-    monadAddress = ethAddress;
+    try {
+      // ADA: coin type 1815, uses ed25519
+      const adaPath = buildSigningPath(1815, 0, 0);
+      const adaDerived = state.hdRoot.derivePath(adaPath);
+      const adaPrivKey = adaDerived.privateKey();
+      const adaPubKey = ed25519.getPublicKey(adaPrivKey);
+      adaAddress = deriveCardanoAddress(adaPubKey);
+    } catch (e) {
+      console.error('Failed to derive ADA address:', e);
+    }
   }
 
   const updateAddressCard = (network, address, explorerBase) => {
@@ -1095,10 +1153,20 @@ async function updateAdversarialSecurity() {
 
   let suiAddress = null;
   let adaAddress = null;
-  if (state.wallet.ed25519?.publicKey) {
-    const ed25519Pub = ensureUint8Array(state.wallet.ed25519.publicKey);
-    suiAddress = deriveSuiAddress(ed25519Pub, 'ed25519');
-    adaAddress = deriveCardanoAddress(ed25519Pub);
+  if (state.hdRoot) {
+    try {
+      const suiPath = buildSigningPath(784, 0, 0);
+      const suiDerived = state.hdRoot.derivePath(suiPath);
+      const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
+      suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
+    } catch (e) { console.error('SUI derivation error:', e); }
+
+    try {
+      const adaPath = buildSigningPath(1815, 0, 0);
+      const adaDerived = state.hdRoot.derivePath(adaPath);
+      const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
+      adaAddress = deriveCardanoAddress(adaPubKey);
+    } catch (e) { console.error('ADA derivation error:', e); }
   }
 
   const monadAddress = ethAddress;

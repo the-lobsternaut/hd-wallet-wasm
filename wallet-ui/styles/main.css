@@ -372,13 +372,22 @@ body:has(.modal.active) .nav-bar {
   background: var(--white-90);
 }
 
-/* Nav login/logout buttons - same size */
-#nav-login,
-#nav-logout {
+/* Nav login/logout buttons */
+#nav-login {
   padding: 8px 20px;
   font-size: 13px;
   min-width: 80px;
   box-sizing: border-box;
+}
+
+#nav-logout,
+#host-logout {
+  padding: 4px 14px;
+  font-size: 12px;
+  min-width: unset;
+  height: 36px;
+  box-sizing: border-box;
+  margin: 4px 0;
 }
 
 #nav-login {
