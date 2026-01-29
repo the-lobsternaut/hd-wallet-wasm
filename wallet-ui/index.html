@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HD Wallet — Test Pages</title>
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=SF+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="blurred-background"></div>
+  <main class="wallet-main" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:24px;">
+    <h2 style="color:var(--text-primary);">HD Wallet Test Pages</h2>
+    <p style="color:var(--text-secondary);max-width:480px;text-align:center;">Two versions of the wallet UI for comparison testing.</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">
+      <a href="standalone.html" class="glass-btn primary" style="padding:16px 32px;font-size:1rem;text-decoration:none;">Standalone (app.js)</a>
+      <a href="widget.html" class="glass-btn" style="padding:16px 32px;font-size:1rem;text-decoration:none;">Web Component</a>
+    </div>
+    <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:24px;max-width:480px;">
+      <p><strong>Standalone</strong> — Direct script inclusion, app.js queries document directly.</p>
+      <p style="margin-top:8px;"><strong>Web Component</strong> — <code>&lt;wallet-widget&gt;</code> custom element with Shadow DOM encapsulation.</p>
+    </div>
+  </main>
+</body>
+</html>
