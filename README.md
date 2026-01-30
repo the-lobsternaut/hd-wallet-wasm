@@ -1,6 +1,6 @@
 # HD Wallet WASM
 
-[![CI](https://github.com/DigitalArsenal/hd-wallet-wasm/actions/workflows/ci.yml/badge.svg)](https://github.com/DigitalArsenal/hd-wallet-wasm/actions/workflows/ci.yml)
+[![Build and Test](https://github.com/DigitalArsenal/hd-wallet-wasm/actions/workflows/build.yml/badge.svg)](https://github.com/DigitalArsenal/hd-wallet-wasm/actions/workflows/build.yml)
 [![npm version](https://img.shields.io/npm/v/hd-wallet-wasm.svg)](https://www.npmjs.com/package/hd-wallet-wasm)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
