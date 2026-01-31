@@ -147,11 +147,12 @@
       <div class="modal-header"><div class="account-header-info"><div class="account-header-top"><h3>Account</h3><h3 class="account-total-value" id="account-total-value"></h3></div><div class="account-address-row"><select id="account-address-select" class="glass-select compact account-address-select"><option value="xpub">xpub</option></select><code class="account-address-display" id="account-address-display"></code><button class="account-address-copy" id="account-address-copy" title="Copy address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><span class="account-address-value" id="account-address-value"></span></div></div><button class="modal-close">&times;</button></div>
       <div class="modal-body">
         <div class="modal-tabs">
-          <button class="modal-tab active" data-modal-tab="keys-tab-content">Keys</button>
-          <button class="modal-tab" data-modal-tab="pki-tab-content">PKI</button>
-          <button class="modal-tab" data-modal-tab="vcard-tab-content">vCard</button>
+          <button class="modal-tab active" data-modal-tab="vcard-tab-content">Identity</button>
+          <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
+          <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
+          <button class="modal-tab" data-modal-tab="bond-tab-content">Security Bond</button>
         </div>
-        <div id="keys-tab-content" class="modal-tab-content active">
+        <div id="keys-tab-content" class="modal-tab-content">
           <div id="memory-info-box" class="memory-info-box" style="display:none"><div class="memory-info-content"><p><strong>Your keys never leave your device.</strong></p></div><button class="wallet-info-close" id="memory-info-close" title="Close">&times;</button></div>
           <div class="xpub-section">
             <div class="xpub-header">
@@ -203,142 +204,227 @@
             </div>
           </details>
         </div>
-        <div id="vcard-tab-content" class="modal-tab-content">
+        <div id="vcard-tab-content" class="modal-tab-content active">
           <div id="vcard-form-view">
-            <div class="photo-upload-section"><div class="photo-preview" id="vcard-photo-preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="photo-placeholder-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><video id="vcard-camera-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:cover;"></video></div><div class="photo-actions"><label class="glass-btn small" for="vcard-photo-input">Upload</label><input type="file" id="vcard-photo-input" accept="image/*" hidden><button id="vcard-camera-btn" class="glass-btn small" style="display:none;">Take Photo</button><button id="vcard-camera-capture" class="glass-btn small primary" style="display:none;">Capture</button><button id="vcard-camera-cancel" class="glass-btn small" style="display:none;">Cancel</button><button id="vcard-photo-remove" class="glass-btn small" style="display:none;">Remove</button></div></div>
-            <div class="identity-form">
-              <div class="form-grid"><div class="glass-input-group"><label>Prefix</label><input type="text" id="vcard-prefix" class="glass-input" placeholder="Dr."></div><div class="glass-input-group"><label>First Name</label><input type="text" id="vcard-firstname" class="glass-input" placeholder="John"></div><div class="glass-input-group"><label>Middle Name</label><input type="text" id="vcard-middlename" class="glass-input" placeholder="Michael"></div><div class="glass-input-group"><label>Last Name</label><input type="text" id="vcard-lastname" class="glass-input" placeholder="Doe"></div><div class="glass-input-group"><label>Suffix</label><input type="text" id="vcard-suffix" class="glass-input" placeholder="Jr."></div><div class="glass-input-group"><label>Email</label><input type="email" id="vcard-email" class="glass-input" placeholder="john@example.com"></div><div class="glass-input-group"><label>Organization</label><input type="text" id="vcard-org" class="glass-input" placeholder="Company Name"></div><div class="glass-input-group"><label>Job Title</label><input type="text" id="vcard-title" class="glass-input" placeholder="Software Engineer"></div></div>
+            <div class="photo-upload-section">
+              <div class="photo-preview" id="vcard-photo-preview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="photo-placeholder-icon">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                <video id="vcard-camera-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:cover;"></video>
+              </div>
+              <div class="photo-actions">
+                <label class="glass-btn small" for="vcard-photo-input">Upload</label>
+                <input type="file" id="vcard-photo-input" accept="image/*" hidden>
+                <button id="vcard-camera-btn" class="glass-btn small" style="display:none;">Take Photo</button>
+                <button id="vcard-camera-capture" class="glass-btn small primary" style="display:none;">Capture</button>
+                <button id="vcard-camera-cancel" class="glass-btn small" style="display:none;">Cancel</button>
+                <button id="vcard-photo-remove" class="glass-btn small" style="display:none;">Remove</button>
+              </div>
             </div>
-            <div class="vcard-actions-row"><button id="generate-vcard" class="glass-btn primary">Generate vCard</button><div class="vcard-actions-right"><label class="glass-btn accent import-btn" for="vcf-import-input">Import vCard</label><input type="file" id="vcf-import-input" accept=".vcf,text/vcard" hidden><button id="vcf-contacts-btn" class="glass-btn small" style="display: none;">From Contacts</button></div></div>
-            <div id="vcf-import-result" class="vcf-import-result" style="display: none;"><h4 class="section-label">Imported Contact</h4><div class="vcf-import-card"><div class="vcf-import-photo" id="vcf-import-photo"></div><div class="vcf-import-fields" id="vcf-import-fields"></div></div></div>
+
+            <div class="identity-form">
+              <div class="vcard-form-stack">
+                <div class="vcard-form-row name-row">
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>Prefix</label>
+                    <input type="text" id="vcard-prefix" class="vcard-input" placeholder="Mr.">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>First Name</label>
+                    <input type="text" id="vcard-firstname" class="vcard-input" placeholder="John">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>Middle</label>
+                    <input type="text" id="vcard-middlename" class="vcard-input" placeholder="A.">
+                  </div>
+                </div>
+                <div class="vcard-form-row name-row-2">
+                  <div class="vcard-input-group">
+                    <label>Last Name</label>
+                    <input type="text" id="vcard-lastname" class="vcard-input" placeholder="Doe">
+                  </div>
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>Suffix</label>
+                    <input type="text" id="vcard-suffix" class="vcard-input" placeholder="Jr.">
+                  </div>
+                </div>
+                <div class="vcard-form-row">
+                  <div class="vcard-input-group">
+                    <label>Email</label>
+                    <input type="email" id="vcard-email" class="vcard-input" placeholder="john@example.com">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>Phone</label>
+                    <input type="tel" id="vcard-phone" class="vcard-input" placeholder="+1 555-0100">
+                  </div>
+                </div>
+                <div class="vcard-form-row">
+                  <div class="vcard-input-group">
+                    <label>Organization</label>
+                    <input type="text" id="vcard-org" class="vcard-input" placeholder="Company Name">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>Job Title</label>
+                    <input type="text" id="vcard-title" class="vcard-input" placeholder="Software Engineer">
+                  </div>
+                </div>
+                <div class="vcard-input-group">
+                  <label>Street Address</label>
+                  <input type="text" id="vcard-street" class="vcard-input" placeholder="123 Main St">
+                </div>
+                <div class="vcard-form-row">
+                  <div class="vcard-input-group">
+                    <label>City</label>
+                    <input type="text" id="vcard-city" class="vcard-input" placeholder="San Francisco">
+                  </div>
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>State</label>
+                    <input type="text" id="vcard-region" class="vcard-input" placeholder="CA">
+                  </div>
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>ZIP</label>
+                    <input type="text" id="vcard-postal" class="vcard-input" placeholder="94102">
+                  </div>
+                </div>
+                <div class="vcard-input-group">
+                  <label>Country</label>
+                  <input type="text" id="vcard-country" class="vcard-input" placeholder="United States">
+                </div>
+              </div>
+            </div>
+
+            <div class="keys-display-section">
+              <h4 class="section-label">Cryptographic Keys <span class="readonly-badge">Read Only</span></h4>
+              <p class="keys-display-info">These keys are derived from your HD wallet master seed and cannot be edited.</p>
+
+              <div class="keys-display-grid" id="vcard-keys-display">
+                <!-- Keys will be populated here -->
+              </div>
+            </div>
+
+            <div id="vcf-import-result" class="vcf-import-result" style="display: none;">
+              <h4 class="section-label">Imported Contact</h4>
+              <div class="vcf-import-card">
+                <div class="vcf-import-photo" id="vcf-import-photo"></div>
+                <div class="vcf-import-fields" id="vcf-import-fields"></div>
+              </div>
+            </div>
           </div>
+
           <div id="vcard-result-view" style="display: none;">
             <div class="qr-container"><canvas id="qr-code"></canvas></div>
-            <div class="vcard-result-actions"><button id="download-vcard" class="glass-btn primary">Download .vcf</button><button id="copy-vcard" class="glass-btn">Copy</button></div>
-            <details class="vcard-details"><summary>View Raw vCard</summary><pre id="vcard-preview"></pre></details>
-            <button id="vcard-back-btn" class="glass-btn vcard-back-btn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to Editor</button>
+            <div class="vcard-result-actions">
+              <button id="download-vcard" class="glass-btn primary">Download .vcf</button>
+              <button id="copy-vcard" class="glass-btn">Copy</button>
+            </div>
+            <details class="vcard-details">
+              <summary>View Raw vCard</summary>
+              <pre id="vcard-preview"></pre>
+            </details>
+            <button id="vcard-back-btn" class="glass-btn vcard-back-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg> Back to Editor
+            </button>
+          </div>
+          <div class="vcard-actions-footer">
+            <button id="generate-vcard" class="glass-btn vcard-export-btn">Export vCard</button>
+            <label class="glass-btn vcard-import-btn" for="vcf-import-input">Import vCard</label>
+            <input type="file" id="vcf-import-input" accept=".vcf,text/vcard" hidden>
           </div>
         </div>
-        <!-- PKI Tab Content -->
-        <div id="pki-tab-content" class="modal-tab-content">
-          <details class="pki-rulesets-section" open>
-            <summary class="section-label collapsible-header"><span>Security Bond</span></summary>
-            <div class="bond-networks-grid">
-              <div class="bond-network-card" id="bond-btc-card">
-                <div class="bond-net-header"><span class="bond-net-name">Bitcoin</span><span class="bond-net-balance" id="bond-btc-balance">--</span></div>
-                <a href="#" id="bond-btc-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-btc-address">--</code></a>
-              </div>
-              <div class="bond-network-card" id="bond-eth-card">
-                <div class="bond-net-header"><span class="bond-net-name">Ethereum</span><span class="bond-net-balance" id="bond-eth-balance">--</span></div>
-                <a href="#" id="bond-eth-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-eth-address">--</code></a>
-              </div>
-              <div class="bond-network-card" id="bond-sol-card">
-                <div class="bond-net-header"><span class="bond-net-name">Solana</span><span class="bond-net-balance" id="bond-sol-balance">--</span></div>
-                <a href="#" id="bond-sol-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sol-address">--</code></a>
-              </div>
-              <div class="bond-network-card" id="bond-sui-card">
-                <div class="bond-net-header"><span class="bond-net-name">SUI</span><span class="bond-net-balance" id="bond-sui-balance">--</span></div>
-                <a href="#" id="bond-sui-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sui-address">--</code></a>
-              </div>
-              <div class="bond-network-card" id="bond-monad-card">
-                <div class="bond-net-header"><span class="bond-net-name">Monad</span><span class="bond-net-balance" id="bond-monad-balance">--</span></div>
-                <a href="#" id="bond-monad-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-monad-address">--</code></a>
-              </div>
-              <div class="bond-network-card" id="bond-ada-card">
-                <div class="bond-net-header"><span class="bond-net-name">Cardano</span><span class="bond-net-balance" id="bond-ada-balance">--</span></div>
-                <a href="#" id="bond-ada-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-ada-address">--</code></a>
-              </div>
-              <div class="bond-network-card" id="bond-xrp-card">
-                <div class="bond-net-header"><span class="bond-net-name">Ripple</span><span class="bond-net-balance" id="bond-xrp-balance">--</span></div>
-                <a href="#" id="bond-xrp-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-xrp-address">--</code></a>
-              </div>
+        <!-- Trust Map Tab -->
+        <div id="trust-tab-content" class="modal-tab-content">
+          <div class="trust-map-controls">
+            <button id="scan-trust-btn" class="glass-btn primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              Scan Blockchain for Trust
+            </button>
+            <div id="trust-graph-stats" class="trust-stats"></div>
+          </div>
+
+          <div class="trust-graph-container">
+            <canvas id="trust-graph-canvas" width="800" height="600"></canvas>
+            <div id="trust-graph-placeholder" class="trust-map-placeholder">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <circle cx="12" cy="5" r="3"/>
+                <circle cx="6" cy="15" r="3"/>
+                <circle cx="18" cy="15" r="3"/>
+                <line x1="12" y1="8" x2="8" y2="12"/>
+                <line x1="12" y1="8" x2="16" y2="12"/>
+              </svg>
+              <h3>Trust Map</h3>
+              <p>Click "Scan Blockchain for Trust" to discover trust relationships.</p>
+              <p class="trust-map-subtitle">Establish trust by publishing transactions on Bitcoin, Ethereum, or Solana.</p>
             </div>
-          </details>
-          <div class="pki-layout">
-            <div class="pki-tree-panel">
-              <div class="pki-tree-header">
-                <span class="pki-tree-title">Organizations</span>
-                <button class="glass-btn small pki-add-org-btn" id="pki-add-root-org" title="New Organization" style="display:none;">+</button>
+          </div>
+
+          <div class="trust-legend">
+            <h4 class="section-label">Trust Levels</h4>
+            <div class="trust-legend-items">
+              <div class="trust-legend-item">
+                <span class="trust-legend-color" style="background: #8b5cf6;"></span>
+                <span class="trust-legend-label">Ultimate (Own Keys)</span>
               </div>
-              <div class="pki-tree" id="pki-tree">
-                <div class="pki-tree-empty">No organizations. Click + to create one.</div>
+              <div class="trust-legend-item">
+                <span class="trust-legend-color" style="background: #10b981;"></span>
+                <span class="trust-legend-label">Full (Can Sign Others)</span>
               </div>
-            </div>
-            <div class="pki-detail-panel" id="pki-detail-panel">
-              <div class="pki-detail-empty" id="pki-detail-empty">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                <p>Select an organization or key to view details</p>
+              <div class="trust-legend-item">
+                <span class="trust-legend-color" style="background: #f59e0b;"></span>
+                <span class="trust-legend-label">Marginal (Some Trust)</span>
               </div>
-              <div class="pki-org-detail" id="pki-org-detail" style="display:none;">
-                <h4 class="pki-detail-title" id="pki-org-title">Organization</h4>
-                <div class="pki-dn-form">
-                  <div class="form-grid pki-form-grid">
-                    <div class="glass-input-group"><label>CN</label><input type="text" class="glass-input" id="pki-dn-cn" placeholder="Common Name"></div>
-                    <div class="glass-input-group"><label>O</label><input type="text" class="glass-input" id="pki-dn-o" placeholder="Organization"></div>
-                    <div class="glass-input-group"><label>OU</label><input type="text" class="glass-input" id="pki-dn-ou" placeholder="Org Unit"></div>
-                    <div class="glass-input-group"><label>C</label><input type="text" class="glass-input" id="pki-dn-c" placeholder="Country" maxlength="2"></div>
-                    <div class="glass-input-group"><label>ST</label><input type="text" class="glass-input" id="pki-dn-st" placeholder="State"></div>
-                    <div class="glass-input-group"><label>L</label><input type="text" class="glass-input" id="pki-dn-l" placeholder="Locality"></div>
-                  </div>
-                  <button class="glass-btn small primary" id="pki-save-org">Save</button>
-                </div>
-                <div class="pki-org-keys">
-                  <div class="pki-section-header"><span>Keys</span><button class="glass-btn small" id="pki-add-key" title="Add Key">+ Key</button></div>
-                  <div class="pki-key-list" id="pki-key-list"></div>
-                </div>
-                <div class="pki-org-certs">
-                  <div class="pki-section-header"><span>Certificates</span><button class="glass-btn small" id="pki-gen-cert" title="Generate Certificate">+ Cert</button></div>
-                  <div class="pki-cert-list" id="pki-cert-list"></div>
-                </div>
+              <div class="trust-legend-item">
+                <span class="trust-legend-color" style="background: #6b7280;"></span>
+                <span class="trust-legend-label">Unknown</span>
               </div>
-              <div class="pki-key-detail" id="pki-key-detail" style="display:none;">
-                <h4 class="pki-detail-title" id="pki-key-title">Key</h4>
-                <div class="pki-key-info">
-                  <div class="pki-info-row"><span class="pki-info-label">Curve</span><span id="pki-key-curve" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Role</span><span id="pki-key-role" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Public Key</span><code id="pki-key-pubkey" class="pki-info-value truncate">--</code></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Address</span><code id="pki-key-address" class="pki-info-value truncate">--</code></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Path</span><code id="pki-key-path" class="pki-info-value">--</code></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Certificate</span><span id="pki-key-cert-status" class="pki-info-value">None</span></div>
-                </div>
-              </div>
-              <div class="pki-cert-detail" id="pki-cert-detail" style="display:none;">
-                <h4 class="pki-detail-title" id="pki-cert-title">Certificate</h4>
-                <div class="pki-cert-info">
-                  <div class="pki-info-row"><span class="pki-info-label">Subject</span><span id="pki-cert-subject" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Issuer</span><span id="pki-cert-issuer" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Valid From</span><span id="pki-cert-from" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Valid To</span><span id="pki-cert-to" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Algorithm</span><span id="pki-cert-algo" class="pki-info-value">--</span></div>
-                  <div class="pki-info-row"><span class="pki-info-label">Fingerprint</span><code id="pki-cert-fingerprint" class="pki-info-value truncate">--</code></div>
-                </div>
-                <details class="pki-pem-details"><summary>PEM</summary><pre id="pki-cert-pem" class="pki-pem-preview"></pre></details>
+              <div class="trust-legend-item">
+                <span class="trust-legend-color" style="background: #ef4444;"></span>
+                <span class="trust-legend-label">Never (Blocklist)</span>
               </div>
             </div>
           </div>
-          <div class="pki-actions-bar">
-            <button class="glass-btn small" id="pki-import-btn">Import</button>
-            <button class="glass-btn small" id="pki-export-btn">Export</button>
-            <input type="file" id="pki-import-file" accept=".epm,.eme,.pem,.crt,.cer,.der,.json,.vcf" hidden>
+        </div>
+
+        <!-- Security Bond Tab -->
+        <div id="bond-tab-content" class="modal-tab-content">
+          <div class="bond-intro">
+            <h4 class="section-label">Trust Proof</h4>
+            <p>Holding value on your keys signals commitment and reduces Sybil risk. Your total balance across all networks serves as proof of stake in the trust network.</p>
           </div>
-          <details class="pki-rulesets-section">
-            <summary class="section-label collapsible-header"><span>Trust Rulesets</span><svg class="collapse-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-            <div class="pki-rulesets-content">
-              <div class="pki-section-header"><span>Policies</span><button class="glass-btn small" id="pki-add-policy">+ Policy</button></div>
-              <div class="pki-policy-list" id="pki-policy-list"><div class="pki-tree-empty">No policies defined.</div></div>
+          <div class="bond-networks-grid">
+            <div class="bond-network-card" id="bond-btc-card">
+              <div class="bond-net-header"><span class="bond-net-name">Bitcoin</span><span class="bond-net-balance" id="bond-btc-balance">--</span></div>
+              <a href="#" id="bond-btc-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-btc-address">--</code></a>
             </div>
-          </details>
-          <details class="pki-rulesets-section">
-            <summary class="section-label collapsible-header"><span>Address Analysis</span><svg class="collapse-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-            <div class="pki-address-analysis">
-              <div class="pki-address-input-row">
-                <textarea id="pki-address-input" class="glass-input glass-textarea" rows="2" placeholder="Paste addresses (one per line)..."></textarea>
-                <button class="glass-btn small primary" id="pki-analyze-btn">Analyze</button>
-              </div>
-              <div class="pki-address-results" id="pki-address-results"></div>
-              <div class="pki-address-total" id="pki-address-total" style="display:none;"><span class="pki-info-label">Total</span><span class="pki-info-value" id="pki-address-total-value">$0.00</span></div>
+            <div class="bond-network-card" id="bond-eth-card">
+              <div class="bond-net-header"><span class="bond-net-name">Ethereum</span><span class="bond-net-balance" id="bond-eth-balance">--</span></div>
+              <a href="#" id="bond-eth-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-eth-address">--</code></a>
             </div>
-          </details>
+            <div class="bond-network-card" id="bond-sol-card">
+              <div class="bond-net-header"><span class="bond-net-name">Solana</span><span class="bond-net-balance" id="bond-sol-balance">--</span></div>
+              <a href="#" id="bond-sol-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sol-address">--</code></a>
+            </div>
+            <div class="bond-network-card" id="bond-sui-card">
+              <div class="bond-net-header"><span class="bond-net-name">SUI</span><span class="bond-net-balance" id="bond-sui-balance">--</span></div>
+              <a href="#" id="bond-sui-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sui-address">--</code></a>
+            </div>
+            <div class="bond-network-card" id="bond-monad-card">
+              <div class="bond-net-header"><span class="bond-net-name">Monad</span><span class="bond-net-balance" id="bond-monad-balance">--</span></div>
+              <a href="#" id="bond-monad-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-monad-address">--</code></a>
+            </div>
+            <div class="bond-network-card" id="bond-ada-card">
+              <div class="bond-net-header"><span class="bond-net-name">Cardano</span><span class="bond-net-balance" id="bond-ada-balance">--</span></div>
+              <a href="#" id="bond-ada-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-ada-address">--</code></a>
+            </div>
+            <div class="bond-network-card" id="bond-xrp-card">
+              <div class="bond-net-header"><span class="bond-net-name">Ripple</span><span class="bond-net-balance" id="bond-xrp-balance">--</span></div>
+              <a href="#" id="bond-xrp-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-xrp-address">--</code></a>
+            </div>
+          </div>
         </div>
 
       </div>

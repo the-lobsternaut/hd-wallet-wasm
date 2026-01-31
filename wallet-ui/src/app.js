@@ -27,16 +27,12 @@ window.Buffer = Buffer;
 // =============================================================================
 
 import WalletStorage, { StorageMethod } from './wallet-storage.js';
-import { initPKI } from './pki-ui.js';
-import { getTrustScore, buildContext } from './trust-engine.js';
-import { getState as getPKIState } from './pki-storage.js';
 
 import {
   cryptoConfig,
   coinTypeToConfig,
   buildSigningPath,
   buildEncryptionPath,
-  PKI_STORAGE_KEY,
 } from './constants.js';
 
 import {
@@ -911,6 +907,9 @@ function login(keys) {
   // Update wallet addresses and balances
   updateAdversarialSecurity();
 
+  // Populate vCard keys display
+  populateVCardKeysDisplay();
+
   // Open Account modal so user can see the wallet they just loaded
   $('keys-modal')?.classList.add('active');
   deriveAndDisplayAddress();
@@ -1625,31 +1624,6 @@ async function updateAdversarialSecurity() {
 
   // Update account address dropdown values
   updateAccountAddressValues(bondBalances, cryptoPrices, currency);
-
-  // Evaluate trust policies
-  try {
-    const pkiState = getPKIState();
-    const policies = pkiState.policies || [];
-    if (policies.length > 0) {
-      const ctx = buildContext({
-        balances: bondBalances,
-        prices: {},
-        totalValue: totalConverted,
-        identities: Object.fromEntries((pkiState.identities || []).map(k => [k.id, k])),
-        certificates: Object.fromEntries((pkiState.certificates || []).map(c => [c.id, c])),
-      });
-      const trustResult = getTrustScore(policies, ctx);
-      if (trustFill) {
-        trustFill.style.width = `${trustResult.score}%`;
-      }
-      if (trustNote) {
-        const blockerText = trustResult.totalBlockers > 0 ? ` (${trustResult.totalBlockers} blocker${trustResult.totalBlockers > 1 ? 's' : ''})` : '';
-        trustNote.textContent += ` Trust score: ${trustResult.score}/100${blockerText}`;
-      }
-    }
-  } catch (e) {
-    console.warn('Trust evaluation failed:', e);
-  }
 }
 
 // =============================================================================
@@ -1725,6 +1699,130 @@ function generateVCard(info, { skipPhoto = false } = {}) {
   );
 
   return vcard;
+}
+
+// =============================================================================
+// vCard Keys Display
+// =============================================================================
+
+function populateVCardKeysDisplay() {
+  const keysDisplay = $('vcard-keys-display');
+  if (!keysDisplay) return;
+
+  const keys = [];
+
+  // Bitcoin signing key
+  if (state.addresses.btc) {
+    keys.push({
+      label: 'Bitcoin Signing',
+      curve: 'secp256k1',
+      address: state.addresses.btc,
+      pubkey: state.wallet.secp256k1 ? toHex(state.wallet.secp256k1.publicKey) : '—',
+      path: buildSigningPath(0, 0, 0), // m/44'/0'/0'/0'/0'
+      role: 'signing',
+      explorer: `https://blockstream.info/address/${state.addresses.btc}`,
+    });
+  }
+
+  // Ethereum signing key
+  if (state.addresses.eth) {
+    keys.push({
+      label: 'Ethereum Signing',
+      curve: 'secp256k1',
+      address: state.addresses.eth,
+      pubkey: state.wallet.secp256k1 ? toHex(state.wallet.secp256k1.publicKey) : '—',
+      path: buildSigningPath(60, 0, 0), // m/44'/60'/0'/0'/0'
+      role: 'signing',
+      explorer: `https://etherscan.io/address/${state.addresses.eth}`,
+    });
+  }
+
+  // Solana signing key
+  if (state.addresses.sol) {
+    keys.push({
+      label: 'Solana Signing',
+      curve: 'Ed25519',
+      address: state.addresses.sol,
+      pubkey: state.wallet.ed25519 ? toHex(state.wallet.ed25519.publicKey) : '—',
+      path: buildSigningPath(501, 0, 0), // m/44'/501'/0'/0'
+      role: 'signing',
+      explorer: `https://explorer.solana.com/address/${state.addresses.sol}`,
+    });
+  }
+
+  // P-256 encryption key
+  if (state.wallet.p256) {
+    keys.push({
+      label: 'Encryption Key',
+      curve: 'P-256 (NIST)',
+      address: '—',
+      pubkey: toHex(state.wallet.p256.publicKey),
+      path: buildEncryptionPath(0, 0, 0), // m/44'/0'/0'/1'/0'
+      role: 'encryption',
+      explorer: null,
+    });
+  }
+
+  // Clear and populate
+  keysDisplay.innerHTML = '';
+
+  keys.forEach(key => {
+    const keyCard = document.createElement('div');
+    keyCard.className = 'key-display-card';
+    keyCard.innerHTML = `
+      <div class="key-display-header">
+        <span class="key-display-label">${key.label}</span>
+        <span class="key-display-badge ${key.role}">${key.role}</span>
+      </div>
+      <div class="key-display-row">
+        <span class="key-display-field">Curve</span>
+        <code class="key-display-value">${key.curve}</code>
+      </div>
+      <div class="key-display-row">
+        <span class="key-display-field">Public Key</span>
+        <code class="key-display-value truncate" title="${key.pubkey}">${truncateAddress(key.pubkey, 16)}</code>
+        <button class="copy-btn-small" data-copy-text="${key.pubkey}" title="Copy">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+      ${key.address !== '—' ? `
+      <div class="key-display-row">
+        <span class="key-display-field">Address</span>
+        <code class="key-display-value truncate" title="${key.address}">${truncateAddress(key.address, 16)}</code>
+        ${key.explorer ? `<a href="${key.explorer}" target="_blank" rel="noopener" class="explorer-link-small" title="View on Explorer">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </a>` : ''}
+      </div>
+      ` : ''}
+      <div class="key-display-row">
+        <span class="key-display-field">Derivation Path</span>
+        <code class="key-display-value">${key.path}</code>
+      </div>
+    `;
+    keysDisplay.appendChild(keyCard);
+  });
+
+  // Add copy button event listeners
+  keysDisplay.querySelectorAll('.copy-btn-small').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = btn.getAttribute('data-copy-text');
+      try {
+        await navigator.clipboard.writeText(text);
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '✓';
+        setTimeout(() => { btn.innerHTML = originalHTML; }, 1000);
+      } catch (err) {
+        console.error('Copy failed:', err);
+      }
+    });
+  });
 }
 
 function parseAndDisplayVCF(vcfText) {
@@ -2326,6 +2424,52 @@ function setupMainAppHandlers() {
     });
   });
 
+  // vCard identity auto-save
+  const VCARD_STORAGE_KEY = 'hd-wallet-vcard-identity';
+  const vcardFieldIds = [
+    'vcard-prefix', 'vcard-firstname', 'vcard-middlename', 'vcard-lastname',
+    'vcard-suffix', 'vcard-email', 'vcard-phone', 'vcard-org', 'vcard-title',
+    'vcard-street', 'vcard-city', 'vcard-region', 'vcard-postal', 'vcard-country'
+  ];
+
+  function saveVcardIdentity() {
+    const data = {};
+    for (const id of vcardFieldIds) {
+      const el = $(id);
+      if (el) data[id] = el.value;
+    }
+    if (state.vcardPhoto) data._photo = state.vcardPhoto;
+    try { localStorage.setItem(VCARD_STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  function restoreVcardIdentity() {
+    try {
+      const raw = localStorage.getItem(VCARD_STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      for (const id of vcardFieldIds) {
+        const el = $(id);
+        if (el && data[id]) el.value = data[id];
+      }
+      if (data._photo) {
+        state.vcardPhoto = data._photo;
+        showPhotoPreview(data._photo);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  restoreVcardIdentity();
+
+  let vcardSaveTimer = null;
+  function debouncedVcardSave() {
+    clearTimeout(vcardSaveTimer);
+    vcardSaveTimer = setTimeout(saveVcardIdentity, 500);
+  }
+
+  for (const id of vcardFieldIds) {
+    $(id)?.addEventListener('input', debouncedVcardSave);
+  }
+
   // Photo upload handler
   $('vcard-photo-input')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -2347,6 +2491,7 @@ function setupMainAppHandlers() {
         state.vcardPhoto = dataUrl;
         stopCamera();
         showPhotoPreview(dataUrl);
+        saveVcardIdentity();
       };
       img.src = ev.target.result;
     };
@@ -2357,6 +2502,7 @@ function setupMainAppHandlers() {
   $('vcard-photo-remove')?.addEventListener('click', () => {
     state.vcardPhoto = null;
     resetPhotoPreview();
+    saveVcardIdentity();
     const removeBtn = $('vcard-photo-remove');
     if (removeBtn) removeBtn.style.display = 'none';
     const input = $('vcard-photo-input');
@@ -2440,6 +2586,7 @@ function setupMainAppHandlers() {
       state.vcardPhoto = dataUrl;
       stopCamera();
       showPhotoPreview(dataUrl);
+      saveVcardIdentity();
     });
 
     $('vcard-camera-cancel')?.addEventListener('click', () => {
@@ -2743,6 +2890,69 @@ function setupMainAppHandlers() {
       $qa('.modal.active').forEach(m => m.classList.remove('active'));
     }
   });
+
+  // Trust system handlers
+  setupTrustHandlers();
+}
+
+// =============================================================================
+// Trust System Handlers
+// =============================================================================
+
+function setupTrustHandlers() {
+  // Scan blockchain for trust transactions
+  $('scan-trust-btn')?.addEventListener('click', async () => {
+    if (!state.loggedIn || !state.addresses) {
+      alert('Please login first');
+      return;
+    }
+
+    const scanBtn = $('scan-trust-btn');
+    if (scanBtn) {
+      scanBtn.disabled = true;
+      scanBtn.textContent = 'Scanning...';
+    }
+
+    try {
+      // Dynamically import trust modules
+      const { scanAllTrustTransactions, buildTrustGraph, updateTrustMapTab } = await import('./trust-ui.js');
+
+      // Scan all addresses
+      const trustTxs = await scanAllTrustTransactions(state.addresses);
+
+      // Build trust graph
+      const graph = buildTrustGraph(trustTxs);
+
+      // Store in state
+      state.trustGraph = graph;
+      state.trustTransactions = trustTxs;
+
+      // Update UI
+      updateTrustMapTab(graph, state.addresses);
+
+      // Hide placeholder, show canvas
+      const placeholder = $('trust-graph-placeholder');
+      const canvas = $('trust-graph-canvas');
+      if (placeholder) placeholder.style.display = 'none';
+      if (canvas) canvas.style.display = 'block';
+
+      console.log(`Found ${trustTxs.length} trust transactions`);
+      console.log(`Graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+    } catch (err) {
+      console.error('Trust scan failed:', err);
+      alert('Failed to scan blockchain for trust transactions');
+    } finally {
+      if (scanBtn) {
+        scanBtn.disabled = false;
+        scanBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          Scan Blockchain for Trust
+        `;
+      }
+    }
+  });
 }
 
 // =============================================================================
@@ -2788,7 +2998,6 @@ export async function init(rootElement) {
     setupLoginHandlers();
     setupMainAppHandlers();
     initCurrencySelector();
-    initPKI(_root);
 
     // Handle initial hash navigation
     const initialHash = window.location.hash.slice(1);
