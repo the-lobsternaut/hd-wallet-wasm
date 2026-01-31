@@ -3,16 +3,14 @@
   "version": "1.0.0",
   "description": "Standalone HD Wallet UI with glass morphism design",
   "type": "module",
-  "main": "src/wallet-widget.js",
+  "main": "src/app.js",
   "exports": {
-    ".": "./src/wallet-widget.js",
-    "./lib": "./src/lib.js",
-    "./widget": "./src/wallet-widget.js"
+    ".": "./src/app.js",
+    "./lib": "./src/lib.js"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:widget": "BUILD_WIDGET=1 vite build",
     "build:docs": "vite build --outDir ../docs/examples/wallet --emptyOutDir",
     "preview": "vite preview",
     "test": "vitest run",
@@ -21,10 +19,12 @@
   "dependencies": {
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.7.2",
+    "@peculiar/x509": "^1.14.3",
     "@scure/base": "^1.2.4",
     "@scure/bip32": "^2.0.1",
     "bip39": "^3.1.0",
     "buffer": "^6.0.3",
+    "flatbuffers": "^25.9.23",
     "hd-wallet-wasm": "file:../wasm",
     "qrcode": "^1.5.3",
     "vcard-cryptoperson": "^1.1.10"

@@ -27,6 +27,9 @@ window.Buffer = Buffer;
 // =============================================================================
 
 import WalletStorage, { StorageMethod } from './wallet-storage.js';
+import { initPKI } from './pki-ui.js';
+import { getTrustScore, buildContext } from './trust-engine.js';
+import { getState as getPKIState } from './pki-storage.js';
 
 import {
   cryptoConfig,
@@ -855,6 +858,7 @@ function login(keys) {
     if (keysXpubEl) {
       setTruncatedValue(keysXpubEl, state.hdRoot.toXpub() || 'N/A');
     }
+    populateAccountAddressDropdown();
     if (xprvEl) {
       setTruncatedValue(xprvEl, state.hdRoot.toXprv() || 'N/A');
       xprvEl.dataset.revealed = 'false';
@@ -1049,6 +1053,106 @@ function downloadData(data, filename, mimeType) {
 // =============================================================================
 // Wallet Address Population & Balance Fetching
 // =============================================================================
+
+// Account address dropdown — populated once after login, updated when balances arrive
+let _accountAddressData = {}; // { xpub: { addr, value }, btc: { addr, value }, ... }
+
+function populateAccountAddressDropdown() {
+  const sel = $('account-address-select');
+  if (!sel) return;
+
+  const xpubStr = state.hdRoot ? state.hdRoot.toXpub() : '';
+  const addrs = state.addresses || {};
+
+  const networks = [
+    { key: 'xpub', label: 'xpub', addr: xpubStr },
+    { key: 'btc',  label: 'Bitcoin',  addr: addrs.btc || '' },
+    { key: 'eth',  label: 'Ethereum', addr: addrs.eth || '' },
+    { key: 'sol',  label: 'Solana',   addr: addrs.sol || '' },
+    { key: 'xrp',  label: 'Ripple',   addr: addrs.xrp || '' },
+  ];
+
+  // Add SUI/Monad/ADA if we can derive them
+  if (state.hdRoot) {
+    try {
+      const suiPath = buildSigningPath(784, 0, 0);
+      const suiDerived = state.hdRoot.derivePath(suiPath);
+      const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
+      networks.push({ key: 'sui', label: 'SUI', addr: deriveSuiAddress(suiPubKey, 'ed25519') });
+    } catch (_) {}
+    networks.push({ key: 'monad', label: 'Monad', addr: addrs.eth || '' });
+    try {
+      const adaPath = buildSigningPath(1815, 0, 0);
+      const adaDerived = state.hdRoot.derivePath(adaPath);
+      const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
+      networks.push({ key: 'ada', label: 'Cardano', addr: deriveCardanoAddress(adaPubKey) });
+    } catch (_) {}
+  }
+
+  _accountAddressData = {};
+  sel.innerHTML = '';
+  for (const n of networks) {
+    if (!n.addr) continue;
+    _accountAddressData[n.key] = { addr: n.addr, value: '' };
+    const opt = document.createElement('option');
+    opt.value = n.key;
+    opt.textContent = n.label;
+    sel.appendChild(opt);
+  }
+
+  sel.removeEventListener('change', updateAccountAddressDisplay);
+  sel.addEventListener('change', updateAccountAddressDisplay);
+
+  const copyBtn = $('account-address-copy');
+  if (copyBtn) {
+    copyBtn.onclick = () => {
+      const key = sel.value;
+      const data = _accountAddressData[key];
+      if (data?.addr) {
+        navigator.clipboard.writeText(data.addr).then(() => {
+          copyBtn.title = 'Copied!';
+          setTimeout(() => { copyBtn.title = 'Copy address'; }, 1500);
+        });
+      }
+    };
+  }
+
+  updateAccountAddressDisplay();
+}
+
+function updateAccountAddressDisplay() {
+  const sel = $('account-address-select');
+  const addrEl = $('account-address-display');
+  const valEl = $('account-address-value');
+  if (!sel || !addrEl) return;
+
+  const key = sel.value;
+  const data = _accountAddressData[key];
+  if (!data) return;
+
+  const addr = data.addr;
+  addrEl.textContent = addr;
+  addrEl.title = addr;
+  if (valEl) valEl.textContent = data.value || (key !== 'xpub' ? '$0.00' : '');
+}
+
+function updateAccountAddressValues(bondBalances, prices, currency) {
+  const symbol = CURRENCY_SYMBOLS[currency] || currency;
+  const keyToSymbol = { btc: 'BTC', eth: 'ETH', sol: 'SOL', sui: 'SUI', monad: 'MONAD', ada: 'ADA', xrp: 'XRP' };
+
+  for (const [key, data] of Object.entries(_accountAddressData)) {
+    if (key === 'xpub') {
+      data.value = '';
+      continue;
+    }
+    const sym = keyToSymbol[key];
+    const bal = parseFloat(bondBalances[key]) || 0;
+    const price = (prices && sym) ? (prices[sym] || 0) : 0;
+    const converted = bal * price;
+    data.value = converted > 0 ? symbol + converted.toFixed(2) : bal > 0 ? bal.toFixed(6) + ' ' + (sym || '') : '';
+  }
+  updateAccountAddressDisplay();
+}
 
 function populateWalletAddresses() {
   if (!state.wallet) return;
@@ -1491,10 +1595,11 @@ async function updateAdversarialSecurity() {
   // Convert to selected currency
   const currency = getSelectedCurrency();
   let totalConverted = 0;
-  const trustTotalEl = $('trust-total-value');
+  let cryptoPrices = null;
 
   try {
-    const prices = await fetchCryptoPrices(currency);
+    cryptoPrices = await fetchCryptoPrices(currency);
+    const prices = cryptoPrices;
     const balances = {
       BTC: parseFloat(btcResult.balance) || 0,
       ETH: parseFloat(ethResult.balance) || 0,
@@ -1512,20 +1617,38 @@ async function updateAdversarialSecurity() {
     console.warn('Price conversion failed:', e);
   }
 
-  if (trustTotalEl) {
-    trustTotalEl.textContent = formatCurrencyValue(totalConverted, currency);
+  // Update account header total value
+  const accountTotalEl = $('account-total-value');
+  if (accountTotalEl) {
+    accountTotalEl.textContent = 'Security Level: ' + formatCurrencyValue(totalConverted, currency);
   }
 
-  const trustFill = $('trust-meter-fill');
-  if (trustFill) {
-    const trustPercent = Math.min(100, Math.log10(totalConverted + 1) * 33);
-    trustFill.style.width = `${trustPercent}%`;
-  }
+  // Update account address dropdown values
+  updateAccountAddressValues(bondBalances, cryptoPrices, currency);
 
-  if (trustNote) {
-    trustNote.textContent = totalConverted === 0
-      ? `${formatCurrencyValue(0, currency)} total value locked.`
-      : `${formatCurrencyValue(totalConverted, currency)} total value locked.`;
+  // Evaluate trust policies
+  try {
+    const pkiState = getPKIState();
+    const policies = pkiState.policies || [];
+    if (policies.length > 0) {
+      const ctx = buildContext({
+        balances: bondBalances,
+        prices: {},
+        totalValue: totalConverted,
+        identities: Object.fromEntries((pkiState.identities || []).map(k => [k.id, k])),
+        certificates: Object.fromEntries((pkiState.certificates || []).map(c => [c.id, c])),
+      });
+      const trustResult = getTrustScore(policies, ctx);
+      if (trustFill) {
+        trustFill.style.width = `${trustResult.score}%`;
+      }
+      if (trustNote) {
+        const blockerText = trustResult.totalBlockers > 0 ? ` (${trustResult.totalBlockers} blocker${trustResult.totalBlockers > 1 ? 's' : ''})` : '';
+        trustNote.textContent += ` Trust score: ${trustResult.score}/100${blockerText}`;
+      }
+    }
+  } catch (e) {
+    console.warn('Trust evaluation failed:', e);
   }
 }
 
@@ -2665,6 +2788,7 @@ export async function init(rootElement) {
     setupLoginHandlers();
     setupMainAppHandlers();
     initCurrencySelector();
+    initPKI(_root);
 
     // Handle initial hash navigation
     const initialHash = window.location.hash.slice(1);
@@ -2722,7 +2846,3 @@ export async function init(rootElement) {
   }
 }
 
-// When loaded directly (not via web component), auto-init on DOMContentLoaded
-if (!customElements.get('wallet-widget')) {
-  document.addEventListener('DOMContentLoaded', init);
-}

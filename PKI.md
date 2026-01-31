@@ -47,6 +47,129 @@ Full design document for adding a trust policy rules engine, organizational key 
 
 ---
 
+## Game Theory of Trust
+
+This section formalizes the incentive structures, strategic interactions, and equilibrium conditions that the trust policy engine is designed to enforce. The security bond and rules engine are mechanism design tools — they create conditions where rational actors are incentivized toward honest behavior.
+
+### 1. The Security Bond as a Commitment Device
+
+The security bond functions as a **credible commitment mechanism**. By locking value across multiple blockchain networks, a keyholder signals:
+
+- **Costly signaling**: Acquiring and holding assets across diverse networks is expensive. A well-funded bond is difficult to fake, making it a reliable signal of investment in the identity. This follows the **handicap principle** from signaling theory — the cost of the signal is what makes it credible.
+- **Skin in the game**: Value locked to derived addresses creates a direct economic loss if the associated private keys are compromised or the identity is used maliciously. This aligns with Nassim Taleb's asymmetry principle — the keyholder bears downside risk proportional to their claims.
+- **Opportunity cost**: Funds committed to the bond cannot be used elsewhere. The larger the bond, the greater the implied opportunity cost, and thus the stronger the commitment.
+
+**Formal model**: Let `B` be the total bond value in a reference currency. Let `C(fraud)` be the expected cost of fraudulent behavior (reputation loss, legal liability, counterparty retaliation). The bond is credible when:
+
+```
+B > P(detection) × C(fraud) + P(¬detection) × G(fraud)
+```
+
+Where `G(fraud)` is the gain from fraud. The bond must exceed the expected value of cheating for the commitment to hold. The `minimum_total_value` rule enforces a floor on `B`.
+
+### 2. M-of-N Funding as Distributed Trust
+
+The `m_of_n_funded` rule implements a **distributed trust model** analogous to threshold cryptography but applied to economic commitments:
+
+- **No single point of failure**: Requiring M of N networks to be funded means an attacker must compromise or simulate presence across multiple independent blockchain ecosystems simultaneously.
+- **Byzantine fault tolerance**: With M-of-N threshold, the system tolerates up to `N - M` network failures (chain halts, bridge exploits, exchange delistings) without the trust score collapsing.
+- **Coordination cost for attackers**: An adversary attempting to present a credible false identity must acquire and manage assets across M distinct networks, each with different address formats, fee structures, and liquidity pools. This is a **coordination game** where the defender sets the rules.
+
+**Nash equilibrium**: In a two-player game between Verifier and Claimant:
+- If Claimant is honest: funding M-of-N is a rational investment in reputation (positive expected return from trusted interactions)
+- If Claimant is dishonest: the cost of funding M-of-N across real chains exceeds the expected gain from the deception (assuming the verifier's trust threshold is calibrated correctly)
+- **Dominant strategy for honest actors**: fund the bond. **Dominant strategy for dishonest actors**: don't fund (cost exceeds benefit), which makes them detectable.
+
+### 3. Concentration Limits as Risk Diversification
+
+The `max_concentration` rule prevents a trust signal from being dominated by a single asset, enforcing portfolio-theoretic diversification:
+
+- **Prevents cheap signaling**: Without concentration limits, an actor could hold all bond value in a single low-liquidity token, making the bond appear large in fiat terms while being illiquid and manipulable. Diversification forces real cross-chain commitment.
+- **Correlated failure resistance**: If 90% of bond value is in one network and that network suffers a consensus failure or price crash, the trust signal collapses. Diversification bounds the impact of any single-chain event.
+- **Information-theoretic argument**: Each independent chain with a non-zero balance provides an independent bit of trust evidence. N chains with balanced funding provide more information (higher entropy) than 1 chain with the same total value.
+
+### 4. Certificate Chains as Hierarchical Trust Delegation
+
+The organizational hierarchy and certificate chain model implements a **delegated trust game**:
+
+```
+Root CA (Organization)
+  │ delegates trust to ──►
+  Intermediate CA (Department)
+    │ delegates trust to ──►
+    End Entity (Personnel)
+```
+
+**Principal-Agent Problem**: The organization (principal) delegates authority to personnel (agents). The certificate chain provides:
+- **Accountability**: Every personnel key traces to an org root. Revocation of the intermediate CA revokes all downstream personnel certs simultaneously.
+- **Least privilege**: End entity certs have constrained `KeyUsage` — they can sign but not issue new certificates. This prevents unauthorized trust delegation.
+- **Incentive alignment**: Personnel keys inherit the organization's reputation. Misuse of a personnel key damages the org's trust score, creating peer pressure within the org to maintain key hygiene.
+
+**Game between organizations**: When two organizations evaluate each other's trust:
+- Org A observes Org B's certificate chain depth, bond value, and rule compliance
+- The trust score functions as a **reputation signal** in a repeated game
+- Organizations with high trust scores get preferential treatment (lower verification overhead, faster interactions)
+- This creates a **reputation tournament** where organizations compete to maintain high scores
+
+### 5. Key Rotation and Temporal Dynamics
+
+The `key_age_limit` rule introduces a temporal dimension to the trust game:
+
+- **Forward secrecy analog**: Regular rotation limits the blast radius of key compromise. If an attacker obtains a key, they have a bounded window to exploit it.
+- **Liveness proof**: A recently rotated key proves the keyholder is actively managing their identity. Stale keys may indicate abandonment, compromise, or death — all of which degrade trust.
+- **Commitment renewal**: Rotation forces periodic re-engagement with the trust system. Each rotation is a fresh costly signal that the identity holder values the relationship.
+
+**Decay function**: Trust should not be binary. A key at age `t` with maximum age `T` has a trust multiplier:
+
+```
+trust_decay(t, T) = max(0, 1 - (t / T)²)
+```
+
+This applies quadratic decay — trust degrades slowly at first, then rapidly as the key approaches expiration, creating urgency for rotation without penalizing recently-rotated keys.
+
+### 6. The xpub Signature as Cross-Domain Binding
+
+Signing the xpub with the BTC signing key and embedding it in an X.509 certificate creates a **cross-domain identity binding**:
+
+- **Bridges two trust systems**: X.509 PKI (institutional, NIST-curve, CA-hierarchical) and HD wallet (decentralized, secp256k1, self-sovereign). Neither system alone covers all use cases.
+- **Prevents identity splitting**: Without this binding, an adversary could present a legitimate X.509 cert and a legitimate HD wallet as belonging to different people, playing different trust games with different counterparties. The signature makes the binding verifiable.
+- **Non-repudiation**: The BTC signing key is derived from the master seed at a well-known path (`m/44'/0'/0'/0/0`). Anyone with the xpub can derive the expected public key and verify the signature. The keyholder cannot later claim the xpub belongs to a different wallet.
+
+### 7. Threat Models and Strategic Responses
+
+| Threat | Attacker Strategy | System Response | Game-Theoretic Defense |
+|--------|-------------------|-----------------|----------------------|
+| **Sybil attack** | Create many low-cost identities | `minimum_total_value` + `m_of_n_funded` | Makes identity creation expensive (proof of stake in identity) |
+| **Key compromise** | Steal private key, impersonate | `key_age_limit` + `certificate_valid` | Bounds exploit window; cert revocation kills trust instantly |
+| **Wash trading** | Move funds between own addresses to fake diversity | `max_concentration` + `key_diversity` | Requires real cross-chain presence; on-chain movement is observable |
+| **Insider threat** | Personnel misuses org-delegated authority | `personnel_cert_signed_by_org` + cert chain | Org can revoke intermediate CA; accountability trace exists |
+| **Eclipse attack** | Isolate verifier from seeing real chain state | Multiple independent RPC endpoints per chain | Byzantine fault tolerance at the data layer |
+| **Long-con identity farming** | Build trust slowly, exploit once | `per_key_minimum` per network + `max_concentration` | Ongoing cost maintenance; large exploitation destroys large bond |
+| **Quantum threat** | Future quantum computer breaks ECDSA | `multi_curve_requirement` + `nist_curve_required` | Curve diversity ensures not all keys fall to the same attack |
+
+### 8. Mechanism Design Properties
+
+The trust engine satisfies several desirable mechanism design properties:
+
+- **Incentive compatibility**: Honest keyholders maximize their trust score by following the protocol (funding bonds, rotating keys, maintaining cert chains). No deviating strategy improves their outcome.
+- **Individual rationality**: Participation is voluntary. The cost of maintaining a trust profile (gas fees, opportunity cost of locked funds) is bounded and predictable. Actors participate only when the trust benefits exceed costs.
+- **Sybil resistance**: The bond requirement means each identity has a non-trivial cost floor. Creating N fake identities costs at least `N × minimum_total_value`, which scales linearly with attack surface.
+- **Composability**: Trust scores are portable (via vCard + encrypted policy blob). An identity verified in one context carries its trust to another, reducing repeated verification costs (analogous to certificate pinning in TLS).
+- **Monotonicity**: Adding more funded networks, higher bond values, valid certs, or fresh keys can only increase (never decrease) the trust score. This prevents pathological strategies where "doing more" hurts the score.
+- **Transparency**: All rules, thresholds, and evaluation logic are client-side and inspectable. No opaque reputation oracle or centralized scoring authority. This satisfies the **verifiability** requirement of mechanism design.
+
+### 9. Equilibrium Analysis
+
+In a population of actors using this trust system:
+
+**Separating equilibrium**: The bond mechanism creates a separating equilibrium between honest and dishonest actors. Honest actors with long time horizons invest in bonds because the ongoing benefits of trust (reduced transaction friction, access to higher-value interactions) exceed the bond cost. Dishonest actors with short time horizons find the bond cost prohibitive relative to their hit-and-run strategy. The two populations become distinguishable by their bond profiles.
+
+**Pooling prevention**: Without the rules engine, a simple "total value" metric would allow pooling — dishonest actors could mimic honest ones cheaply. The multi-dimensional rules (diversity, concentration, certs, key age, M-of-N) increase the dimensionality of the signal space, making mimicry exponentially more expensive. Each additional rule type is an additional dimension the attacker must simulate.
+
+**Cooperative equilibrium in organizations**: Within an org hierarchy, the shared reputation creates a cooperative game. If Alice's key is compromised and used maliciously, the org's trust score drops for everyone. This creates mutual monitoring incentives — personnel have reason to enforce key hygiene norms on each other (a form of peer punishment that sustains cooperation, per Ostrom's work on commons governance).
+
+---
+
 ## Data Models
 
 ### Organization

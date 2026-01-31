@@ -1,46 +1,24 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
-const isWidgetBuild = process.env.BUILD_WIDGET === '1';
-
 export default defineConfig({
   root: '.',
   base: './',
   resolve: {
     alias: {
       '@wallet': resolve(__dirname, 'src'),
+      '@sds': resolve(__dirname, '..', '..', 'spacedatastandards.org'),
     },
   },
   optimizeDeps: {
     include: ['qrcode', 'buffer', 'vcard-cryptoperson'],
     exclude: ['hd-wallet-wasm'],
   },
-  build: isWidgetBuild ? {
-    outDir: 'dist/widget',
-    lib: {
-      entry: resolve(__dirname, 'src/wallet-widget.js'),
-      name: 'WalletWidget',
-      fileName: 'wallet-widget',
-      formats: ['es', 'iife'],
-    },
-    cssCodeSplit: false,
-    rollupOptions: {
-      external: ['fs', 'url', 'path', 'module', 'crypto'],
-      onwarn(warning, warn) {
-        if (warning.code === 'MODULE_LEVEL_DIRECTIVE' ||
-            (warning.message && warning.message.includes('has been externalized for browser compatibility'))) {
-          return;
-        }
-        warn(warning);
-      },
-    },
-  } : {
+  build: {
     outDir: 'dist',
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        standalone: resolve(__dirname, 'standalone.html'),
-        widget: resolve(__dirname, 'widget.html'),
       },
       external: ['fs', 'url', 'path', 'module', 'crypto'],
       onwarn(warning, warn) {
@@ -58,6 +36,7 @@ export default defineConfig({
     fs: {
       allow: [
         resolve(__dirname, '..'),
+        resolve(__dirname, '..', '..', 'spacedatastandards.org'),
       ],
     },
     proxy: {

@@ -569,7 +569,6 @@ body:has(.modal.active) .nav-bar {
 }
 
 .glass-select.compact {
-  padding: 8px 32px 8px 12px;
   background-position: right 10px center;
 }
 
@@ -982,6 +981,7 @@ body:has(.modal.active) .nav-bar {
 /* xpub section */
 .xpub-section {
   margin-bottom: 16px;
+  padding: 10px 0;
 }
 
 /* Memory-only notice */
@@ -989,8 +989,7 @@ body:has(.modal.active) .nav-bar {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 5px;
-  margin-bottom: 13px;
+  margin-left: auto;
 }
 
 .memory-notice-label {
@@ -1136,6 +1135,84 @@ body:has(.modal.active) .nav-bar {
   font-weight: 600;
 }
 
+.account-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-header-top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.account-total-value {
+  font-weight: 500;
+  color: #4ade80;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.account-address-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.account-address-select {
+  min-width: 90px;
+  max-width: 130px;
+  font-size: 12px;
+  padding: 4px 28px 4px 10px;
+  height: 28px;
+  background-position: right 6px center;
+  color: var(--white-90);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.account-address-display {
+  font-family: var(--font-mono, 'SF Mono', monospace);
+  font-size: 11px;
+  color: var(--white-50);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  flex: 1;
+  min-width: 0;
+}
+
+.account-address-copy {
+  background: none;
+  border: none;
+  color: var(--white-30);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.account-address-copy:hover {
+  color: var(--white-70);
+}
+
+@media (max-width: 600px) {
+  .account-address-display {
+    max-width: 140px;
+  }
+}
+
+.account-address-value {
+  font-size: 11px;
+  color: #4ade80;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
 .modal-close {
   width: 32px;
   height: 32px;
@@ -1217,7 +1294,8 @@ body:has(.modal.active) .nav-bar {
 .key-value-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
+  padding: 8px 0;
 }
 
 .key-value-row .key-value {
@@ -1261,6 +1339,8 @@ body:has(.modal.active) .nav-bar {
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
+  flex-shrink: 0;
   flex-shrink: 0;
 }
 
@@ -1499,7 +1579,6 @@ body:has(.modal.active) .nav-bar {
   gap: 16px;
   padding-top: 12px;
   margin-top: 8px;
-  border-top: 1px solid var(--glass-border);
 }
 
 .hd-address-info {
@@ -2261,4 +2340,458 @@ body:has(.modal.active) .nav-bar {
   .wallet-networks-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* =============================================================================
+   PKI Tab Styles
+   ============================================================================= */
+
+.pki-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  min-height: 320px;
+}
+
+@media (max-width: 700px) {
+  .pki-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tree Panel */
+.pki-tree-panel {
+  border-right: 1px solid var(--glass-border);
+  padding-right: 12px;
+  overflow-y: auto;
+  max-height: 420px;
+}
+
+@media (max-width: 700px) {
+  .pki-tree-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--glass-border);
+    padding-right: 0;
+    padding-bottom: 12px;
+    max-height: 200px;
+  }
+}
+
+.pki-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pki-tree-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white-80);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pki-add-org-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.pki-tree-empty {
+  color: var(--white-40);
+  font-size: 0.8rem;
+  padding: 16px 8px;
+  text-align: center;
+}
+
+/* Tree Nodes */
+.pki-tree-node {
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  color: var(--white-70);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.pki-tree-node:hover {
+  background: var(--glass-hover);
+}
+
+.pki-tree-node.selected {
+  background: var(--glass-hover);
+  color: var(--white);
+}
+
+.pki-tree-chevron {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+
+.pki-tree-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.pki-tree-chevron.leaf {
+  visibility: hidden;
+}
+
+.pki-tree-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.pki-tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pki-tree-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pki-tree-badge.valid { background: var(--success); }
+.pki-tree-badge.invalid { background: var(--monster); }
+.pki-tree-badge.none { background: var(--white-20); }
+
+.pki-tree-children {
+  padding-left: 16px;
+}
+
+/* Detail Panel */
+.pki-detail-panel {
+  overflow-y: auto;
+  max-height: 420px;
+}
+
+.pki-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  min-height: 200px;
+  color: var(--white-30);
+}
+
+.pki-detail-empty svg {
+  opacity: 0.3;
+}
+
+.pki-detail-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--white-80);
+  margin-bottom: 12px;
+}
+
+/* DN Form */
+.pki-form-grid {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .pki-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pki-form-grid .glass-input-group label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--white-50);
+}
+
+.pki-form-grid .glass-input {
+  font-size: 0.82rem;
+  padding: 4px 8px;
+}
+
+/* Section Headers */
+.pki-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--white-60);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Key/Cert List Items */
+.pki-key-item, .pki-cert-item, .pki-policy-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--white-70);
+  cursor: pointer;
+}
+
+.pki-key-item:hover, .pki-cert-item:hover, .pki-policy-item:hover {
+  background: var(--glass-hover);
+}
+
+.pki-key-item .pki-badge, .pki-cert-item .pki-badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.pki-badge.signing { background: rgba(59, 130, 246, 0.2); color: var(--weapon); }
+.pki-badge.encryption { background: rgba(139, 92, 246, 0.2); color: var(--galaxy); }
+.pki-badge.root { background: rgba(239, 68, 68, 0.2); color: var(--monster); }
+.pki-badge.valid { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+.pki-badge.expired { background: rgba(239, 68, 68, 0.2); color: var(--monster); }
+.pki-badge.ca { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+
+/* Info Rows */
+.pki-info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--white-05);
+  font-size: 0.82rem;
+}
+
+.pki-info-label {
+  flex-shrink: 0;
+  width: 80px;
+  color: var(--white-50);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pki-info-value {
+  color: var(--white-80);
+  word-break: break-all;
+}
+
+/* PEM Preview */
+.pki-pem-details {
+  margin-top: 8px;
+}
+
+.pki-pem-preview {
+  font-size: 0.7rem;
+  color: var(--white-50);
+  background: var(--white-05);
+  padding: 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 120px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Actions Bar */
+.pki-actions-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+}
+
+/* Rulesets Section */
+.pki-rulesets-section {
+  margin-top: 12px;
+}
+
+.pki-rulesets-content {
+  padding: 8px 0;
+}
+
+.pki-policy-item {
+  justify-content: space-between;
+}
+
+.pki-policy-name {
+  flex: 1;
+}
+
+.pki-policy-score {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pki-policy-toggle {
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--white-20);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.pki-policy-toggle.active {
+  background: var(--success);
+}
+
+.pki-policy-toggle::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+
+.pki-policy-toggle.active::after {
+  transform: translateX(14px);
+}
+
+/* Policy Card & Rules */
+.pki-policy-card {
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.pki-policy-card .pki-policy-item {
+  padding: 8px 10px;
+}
+
+.pki-policy-delete {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.pki-policy-delete:hover { opacity: 1; }
+
+.pki-policy-rules {
+  padding: 4px 10px 10px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--white-05);
+}
+
+.pki-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 0.78rem;
+  color: var(--white-70);
+  border-bottom: 1px solid var(--white-05);
+}
+
+.pki-rule-type {
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.pki-rule-params {
+  flex: 1;
+  color: var(--white-50);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pki-rule-delete {
+  background: none;
+  border: none;
+  color: var(--white-40);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 4px;
+}
+
+.pki-rule-delete:hover { color: var(--monster); }
+
+.pki-add-rule-row {
+  margin-top: 6px;
+}
+
+.pki-rule-type-select {
+  font-size: 0.78rem;
+  width: 100%;
+}
+
+/* Address Analysis */
+.pki-address-analysis {
+  padding: 8px 0;
+}
+
+.pki-address-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.pki-address-input-row .glass-textarea {
+  flex: 1;
+  font-size: 0.8rem;
+}
+
+.pki-address-results {
+  margin-top: 8px;
+}
+
+.pki-address-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--white-05);
+  font-size: 0.8rem;
+}
+
+.pki-address-balance {
+  color: var(--white-50);
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
+.pki-address-total {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--glass-border);
+  font-weight: 600;
+}
+
+.pki-assign-addr {
+  font-size: 0.7rem;
+  padding: 2px 6px;
 }
