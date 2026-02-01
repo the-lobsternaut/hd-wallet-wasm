@@ -1209,7 +1209,7 @@ function populateWalletAddresses() {
   updateAddressCard('eth', ethAddress, 'https://etherscan.io/address/');
   updateAddressCard('sol', solAddress, 'https://solscan.io/account/');
   updateAddressCard('sui', suiAddress, 'https://suiscan.xyz/mainnet/account/');
-  updateAddressCard('monad', monadAddress, 'https://explorer.monad.xyz/address/');
+  updateAddressCard('monad', monadAddress, 'https://monadscan.com/address/');
   updateAddressCard('ada', adaAddress, 'https://cardanoscan.io/address/');
 
   const xrpAddress = state.addresses?.xrp || '--';
@@ -1220,7 +1220,7 @@ function populateWalletAddresses() {
     eth: { addr: ethAddress, explorer: 'https://etherscan.io/address/' },
     sol: { addr: solAddress, explorer: 'https://solscan.io/account/' },
     sui: { addr: suiAddress, explorer: 'https://suiscan.xyz/mainnet/account/' },
-    monad: { addr: monadAddress, explorer: 'https://explorer.monad.xyz/address/' },
+    monad: { addr: monadAddress, explorer: 'https://monadscan.com/address/' },
     ada: { addr: adaAddress, explorer: 'https://cardanoscan.io/address/' },
     xrp: { addr: xrpAddress, explorer: 'https://xrpscan.com/account/' },
   };
@@ -2498,8 +2498,13 @@ function setupMainAppHandlers() {
     reader.readAsDataURL(file);
   });
 
-  // Photo remove handler
+  // Photo remove handler with confirmation modal
   $('vcard-photo-remove')?.addEventListener('click', () => {
+    const modal = $('photo-remove-confirm-modal');
+    if (modal) modal.classList.add('active');
+  });
+
+  $('photo-remove-yes')?.addEventListener('click', () => {
     state.vcardPhoto = null;
     resetPhotoPreview();
     saveVcardIdentity();
@@ -2507,6 +2512,20 @@ function setupMainAppHandlers() {
     if (removeBtn) removeBtn.style.display = 'none';
     const input = $('vcard-photo-input');
     if (input) input.value = '';
+    // Show upload/camera buttons again
+    const uploadLabel = document.querySelector('label[for="vcard-photo-input"]');
+    if (uploadLabel) uploadLabel.style.display = '';
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const cameraBtn = $('vcard-camera-btn');
+      if (cameraBtn) cameraBtn.style.display = '';
+    }
+    const modal = $('photo-remove-confirm-modal');
+    if (modal) modal.classList.remove('active');
+  });
+
+  $('photo-remove-no')?.addEventListener('click', () => {
+    const modal = $('photo-remove-confirm-modal');
+    if (modal) modal.classList.remove('active');
   });
 
   function resetPhotoPreview() {
@@ -2533,13 +2552,18 @@ function setupMainAppHandlers() {
     preview.appendChild(img);
     const removeBtn = $('vcard-photo-remove');
     if (removeBtn) removeBtn.style.display = '';
+    // Hide upload/camera buttons when photo is present
+    const uploadLabel = document.querySelector('label[for="vcard-photo-input"]');
+    if (uploadLabel) uploadLabel.style.display = 'none';
+    const cameraBtn = $('vcard-camera-btn');
+    if (cameraBtn) cameraBtn.style.display = 'none';
   }
 
   // Camera support
   let cameraStream = null;
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     const cameraBtn = $('vcard-camera-btn');
-    if (cameraBtn) cameraBtn.style.display = '';
+    if (cameraBtn && !state.vcardPhoto) cameraBtn.style.display = '';
 
     cameraBtn?.addEventListener('click', async () => {
       try {
@@ -2612,7 +2636,7 @@ function setupMainAppHandlers() {
     const cameraBtn = $('vcard-camera-btn');
     const captureBtn = $('vcard-camera-capture');
     const cancelBtn = $('vcard-camera-cancel');
-    if (cameraBtn) cameraBtn.style.display = '';
+    if (cameraBtn) cameraBtn.style.display = state.vcardPhoto ? 'none' : '';
     if (captureBtn) captureBtn.style.display = 'none';
     if (cancelBtn) cancelBtn.style.display = 'none';
   }

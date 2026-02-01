@@ -491,6 +491,17 @@
     <span id="status">Loading WASM modules...</span>
   </div>
 
+  <!-- Photo remove confirmation modal -->
+  <div id="photo-remove-confirm-modal" class="modal">
+    <div class="modal-glass" style="max-width:340px;padding:24px;text-align:center;">
+      <p style="margin:0 0 20px;font-size:1rem;color:var(--white-70);">Are you sure you want to remove this photo?</p>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button id="photo-remove-yes" class="glass-btn small" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#f87171;">Remove</button>
+        <button id="photo-remove-no" class="glass-btn small">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { init } from './src/app.js';
     init();

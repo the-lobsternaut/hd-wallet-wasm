@@ -1230,7 +1230,7 @@ body:has(.modal.active) .nav-bar {
 
 /* Modal body scrollbar styling */
 .modal-body::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
 }
 
 .modal-body::-webkit-scrollbar-track {
@@ -3484,8 +3484,8 @@ body:has(.modal.active) .nav-bar {
 /* Photo section - see final override section below */
 
 .photo-preview {
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 96px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3540,7 +3540,7 @@ body:has(.modal.active) .nav-bar {
   gap: 12px;
   align-items: center;
   justify-content: center;
-  padding: 8px 0;
+  padding: 4px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -3661,7 +3661,7 @@ body:has(.modal.active) .nav-bar {
 }
 
 .modal-tab-content::-webkit-scrollbar {
-  width: 6px;
+  width: 3px;
 }
 
 .modal-tab-content::-webkit-scrollbar-track {
@@ -3690,22 +3690,18 @@ body:has(.modal.active) .nav-bar {
 /* Override photo section - ensure left alignment */
 .photo-upload-section {
   display: flex;
-  align-items: center !important;
-  gap: 20px;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   margin-top: 24px;
   margin-bottom: 24px;
   padding-bottom: 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  justify-content: flex-start !important;
-}
-
-.photo-actions {
-  margin-left: auto;
 }
 
 .photo-preview {
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 96px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3727,6 +3723,7 @@ body:has(.modal.active) .nav-bar {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
 }
 
 .photo-actions .glass-btn {
