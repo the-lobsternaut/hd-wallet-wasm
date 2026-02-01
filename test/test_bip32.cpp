@@ -45,7 +45,7 @@ static const Bip32DerivationStep VECTOR1_STEPS[] = {
     {
         "m",
         "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8",
-        "xprv9s21ZrQH143K3GJpoapnV8SFfuZaEZKzFDdMFpvGaAXF5oisQXe4pJWv8NTJK4GnvYXZj8umJsHvTzXBxhqCeLcMqF5fmNGHvGGxXHpX8SC"
+        "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"
     },
     {
         "m/0'",
@@ -65,12 +65,12 @@ static const Bip32DerivationStep VECTOR1_STEPS[] = {
     {
         "m/0'/1/2'/2",
         "xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV",
-        "xprv9uHRZZhbkedL37eZEnyrNsQPFZYRAvjy5rt6M1nbEkLSo378x1CQQLo2xxBvREwiK6kqf7GRNvsNEwJw6e5XUKnQVLHKi2xUf2aBMbKLxvR"
+        "xprvA2JDeKCSNNZky6uBCviVfJSKyQ1mDYahRjijr5idH2WwLsEd4Hsb2Tyh8RfQMuPh7f7RtyzTtdrbdqqsunu5Mm3wDvUAKRHSC34sJ7in334"
     },
     {
         "m/0'/1/2'/2/1000000000",
         "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy",
-        "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"
+        "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76"
     }
 };
 
@@ -159,12 +159,12 @@ static const Bip32DerivationStep VECTOR4_STEPS[] = {
     {
         "m/0'",
         "xpub69AUMk3qDBi3uW1sXgjCmVjJ2G6WQoYSnNHyzkmdCHEhSZ4tBok37xfFEqHd2AddP56Tqp4o56AePAgCjYdvpW2PU2jbUPFKsav5ut6Ch1m",
-        "xprv9vB7xEWwNp9kh1wQRfCFAA5qJb5mWw2u1n2pDTzPTpuNmLqNLSYULDG2E8Rnna7aLf4VCkKJGEjTfFiTHvPqJDgBi3UvBVhNT3CqC7nZT7y"
+        "xprv9vB7xEWwNp9kh1wQRfCCQMnZUEG21LpbR9NPCNN1dwhiZkjjeGRnaALmPXCX7SgjFTiCTT6bXes17boXtjq3xLpcDjzEuGLQBM5ohqkao9G"
     },
     {
         "m/0'/1'",
         "xpub6BJA1jSqiukeaesWfxe6sNK9CCGaujFFSJLomWHprUL9DePQ4JDkM5d88n49sMGJxrhpjazuXYWdMf17C9T5XnxkopaeS7jGk1GyyVziaMt",
-        "xprv9xJocDuwtYCMNAo3Zw76WENQeAS6WGXQ55rnmFqwggPseB9jPYWCMbCb4jnjNzWgjBVkY7oNfYQF8BX2nE8EJx3fLMPSPnGmzwbT2C6qFb1"
+        "xprv9xJocDuwtYCMNAo3Zw76WENQeAS6WGXQ55RCy7tDJ8oALr4FWkuVoHJeHVAcAqiZLE7Je3vZJHxspZdFHfnBEjHqU5hG1Jaj32dVoS6XLT1"
     }
 };
 
@@ -385,9 +385,9 @@ TEST_CASE(BIP32, Serialization_InvalidString) {
     );
     ASSERT_EQ(Error::INVALID_CHECKSUM, result.error);
 
-    // Too short
+    // Too short (fails checksum after Base58 decode)
     result = ExtendedKey::fromString("xprv9s21ZrQH143K3");
-    ASSERT_EQ(Error::INVALID_EXTENDED_KEY, result.error);
+    ASSERT_EQ(Error::INVALID_CHECKSUM, result.error);
 
     // Empty
     result = ExtendedKey::fromString("");

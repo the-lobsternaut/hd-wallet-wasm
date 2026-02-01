@@ -648,7 +648,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     )
     target_compile_options(hd_wallet_wasm_wasi PRIVATE
       ${WASM_COMPILE_OPTIONS}
-      -fno-exceptions
+      -fignore-exceptions
       -DHD_WALLET_NO_EXCEPTIONS=1
     )
     target_link_libraries(hd_wallet_wasm_wasi PRIVATE cryptopp)
@@ -667,9 +667,8 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -sINITIAL_MEMORY=32MB
       -sMAXIMUM_MEMORY=512MB
       -sSTACK_SIZE=2MB
-      -fno-exceptions
+      -fignore-exceptions
       -sDISABLE_EXCEPTION_CATCHING=1
-      -sDISABLE_EXCEPTION_THROWING=1
       --no-entry
       $<$<CONFIG:Release>:-O3>
       $<$<CONFIG:Release>:-flto>
