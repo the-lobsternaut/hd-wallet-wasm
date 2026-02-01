@@ -44,20 +44,20 @@ import {
   generateEthAddress,
   generateSolAddress,
   deriveEthAddress,
-  deriveSuiAddress,
-  deriveMonadAddress,
-  deriveCardanoAddress,
+  // deriveSuiAddress, // Commented out — BTC/ETH/SOL only
+  // deriveMonadAddress,
+  // deriveCardanoAddress,
   generateAddresses,
   generateAddressForCoin,
   truncateAddress,
   fetchBtcBalance,
   fetchEthBalance,
   fetchSolBalance,
-  fetchSuiBalance,
-  fetchMonadBalance,
-  fetchAdaBalance,
-  generateXrpAddress,
-  fetchXrpBalance,
+  // fetchSuiBalance, // Commented out — BTC/ETH/SOL only
+  // fetchMonadBalance,
+  // fetchAdaBalance,
+  // generateXrpAddress,
+  // fetchXrpBalance,
   apiUrl,
 } from './address-derivation.js';
 
@@ -410,7 +410,7 @@ function deriveAllAddressesFromHD() {
     btc: deriveAddress(0),
     eth: deriveAddress(60),
     sol: solAddress,
-    xrp: deriveAddress(144),
+    // xrp: deriveAddress(144), // Commented out — BTC/ETH/SOL only
   };
 }
 
@@ -917,9 +917,15 @@ function login(keys) {
   // Resolve names and update title
   clearNameCache();
   resolveNames().then(names => updateAccountTitle(names));
+
+  // Start trust auto-scanning
+  if (state._startTrustScanning) state._startTrustScanning();
 }
 
 function logout() {
+  // Stop trust auto-scanning
+  if (state._stopTrustScanning) state._stopTrustScanning();
+
   clearNameCache();
   const titleEl = $('account-title');
   if (titleEl) titleEl.textContent = 'Account';
@@ -1068,25 +1074,25 @@ function populateAccountAddressDropdown() {
     { key: 'btc',  label: 'Bitcoin',  addr: addrs.btc || '' },
     { key: 'eth',  label: 'Ethereum', addr: addrs.eth || '' },
     { key: 'sol',  label: 'Solana',   addr: addrs.sol || '' },
-    { key: 'xrp',  label: 'Ripple',   addr: addrs.xrp || '' },
+    // { key: 'xrp',  label: 'Ripple',   addr: addrs.xrp || '' },
   ];
 
-  // Add SUI/Monad/ADA if we can derive them
-  if (state.hdRoot) {
-    try {
-      const suiPath = buildSigningPath(784, 0, 0);
-      const suiDerived = state.hdRoot.derivePath(suiPath);
-      const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
-      networks.push({ key: 'sui', label: 'SUI', addr: deriveSuiAddress(suiPubKey, 'ed25519') });
-    } catch (_) {}
-    networks.push({ key: 'monad', label: 'Monad', addr: addrs.eth || '' });
-    try {
-      const adaPath = buildSigningPath(1815, 0, 0);
-      const adaDerived = state.hdRoot.derivePath(adaPath);
-      const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
-      networks.push({ key: 'ada', label: 'Cardano', addr: deriveCardanoAddress(adaPubKey) });
-    } catch (_) {}
-  }
+  // // Add SUI/Monad/ADA if we can derive them
+  // if (state.hdRoot) {
+  //   try {
+  //     const suiPath = buildSigningPath(784, 0, 0);
+  //     const suiDerived = state.hdRoot.derivePath(suiPath);
+  //     const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
+  //     networks.push({ key: 'sui', label: 'SUI', addr: deriveSuiAddress(suiPubKey, 'ed25519') });
+  //   } catch (_) {}
+  //   networks.push({ key: 'monad', label: 'Monad', addr: addrs.eth || '' });
+  //   try {
+  //     const adaPath = buildSigningPath(1815, 0, 0);
+  //     const adaDerived = state.hdRoot.derivePath(adaPath);
+  //     const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
+  //     networks.push({ key: 'ada', label: 'Cardano', addr: deriveCardanoAddress(adaPubKey) });
+  //   } catch (_) {}
+  // }
 
   _accountAddressData = {};
   sel.innerHTML = '';
@@ -1137,7 +1143,7 @@ function updateAccountAddressDisplay() {
 
 function updateAccountAddressValues(bondBalances, prices, currency) {
   const symbol = CURRENCY_SYMBOLS[currency] || currency;
-  const keyToSymbol = { btc: 'BTC', eth: 'ETH', sol: 'SOL', sui: 'SUI', monad: 'MONAD', ada: 'ADA', xrp: 'XRP' };
+  const keyToSymbol = { btc: 'BTC', eth: 'ETH', sol: 'SOL' };
 
   for (const [key, data] of Object.entries(_accountAddressData)) {
     if (key === 'xpub') {
@@ -1160,34 +1166,34 @@ function populateWalletAddresses() {
   const ethAddress = state.addresses?.eth || '--';
   const solAddress = state.addresses?.sol || '--';
 
-  let suiAddress = '--';
-  let monadAddress = ethAddress; // Monad uses same address as ETH (same coin type 60)
-  let adaAddress = '--';
+  // let suiAddress = '--';
+  // let monadAddress = ethAddress; // Monad uses same address as ETH (same coin type 60)
+  // let adaAddress = '--';
 
-  // Derive SUI and ADA from HD root using their signing paths
-  if (state.hdRoot) {
-    try {
-      // SUI: coin type 784, uses ed25519
-      const suiPath = buildSigningPath(784, 0, 0);
-      const suiDerived = state.hdRoot.derivePath(suiPath);
-      const suiPrivKey = suiDerived.privateKey();
-      const suiPubKey = ed25519.getPublicKey(suiPrivKey);
-      suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
-    } catch (e) {
-      console.error('Failed to derive SUI address:', e);
-    }
+  // // Derive SUI and ADA from HD root using their signing paths
+  // if (state.hdRoot) {
+  //   try {
+  //     // SUI: coin type 784, uses ed25519
+  //     const suiPath = buildSigningPath(784, 0, 0);
+  //     const suiDerived = state.hdRoot.derivePath(suiPath);
+  //     const suiPrivKey = suiDerived.privateKey();
+  //     const suiPubKey = ed25519.getPublicKey(suiPrivKey);
+  //     suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
+  //   } catch (e) {
+  //     console.error('Failed to derive SUI address:', e);
+  //   }
 
-    try {
-      // ADA: coin type 1815, uses ed25519
-      const adaPath = buildSigningPath(1815, 0, 0);
-      const adaDerived = state.hdRoot.derivePath(adaPath);
-      const adaPrivKey = adaDerived.privateKey();
-      const adaPubKey = ed25519.getPublicKey(adaPrivKey);
-      adaAddress = deriveCardanoAddress(adaPubKey);
-    } catch (e) {
-      console.error('Failed to derive ADA address:', e);
-    }
-  }
+  //   try {
+  //     // ADA: coin type 1815, uses ed25519
+  //     const adaPath = buildSigningPath(1815, 0, 0);
+  //     const adaDerived = state.hdRoot.derivePath(adaPath);
+  //     const adaPrivKey = adaDerived.privateKey();
+  //     const adaPubKey = ed25519.getPublicKey(adaPrivKey);
+  //     adaAddress = deriveCardanoAddress(adaPubKey);
+  //   } catch (e) {
+  //     console.error('Failed to derive ADA address:', e);
+  //   }
+  // }
 
   const updateAddressCard = (network, address, explorerBase) => {
     const addrEl = $(`wallet-${network}-address`);
@@ -1208,21 +1214,21 @@ function populateWalletAddresses() {
   updateAddressCard('btc', btcAddress, 'https://blockstream.info/address/');
   updateAddressCard('eth', ethAddress, 'https://etherscan.io/address/');
   updateAddressCard('sol', solAddress, 'https://solscan.io/account/');
-  updateAddressCard('sui', suiAddress, 'https://suiscan.xyz/mainnet/account/');
-  updateAddressCard('monad', monadAddress, 'https://monadscan.com/address/');
-  updateAddressCard('ada', adaAddress, 'https://cardanoscan.io/address/');
+  // updateAddressCard('sui', suiAddress, 'https://suiscan.xyz/mainnet/account/');
+  // updateAddressCard('monad', monadAddress, 'https://monadscan.com/address/');
+  // updateAddressCard('ada', adaAddress, 'https://cardanoscan.io/address/');
 
-  const xrpAddress = state.addresses?.xrp || '--';
+  // const xrpAddress = state.addresses?.xrp || '--';
 
   // Also populate bond tab addresses
   const bondAddresses = {
     btc: { addr: btcAddress, explorer: 'https://blockstream.info/address/' },
     eth: { addr: ethAddress, explorer: 'https://etherscan.io/address/' },
     sol: { addr: solAddress, explorer: 'https://solscan.io/account/' },
-    sui: { addr: suiAddress, explorer: 'https://suiscan.xyz/mainnet/account/' },
-    monad: { addr: monadAddress, explorer: 'https://monadscan.com/address/' },
-    ada: { addr: adaAddress, explorer: 'https://cardanoscan.io/address/' },
-    xrp: { addr: xrpAddress, explorer: 'https://xrpscan.com/account/' },
+    // sui: { addr: suiAddress, explorer: 'https://suiscan.xyz/mainnet/account/' },
+    // monad: { addr: monadAddress, explorer: 'https://monadscan.com/address/' },
+    // ada: { addr: adaAddress, explorer: 'https://cardanoscan.io/address/' },
+    // xrp: { addr: xrpAddress, explorer: 'https://xrpscan.com/account/' },
   };
 
   Object.entries(bondAddresses).forEach(([net, { addr, explorer }]) => {
@@ -1267,13 +1273,13 @@ async function fetchCryptoPrices(currency) {
     return priceCache.data;
   }
 
-  const cryptos = ['BTC', 'ETH', 'SOL', 'SUI', 'MONAD', 'ADA', 'XRP'];
+  const cryptos = ['BTC', 'ETH', 'SOL'];
   const prices = {};
 
   if (currency === 'BTC') {
     // For BTC denomination, fetch each crypto's price in BTC
     prices.BTC = 1;
-    const others = ['ETH', 'SOL', 'SUI', 'ADA', 'XRP'];
+    const others = ['ETH', 'SOL'];
     const results = await Promise.allSettled(
       others.map(async (crypto) => {
         const url = apiUrl(`https://api.coinbase.com/v2/exchange-rates?currency=${crypto}`);
@@ -1285,11 +1291,11 @@ async function fetchCryptoPrices(currency) {
     results.forEach(r => {
       if (r.status === 'fulfilled') prices[r.value.crypto] = r.value.rate;
     });
-    prices.MONAD = 0; // Testnet token, no market price
+    // prices.MONAD = 0; // Testnet token, no market price
   } else {
     // Fetch exchange rates with USD as base, then convert
     const results = await Promise.allSettled(
-      cryptos.filter(c => c !== 'MONAD').map(async (crypto) => {
+      cryptos.map(async (crypto) => {
         const url = apiUrl(`https://api.coinbase.com/v2/prices/${crypto}-${currency}/spot`);
         const res = await fetch(url);
         const json = await res.json();
@@ -1299,7 +1305,7 @@ async function fetchCryptoPrices(currency) {
     results.forEach(r => {
       if (r.status === 'fulfilled') prices[r.value.crypto] = r.value.price;
     });
-    prices.MONAD = 0;
+    // prices.MONAD = 0;
   }
 
   priceCache = { data: prices, currency, timestamp: now };
@@ -1510,29 +1516,29 @@ async function updateAdversarialSecurity() {
   const ethAddress = state.addresses?.eth;
   const solAddress = state.addresses?.sol;
 
-  let suiAddress = null;
-  let adaAddress = null;
-  if (state.hdRoot) {
-    try {
-      const suiPath = buildSigningPath(784, 0, 0);
-      const suiDerived = state.hdRoot.derivePath(suiPath);
-      const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
-      suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
-    } catch (e) { console.error('SUI derivation error:', e); }
+  // let suiAddress = null;
+  // let adaAddress = null;
+  // if (state.hdRoot) {
+  //   try {
+  //     const suiPath = buildSigningPath(784, 0, 0);
+  //     const suiDerived = state.hdRoot.derivePath(suiPath);
+  //     const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
+  //     suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
+  //   } catch (e) { console.error('SUI derivation error:', e); }
 
-    try {
-      const adaPath = buildSigningPath(1815, 0, 0);
-      const adaDerived = state.hdRoot.derivePath(adaPath);
-      const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
-      adaAddress = deriveCardanoAddress(adaPubKey);
-    } catch (e) { console.error('ADA derivation error:', e); }
-  }
+  //   try {
+  //     const adaPath = buildSigningPath(1815, 0, 0);
+  //     const adaDerived = state.hdRoot.derivePath(adaPath);
+  //     const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
+  //     adaAddress = deriveCardanoAddress(adaPubKey);
+  //   } catch (e) { console.error('ADA derivation error:', e); }
+  // }
 
-  const monadAddress = ethAddress;
-  const xrpAddress = state.addresses?.xrp;
+  // const monadAddress = ethAddress;
+  // const xrpAddress = state.addresses?.xrp;
 
   // Set loading state
-  const networks = ['btc', 'eth', 'sol', 'sui', 'monad', 'ada', 'xrp'];
+  const networks = ['btc', 'eth', 'sol'];
   networks.forEach(net => {
     const balEl = $(`wallet-${net}-balance`);
     if (balEl) balEl.textContent = '...';
@@ -1544,13 +1550,13 @@ async function updateAdversarialSecurity() {
     btcAddress ? fetchBtcBalance(btcAddress) : Promise.resolve({ balance: '0' }),
     ethAddress ? fetchEthBalance(ethAddress) : Promise.resolve({ balance: '0' }),
     solAddress ? fetchSolBalance(solAddress) : Promise.resolve({ balance: '0' }),
-    suiAddress ? fetchSuiBalance(suiAddress) : Promise.resolve({ balance: '0' }),
-    monadAddress ? fetchMonadBalance(monadAddress) : Promise.resolve({ balance: '0' }),
-    adaAddress ? fetchAdaBalance(adaAddress) : Promise.resolve({ balance: '0' }),
-    xrpAddress ? fetchXrpBalance(xrpAddress) : Promise.resolve({ balance: '0' }),
+    // suiAddress ? fetchSuiBalance(suiAddress) : Promise.resolve({ balance: '0' }),
+    // monadAddress ? fetchMonadBalance(monadAddress) : Promise.resolve({ balance: '0' }),
+    // adaAddress ? fetchAdaBalance(adaAddress) : Promise.resolve({ balance: '0' }),
+    // xrpAddress ? fetchXrpBalance(xrpAddress) : Promise.resolve({ balance: '0' }),
   ]);
 
-  const [btcResult, ethResult, solResult, suiResult, monadResult, adaResult, xrpResult] = fetchResults.map(
+  const [btcResult, ethResult, solResult] = fetchResults.map(
     r => r.status === 'fulfilled' ? r.value : { balance: '0' }
   );
 
@@ -1572,16 +1578,16 @@ async function updateAdversarialSecurity() {
   updateBalance('btc', btcResult.balance, 8);
   updateBalance('eth', ethResult.balance, 6);
   updateBalance('sol', solResult.balance, 6);
-  updateBalance('sui', suiResult.balance, 4);
-  updateBalance('monad', monadResult.balance, 4);
-  updateBalance('ada', adaResult.balance, 6);
-  updateBalance('xrp', xrpResult.balance, 6);
+  // updateBalance('sui', suiResult.balance, 4);
+  // updateBalance('monad', monadResult.balance, 4);
+  // updateBalance('ada', adaResult.balance, 6);
+  // updateBalance('xrp', xrpResult.balance, 6);
 
   // Update bond tab per-network balances
   const bondBalances = {
     btc: btcResult.balance, eth: ethResult.balance, sol: solResult.balance,
-    sui: suiResult.balance, monad: monadResult.balance, ada: adaResult.balance,
-    xrp: xrpResult.balance,
+    // sui: suiResult.balance, monad: monadResult.balance, ada: adaResult.balance,
+    // xrp: xrpResult.balance,
   };
   Object.entries(bondBalances).forEach(([net, bal]) => {
     const el = $(`bond-${net}-balance`);
@@ -1603,10 +1609,10 @@ async function updateAdversarialSecurity() {
       BTC: parseFloat(btcResult.balance) || 0,
       ETH: parseFloat(ethResult.balance) || 0,
       SOL: parseFloat(solResult.balance) || 0,
-      SUI: parseFloat(suiResult.balance) || 0,
-      MONAD: parseFloat(monadResult.balance) || 0,
-      ADA: parseFloat(adaResult.balance) || 0,
-      XRP: parseFloat(xrpResult.balance) || 0,
+      // SUI: parseFloat(suiResult.balance) || 0,
+      // MONAD: parseFloat(monadResult.balance) || 0,
+      // ADA: parseFloat(adaResult.balance) || 0,
+      // XRP: parseFloat(xrpResult.balance) || 0,
     };
 
     for (const [crypto, bal] of Object.entries(balances)) {
@@ -2924,59 +2930,204 @@ function setupMainAppHandlers() {
 // =============================================================================
 
 function setupTrustHandlers() {
-  // Scan blockchain for trust transactions
-  $('scan-trust-btn')?.addEventListener('click', async () => {
-    if (!state.loggedIn || !state.addresses) {
-      alert('Please login first');
-      return;
-    }
+  let trustScanInterval = null;
+  const TRUST_SCAN_INTERVAL_MS = 60000; // 60 seconds
+  const TRUST_RULES_KEY = 'trust-rules';
+  const TRUST_IMPORTED_KEY = 'trust-imported-txs';
 
-    const scanBtn = $('scan-trust-btn');
-    if (scanBtn) {
-      scanBtn.disabled = true;
-      scanBtn.textContent = 'Scanning...';
-    }
+  // Auto-scan trust transactions
+  async function runTrustScan() {
+    if (!state.loggedIn || !state.addresses) return;
+
+    const statusEl = $('trust-scan-status');
+    const labelEl = $('trust-scan-label');
+    const countEl = $('trust-scan-count');
+    if (statusEl) statusEl.classList.add('active');
+    if (labelEl) labelEl.textContent = 'Scanning...';
 
     try {
-      // Dynamically import trust modules
-      const { scanAllTrustTransactions, buildTrustGraph, updateTrustMapTab } = await import('./trust-ui.js');
+      const { scanAllTrustTransactions, renderTrustList } = await import('./trust-ui.js');
+      const { buildTrustGraph, analyzeTrustRelationships } = await import('./blockchain-trust.js');
 
-      // Scan all addresses
-      const trustTxs = await scanAllTrustTransactions(state.addresses);
+      // Scan on-chain transactions
+      const onChainTxs = await scanAllTrustTransactions(state.addresses);
 
-      // Build trust graph
-      const graph = buildTrustGraph(trustTxs);
+      // Merge with imported transactions
+      let importedTxs = [];
+      try {
+        const raw = localStorage.getItem(TRUST_IMPORTED_KEY);
+        if (raw) importedTxs = JSON.parse(raw);
+      } catch (e) { /* ignore */ }
+
+      const allTxs = [...onChainTxs, ...importedTxs];
+
+      // Deduplicate by txHash
+      const seen = new Set();
+      const dedupedTxs = allTxs.filter(tx => {
+        if (seen.has(tx.txHash)) return false;
+        seen.add(tx.txHash);
+        return true;
+      });
+
+      // Build graph and analyze relationships
+      const graph = buildTrustGraph(dedupedTxs);
+      const relationships = analyzeTrustRelationships(state.addresses, dedupedTxs);
+
+      // Apply trust rules
+      const rules = loadTrustRules();
+      if (rules.length > 0) {
+        applyTrustRules(relationships, rules);
+      }
 
       // Store in state
       state.trustGraph = graph;
-      state.trustTransactions = trustTxs;
+      state.trustTransactions = dedupedTxs;
+      state.trustRelationships = relationships;
 
       // Update UI
-      updateTrustMapTab(graph, state.addresses);
+      const listEl = $('trust-list');
+      if (listEl) {
+        renderTrustList(listEl, relationships, state.addresses);
+      }
 
-      // Hide placeholder, show canvas
-      const placeholder = $('trust-graph-placeholder');
-      const canvas = $('trust-graph-canvas');
-      if (placeholder) placeholder.style.display = 'none';
-      if (canvas) canvas.style.display = 'block';
+      if (labelEl) labelEl.textContent = 'Last scan: just now';
+      if (countEl) countEl.textContent = `${relationships.length} relationships`;
 
-      console.log(`Found ${trustTxs.length} trust transactions`);
-      console.log(`Graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+      console.log(`Trust scan: ${dedupedTxs.length} txs, ${relationships.length} relationships`);
     } catch (err) {
       console.error('Trust scan failed:', err);
-      alert('Failed to scan blockchain for trust transactions');
-    } finally {
-      if (scanBtn) {
-        scanBtn.disabled = false;
-        scanBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          Scan Blockchain for Trust
-        `;
+      if (labelEl) labelEl.textContent = 'Scan failed';
+    }
+  }
+
+  // Start auto-scanning
+  function startTrustScanning() {
+    runTrustScan();
+    trustScanInterval = setInterval(runTrustScan, TRUST_SCAN_INTERVAL_MS);
+  }
+
+  // Stop auto-scanning
+  function stopTrustScanning() {
+    if (trustScanInterval) {
+      clearInterval(trustScanInterval);
+      trustScanInterval = null;
+    }
+    const statusEl = $('trust-scan-status');
+    if (statusEl) statusEl.classList.remove('active');
+  }
+
+  // Load trust rules from localStorage
+  function loadTrustRules() {
+    try {
+      const raw = localStorage.getItem(TRUST_RULES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  // Apply trust rules to relationships
+  function applyTrustRules(relationships, rules) {
+    for (const rel of relationships) {
+      for (const rule of rules) {
+        switch (rule.type) {
+          case 'mutual_tx_count':
+            if (rel.direction === 'mutual' && rel.txCount >= rule.params.threshold) {
+              rel.ruleLevel = Math.max(rel.ruleLevel || 0, rule.resultLevel);
+            }
+            break;
+          case 'last_interaction_days': {
+            const daysSince = (Date.now() - rel.lastSeen) / (1000 * 60 * 60 * 24);
+            if (daysSince <= rule.params.threshold) {
+              rel.ruleLevel = Math.max(rel.ruleLevel || 0, rule.resultLevel);
+            }
+            break;
+          }
+          case 'bidirectional_trust':
+            if (rel.direction === 'mutual') {
+              rel.ruleLevel = Math.min((rel.level || 2) + 1, 5);
+            }
+            break;
+          case 'address_blocklist':
+            // Handled by NEVER trust level on-chain
+            break;
+        }
       }
     }
+  }
+
+  // Establish trust button
+  $('establish-trust-btn')?.addEventListener('click', async () => {
+    if (!state.loggedIn) { alert('Please login first'); return; }
+    const { showEstablishTrustModal } = await import('./trust-ui.js');
+    showEstablishTrustModal(({ level, network, recipientAddress }) => {
+      console.log('Establish trust:', { level, network, recipientAddress });
+      // TODO: Build, sign, and broadcast trust transaction
+      alert(`Trust transaction would be published on ${network.toUpperCase()} for level ${level}.\nTransaction signing/broadcasting is not yet implemented.`);
+    });
   });
+
+  // Rules button
+  $('trust-rules-btn')?.addEventListener('click', async () => {
+    const { showRulesModal } = await import('./trust-ui.js');
+    const currentRules = loadTrustRules();
+    showRulesModal(currentRules, (updatedRules) => {
+      localStorage.setItem(TRUST_RULES_KEY, JSON.stringify(updatedRules));
+      // Re-apply rules
+      if (state.trustRelationships) {
+        applyTrustRules(state.trustRelationships, updatedRules);
+        runTrustScan();
+      }
+    });
+  });
+
+  // Export trust data
+  $('trust-export-btn')?.addEventListener('click', async () => {
+    if (!state.trustTransactions || state.trustTransactions.length === 0) {
+      alert('No trust data to export. Wait for a scan to complete.');
+      return;
+    }
+    const { exportTrustData } = await import('./trust-ui.js');
+    const xpub = state.hdRoot ? state.hdRoot.publicExtendedKey() : '';
+    exportTrustData(state.trustTransactions, xpub);
+  });
+
+  // Import trust data
+  $('trust-import-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const { importTrustData } = await import('./trust-ui.js');
+      const importedTxs = await importTrustData(file);
+
+      // Merge with existing imported txs
+      let existing = [];
+      try {
+        const raw = localStorage.getItem(TRUST_IMPORTED_KEY);
+        if (raw) existing = JSON.parse(raw);
+      } catch (err) { /* ignore */ }
+
+      const merged = [...existing, ...importedTxs];
+      const seen = new Set();
+      const deduped = merged.filter(tx => {
+        if (seen.has(tx.txHash)) return false;
+        seen.add(tx.txHash);
+        return true;
+      });
+
+      localStorage.setItem(TRUST_IMPORTED_KEY, JSON.stringify(deduped));
+      alert(`Imported ${importedTxs.length} trust transactions.`);
+
+      // Re-scan to incorporate
+      runTrustScan();
+    } catch (err) {
+      console.error('Trust import failed:', err);
+      alert('Failed to import trust data: ' + err.message);
+    }
+    e.target.value = '';
+  });
+
+  // Expose start/stop for login/logout
+  state._startTrustScanning = startTrustScanning;
+  state._stopTrustScanning = stopTrustScanning;
 }
 
 // =============================================================================

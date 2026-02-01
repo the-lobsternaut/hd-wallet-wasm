@@ -65,26 +65,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/solana\/helius/, ''),
       },
-      '/api/sui': {
-        target: 'https://fullnode.mainnet.sui.io:443',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/sui/, ''),
-      },
-      '/api/monad': {
-        target: 'https://testnet-rpc.monad.xyz',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/monad/, ''),
-      },
-      '/api/koios': {
-        target: 'https://api.koios.rest',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/koios/, ''),
-      },
-      '/api/xrp': {
-        target: 'https://s1.ripple.com:51234',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/xrp/, ''),
-      },
+      /* Commented out — BTC/ETH/SOL only for now
+      '/api/sui': { target: 'https://fullnode.mainnet.sui.io:443', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/sui/, '') },
+      '/api/monad': { target: 'https://testnet-rpc.monad.xyz', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/monad/, '') },
+      '/api/koios': { target: 'https://api.koios.rest', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/koios/, '') },
+      '/api/xrp': { target: 'https://s1.ripple.com:51234', changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/xrp/, '') },
+      */
       '/api/coinbase': {
         target: 'https://api.coinbase.com',
         changeOrigin: true,

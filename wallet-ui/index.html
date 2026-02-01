@@ -105,38 +105,12 @@
             <div class="network-balance-row"><span class="balance-value" id="wallet-sol-balance">--</span><span class="balance-unit">SOL</span></div>
           </div>
         </div>
-        <div class="wallet-network-card" id="wallet-sui-card">
-          <div class="network-icon sui"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="#4DA2FF"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">SUI</span><span class="derivation-path">m/44'/784'/0'/0'/0'</span></div>
-            <a href="#" id="wallet-sui-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-sui-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-sui-balance">--</span><span class="balance-unit">SUI</span></div>
-          </div>
-        </div>
-        <div class="wallet-network-card" id="wallet-monad-card">
-          <div class="network-icon monad"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="#836EF9"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">Monad</span><span class="derivation-path">m/44'/60'/0'/0/0</span></div>
-            <a href="#" id="wallet-monad-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-monad-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-monad-balance">--</span><span class="balance-unit">MON</span></div>
-          </div>
-        </div>
-        <div class="wallet-network-card" id="wallet-ada-card">
-          <div class="network-icon ada"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="var(--black)"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">Cardano</span><span class="derivation-path">m/1852'/1815'/0'/0/0</span></div>
-            <a href="#" id="wallet-ada-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-ada-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-ada-balance">--</span><span class="balance-unit">ADA</span></div>
-          </div>
-        </div>
-        <div class="wallet-network-card" id="wallet-xrp-card">
-          <div class="network-icon xrp"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 3h3l2.5 4L14.5 3h3l-4.5 7 4.5 7h-3l-2.5-4-2.5 4h-3l4.5-7z"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">XRP</span><span class="derivation-path">m/44'/144'/0'/0/0</span></div>
-            <a href="#" id="wallet-xrp-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-xrp-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-xrp-balance">--</span><span class="balance-unit">XRP</span></div>
-          </div>
-        </div>
+        <!-- Commented out — BTC/ETH/SOL only for now
+        <div class="wallet-network-card" id="wallet-sui-card">...</div>
+        <div class="wallet-network-card" id="wallet-monad-card">...</div>
+        <div class="wallet-network-card" id="wallet-ada-card">...</div>
+        <div class="wallet-network-card" id="wallet-xrp-card">...</div>
+        -->
       </div>
     </div>
   </main>
@@ -174,6 +148,7 @@
                   <option value="0" data-symbol="BTC" data-name="Bitcoin">Bitcoin</option>
                   <option value="60" data-symbol="ETH" data-name="Ethereum">Ethereum</option>
                   <option value="501" data-symbol="SOL" data-name="Solana">Solana</option>
+                  <!-- Commented out — BTC/ETH/SOL only for now
                   <option value="2" data-symbol="LTC" data-name="Litecoin">Litecoin</option>
                   <option value="145" data-symbol="BCH" data-name="Bitcoin Cash">Bitcoin Cash</option>
                   <option value="3" data-symbol="DOGE" data-name="Dogecoin">Dogecoin</option>
@@ -182,6 +157,7 @@
                   <option value="354" data-symbol="DOT" data-name="Polkadot">Polkadot</option>
                   <option value="1815" data-symbol="ADA" data-name="Cardano">Cardano</option>
                   <option value="144" data-symbol="XRP" data-name="Ripple">Ripple (XRP)</option>
+                  -->
                 </select>
               </div>
               <div class="hd-control-group"><label>Account</label><input type="number" id="hd-account" class="glass-input compact hd-num-input" value="0" min="0" step="1"></div>
@@ -336,55 +312,48 @@
         </div>
         <!-- Trust Map Tab -->
         <div id="trust-tab-content" class="modal-tab-content">
-          <div class="trust-map-controls">
-            <button id="scan-trust-btn" class="glass-btn primary">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-              Scan Blockchain for Trust
-            </button>
-            <div id="trust-graph-stats" class="trust-stats"></div>
-          </div>
+          <!-- Collapsible Trust Levels -->
+          <details class="trust-levels-box" open>
+            <summary class="trust-levels-header">
+              <span>Trust Levels</span>
+              <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </summary>
+            <div class="trust-levels-badges">
+              <span class="trust-badge trust-ultimate">Ultimate</span>
+              <span class="trust-badge trust-full">Full</span>
+              <span class="trust-badge trust-marginal">Marginal</span>
+              <span class="trust-badge trust-unknown">Unknown</span>
+              <span class="trust-badge trust-never">Never</span>
+            </div>
+          </details>
 
-          <div class="trust-graph-container">
-            <canvas id="trust-graph-canvas" width="800" height="600"></canvas>
-            <div id="trust-graph-placeholder" class="trust-map-placeholder">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                <circle cx="12" cy="5" r="3"/>
-                <circle cx="6" cy="15" r="3"/>
-                <circle cx="18" cy="15" r="3"/>
-                <line x1="12" y1="8" x2="8" y2="12"/>
-                <line x1="12" y1="8" x2="16" y2="12"/>
-              </svg>
-              <h3>Trust Map</h3>
-              <p>Click "Scan Blockchain for Trust" to discover trust relationships.</p>
-              <p class="trust-map-subtitle">Establish trust by publishing transactions on Bitcoin, Ethereum, or Solana.</p>
+          <!-- Actions bar -->
+          <div class="trust-actions-bar">
+            <button id="establish-trust-btn" class="glass-btn small primary">+ Establish Trust</button>
+            <button id="trust-rules-btn" class="glass-btn small"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707"/><circle cx="12" cy="12" r="4"/></svg> Rules</button>
+            <div class="trust-actions-right">
+              <button id="trust-export-btn" class="glass-btn small" title="Export trust data"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+              <label class="glass-btn small" for="trust-import-input" title="Import trust data"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></label>
+              <input type="file" id="trust-import-input" accept=".json,.trust.json" hidden>
             </div>
           </div>
 
-          <div class="trust-legend">
-            <h4 class="section-label">Trust Levels</h4>
-            <div class="trust-legend-items">
-              <div class="trust-legend-item">
-                <span class="trust-legend-color" style="background: #8b5cf6;"></span>
-                <span class="trust-legend-label">Ultimate (Own Keys)</span>
-              </div>
-              <div class="trust-legend-item">
-                <span class="trust-legend-color" style="background: #10b981;"></span>
-                <span class="trust-legend-label">Full (Can Sign Others)</span>
-              </div>
-              <div class="trust-legend-item">
-                <span class="trust-legend-color" style="background: #f59e0b;"></span>
-                <span class="trust-legend-label">Marginal (Some Trust)</span>
-              </div>
-              <div class="trust-legend-item">
-                <span class="trust-legend-color" style="background: #6b7280;"></span>
-                <span class="trust-legend-label">Unknown</span>
-              </div>
-              <div class="trust-legend-item">
-                <span class="trust-legend-color" style="background: #ef4444;"></span>
-                <span class="trust-legend-label">Never (Blocklist)</span>
-              </div>
+          <!-- Trust scan status -->
+          <div id="trust-scan-status" class="trust-scan-status">
+            <span class="trust-scan-dot"></span>
+            <span id="trust-scan-label">Scanning...</span>
+            <span id="trust-scan-count" class="trust-scan-count"></span>
+          </div>
+
+          <!-- Scrollable Trust List -->
+          <div id="trust-list" class="trust-list">
+            <div id="trust-list-empty" class="trust-list-empty">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+                <circle cx="12" cy="5" r="3"/><circle cx="6" cy="15" r="3"/><circle cx="18" cy="15" r="3"/>
+                <line x1="12" y1="8" x2="8" y2="12"/><line x1="12" y1="8" x2="16" y2="12"/>
+              </svg>
+              <p>No trust relationships found yet.</p>
+              <p class="trust-list-subtitle">Relationships will appear here as your addresses are scanned.</p>
             </div>
           </div>
         </div>
@@ -408,22 +377,12 @@
               <div class="bond-net-header"><span class="bond-net-name">Solana</span><span class="bond-net-balance" id="bond-sol-balance">--</span></div>
               <a href="#" id="bond-sol-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sol-address">--</code></a>
             </div>
-            <div class="bond-network-card" id="bond-sui-card">
-              <div class="bond-net-header"><span class="bond-net-name">SUI</span><span class="bond-net-balance" id="bond-sui-balance">--</span></div>
-              <a href="#" id="bond-sui-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sui-address">--</code></a>
-            </div>
-            <div class="bond-network-card" id="bond-monad-card">
-              <div class="bond-net-header"><span class="bond-net-name">Monad</span><span class="bond-net-balance" id="bond-monad-balance">--</span></div>
-              <a href="#" id="bond-monad-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-monad-address">--</code></a>
-            </div>
-            <div class="bond-network-card" id="bond-ada-card">
-              <div class="bond-net-header"><span class="bond-net-name">Cardano</span><span class="bond-net-balance" id="bond-ada-balance">--</span></div>
-              <a href="#" id="bond-ada-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-ada-address">--</code></a>
-            </div>
-            <div class="bond-network-card" id="bond-xrp-card">
-              <div class="bond-net-header"><span class="bond-net-name">Ripple</span><span class="bond-net-balance" id="bond-xrp-balance">--</span></div>
-              <a href="#" id="bond-xrp-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-xrp-address">--</code></a>
-            </div>
+            <!-- Commented out — BTC/ETH/SOL only for now
+            <div class="bond-network-card" id="bond-sui-card">...</div>
+            <div class="bond-network-card" id="bond-monad-card">...</div>
+            <div class="bond-network-card" id="bond-ada-card">...</div>
+            <div class="bond-network-card" id="bond-xrp-card">...</div>
+            -->
           </div>
         </div>
 

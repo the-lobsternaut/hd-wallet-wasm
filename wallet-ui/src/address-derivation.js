@@ -26,10 +26,12 @@ const proxyMap = {
   'https://api.mainnet-beta.solana.com': '/api/solana/official',
   'https://solana-rpc.publicnode.com': '/api/solana/publicnode',
   'https://mainnet.helius-rpc.com': '/api/solana/helius',
+  /* Commented out — BTC/ETH/SOL only for now
   'https://fullnode.mainnet.sui.io:443': '/api/sui',
   'https://testnet-rpc.monad.xyz': '/api/monad',
   'https://api.koios.rest': '/api/koios',
   'https://s1.ripple.com:51234': '/api/xrp',
+  */
   'https://api.coinbase.com': '/api/coinbase',
   'https://api.hiro.so': '/api/hiro',
 };
@@ -318,7 +320,7 @@ export function generateAddresses(wallet) {
     btc: generateBtcAddress(wallet.secp256k1.publicKey),
     eth: generateEthAddress(wallet.secp256k1.publicKey),
     sol: generateSolAddress(wallet.ed25519.publicKey),
-    xrp: generateXrpAddress(wallet.secp256k1.publicKey),
+    // xrp: generateXrpAddress(wallet.secp256k1.publicKey), // Commented out — BTC/ETH/SOL only for now
   };
 }
 
@@ -467,120 +469,8 @@ export async function fetchSolBalance(address) {
   return { balance: '--', error: 'No available endpoint' };
 }
 
-/**
- * Fetch SUI balance
- * @param {string} address
- * @returns {Promise<{balance: string, error?: string}>}
- */
-export async function fetchSuiBalance(address) {
-  try {
-    const response = await fetch(apiUrl('https://fullnode.mainnet.sui.io:443'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'suix_getBalance',
-        params: [address]
-      })
-    });
-    const data = await response.json();
-    if (data.error) {
-      return { balance: '0', error: data.error.message };
-    }
-    const balanceMist = BigInt(data.result?.totalBalance || '0');
-    const balanceSui = Number(balanceMist) / 1e9;
-    return { balance: balanceSui.toFixed(4) };
-  } catch (e) {
-    console.debug('SUI balance fetch unavailable:', e.message);
-    return { balance: '--', error: e.message };
-  }
-}
-
-/**
- * Fetch Monad balance
- * @param {string} address
- * @returns {Promise<{balance: string, error?: string}>}
- */
-export async function fetchMonadBalance(address) {
-  try {
-    const response = await fetch(apiUrl('https://testnet-rpc.monad.xyz'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'eth_getBalance',
-        params: [address, 'latest']
-      })
-    });
-    const data = await response.json();
-    if (data.error) {
-      return { balance: '0', error: data.error.message };
-    }
-    const balanceWei = BigInt(data.result || '0x0');
-    const balanceMon = Number(balanceWei) / 1e18;
-    return { balance: balanceMon.toFixed(4) };
-  } catch (e) {
-    console.debug('Monad balance fetch unavailable:', e.message);
-    return { balance: '--', error: e.message };
-  }
-}
-
-/**
- * Fetch Cardano balance
- * @param {string} address
- * @returns {Promise<{balance: string, error?: string}>}
- */
-export async function fetchAdaBalance(address) {
-  try {
-    const response = await fetch(apiUrl('https://api.koios.rest/api/v1/address_info'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _addresses: [address] })
-    });
-    if (!response.ok) {
-      return { balance: '0', error: 'API error' };
-    }
-    const data = await response.json();
-    if (data && data[0] && data[0].balance) {
-      const lovelace = BigInt(data[0].balance);
-      const ada = Number(lovelace) / 1e6;
-      return { balance: ada.toFixed(6) };
-    }
-    return { balance: '0' };
-  } catch (e) {
-    console.debug('ADA balance fetch unavailable:', e.message);
-    return { balance: '--', error: e.message };
-  }
-}
-
-/**
- * Fetch XRP balance using Ripple JSON-RPC
- * @param {string} address
- * @returns {Promise<{balance: string, error?: string}>}
- */
-export async function fetchXrpBalance(address) {
-  try {
-    const response = await fetch(apiUrl('https://s1.ripple.com:51234'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method: 'account_info',
-        params: [{ account: address, ledger_index: 'validated' }]
-      })
-    });
-    if (!response.ok) {
-      return { balance: '0', error: 'API error' };
-    }
-    const data = await response.json();
-    if (data.result?.account_data?.Balance) {
-      const xrp = Number(data.result.account_data.Balance) / 1e6;
-      return { balance: xrp.toFixed(6) };
-    }
-    return { balance: '0' };
-  } catch (e) {
-    console.debug('XRP balance fetch unavailable:', e.message);
-    return { balance: '--', error: e.message };
-  }
-}
+// Commented out — BTC/ETH/SOL only for now
+// export async function fetchSuiBalance(address) { ... }
+// export async function fetchMonadBalance(address) { ... }
+// export async function fetchAdaBalance(address) { ... }
+// export async function fetchXrpBalance(address) { ... }

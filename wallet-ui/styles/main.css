@@ -2983,112 +2983,320 @@ body:has(.modal.active) .nav-bar {
    ============================================================================= */
 
 /* Trust Map Controls */
-.trust-map-controls {
+/* =============================================================================
+   Trust Map - Collapsible Levels Box
+   ============================================================================= */
+
+.trust-levels-box {
+  margin-bottom: 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: var(--glass-blur);
+  overflow: hidden;
+}
+
+.trust-levels-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding: 16px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  backdrop-filter: var(--glass-blur);
-}
-
-.trust-stats {
-  display: flex;
-  gap: 24px;
-}
-
-.trust-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.trust-stat-label {
-  font-size: 0.75rem;
-  color: var(--white-60);
-  margin-bottom: 4px;
-}
-
-.trust-stat-value {
-  font-size: 1.25rem;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--white-90);
+  color: var(--white-70);
+  user-select: none;
+  list-style: none;
 }
 
-/* Trust Graph Container */
-.trust-graph-container {
-  position: relative;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  min-height: 600px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.trust-levels-header::-webkit-details-marker { display: none; }
+
+.trust-levels-header .chevron-icon {
+  transition: transform 0.2s ease;
 }
 
-#trust-graph-canvas {
-  display: none;
-  max-width: 100%;
-  height: auto;
+.trust-levels-box[open] .trust-levels-header .chevron-icon {
+  transform: rotate(180deg);
 }
 
-/* Trust Legend */
-.trust-legend {
-  margin-top: 24px;
-  padding: 16px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
-  backdrop-filter: var(--glass-blur);
-}
-
-.trust-legend h4 {
-  margin-bottom: 12px;
-}
-
-.trust-legend-items {
+.trust-levels-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 8px;
+  padding: 0 14px 12px;
 }
 
-.trust-legend-item {
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.trust-badge.trust-ultimate { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+.trust-badge.trust-full     { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+.trust-badge.trust-marginal { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+.trust-badge.trust-unknown  { background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); }
+.trust-badge.trust-never    { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+/* =============================================================================
+   Trust Map - Actions Bar
+   ============================================================================= */
+
+.trust-actions-bar {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 12px;
+}
+
+.trust-actions-right {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+/* =============================================================================
+   Trust Map - Scan Status
+   ============================================================================= */
+
+.trust-scan-status {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  font-size: 0.75rem;
+  color: var(--white-50);
+  background: var(--white-05);
+  border-radius: var(--radius-sm);
+}
+
+.trust-scan-status.active {
+  display: flex;
+}
+
+.trust-scan-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: trust-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes trust-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.trust-scan-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+/* =============================================================================
+   Trust Map - Scrollable Trust List
+   ============================================================================= */
+
+.trust-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 200px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.trust-list::-webkit-scrollbar { width: 3px; }
+.trust-list::-webkit-scrollbar-track { background: transparent; }
+.trust-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
+
+.trust-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--white-30);
+  text-align: center;
+}
+
+.trust-list-empty p {
+  margin: 8px 0 0;
   font-size: 0.875rem;
-  color: var(--white-70);
 }
 
-.trust-legend-color {
+.trust-list-subtitle {
+  font-size: 0.75rem !important;
+  color: var(--white-20) !important;
+}
+
+/* Trust Row */
+.trust-row {
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.trust-row:hover {
+  border-color: var(--white-20);
+}
+
+.trust-row-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--glass-bg);
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.trust-row-header:hover {
+  background: var(--glass-hover);
+}
+
+.trust-row-address {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--white-80);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trust-row-chain {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--white-10);
+  color: var(--white-60);
+}
+
+.trust-row-level {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.trust-row-direction {
+  font-size: 0.8125rem;
+  color: var(--white-40);
   width: 20px;
-  height: 3px;
-  border-radius: 2px;
+  text-align: center;
 }
 
-/* Trust Modal */
+.trust-row-expand {
+  color: var(--white-30);
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+.trust-row.expanded .trust-row-expand {
+  transform: rotate(90deg);
+}
+
+/* Trust Row Detail (expanded) */
+.trust-row-detail {
+  display: none;
+  padding: 0 14px 14px;
+  background: var(--white-05);
+  border-top: 1px solid var(--glass-border);
+}
+
+.trust-row.expanded .trust-row-detail {
+  display: block;
+}
+
+.trust-row-full-address {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--white-60);
+  word-break: break-all;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--glass-border);
+  margin-bottom: 8px;
+}
+
+.trust-row-txs {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.trust-row-tx {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.trust-row-tx:last-child { border-bottom: none; }
+
+.trust-row-tx-hash {
+  font-family: var(--font-mono);
+  color: var(--weapon);
+  text-decoration: none;
+  font-size: 0.6875rem;
+}
+
+.trust-row-tx-hash:hover {
+  text-decoration: underline;
+  color: var(--white-90);
+}
+
+.trust-row-tx-date {
+  color: var(--white-40);
+  font-size: 0.6875rem;
+  margin-left: auto;
+}
+
+.trust-row-tx-level {
+  font-size: 0.625rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.trust-row-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+  margin-top: 8px;
+}
+
+/* =============================================================================
+   Trust Map - Modal Styles (shared)
+   ============================================================================= */
+
 .trust-modal .modal-glass {
   max-width: 500px;
 }
 
-.trust-recipient {
-  margin-bottom: 24px;
-}
-
-.trust-recipient label {
+.trust-recipient { margin-bottom: 24px; }
+.trust-recipient label,
+.trust-network-selector label,
+.trust-level-selector label {
   display: block;
   font-size: 0.875rem;
   color: var(--white-60);
   margin-bottom: 8px;
 }
 
-.trust-pubkey {
+.trust-pubkey,
+.trust-address-input {
   display: block;
+  width: 100%;
   padding: 12px;
   background: var(--white-05);
   border: 1px solid var(--white-10);
@@ -3097,25 +3305,16 @@ body:has(.modal.active) .nav-bar {
   font-size: 0.875rem;
   color: var(--white-90);
   word-break: break-all;
+  box-sizing: border-box;
 }
 
-/* Trust Level Selector */
-.trust-level-selector {
-  margin-bottom: 24px;
+.trust-address-input:focus {
+  outline: none;
+  border-color: var(--weapon);
 }
 
-.trust-level-selector label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--white-60);
-  margin-bottom: 12px;
-}
-
-.trust-level-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+.trust-level-selector { margin-bottom: 24px; }
+.trust-level-options { display: flex; flex-direction: column; gap: 8px; }
 
 .trust-level-option {
   display: flex;
@@ -3128,51 +3327,17 @@ body:has(.modal.active) .nav-bar {
   transition: all 0.15s ease;
 }
 
-.trust-level-option:hover {
-  background: var(--glass-hover);
-  border-color: var(--white-20);
-}
+.trust-level-option:hover { background: var(--glass-hover); border-color: var(--white-20); }
 
-.trust-level-option input[type="radio"] {
-  margin-right: 12px;
-  accent-color: var(--weapon);
-}
+.trust-level-option input[type="radio"] { margin-right: 12px; accent-color: var(--weapon); }
+.trust-level-option input[type="radio"]:checked ~ .trust-level-label { color: var(--white-90); }
 
-.trust-level-option input[type="radio"]:checked ~ .trust-level-label {
-  color: var(--white-90);
-}
+.trust-level-label { display: flex; flex-direction: column; gap: 4px; flex: 1; color: var(--white-70); }
+.trust-level-name { font-weight: 600; font-size: 0.9375rem; }
+.trust-level-desc { font-size: 0.8125rem; color: var(--white-50); }
 
-.trust-level-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  color: var(--white-70);
-}
+.trust-network-selector { margin-bottom: 24px; }
 
-.trust-level-name {
-  font-weight: 600;
-  font-size: 0.9375rem;
-}
-
-.trust-level-desc {
-  font-size: 0.8125rem;
-  color: var(--white-50);
-}
-
-/* Trust Network Selector */
-.trust-network-selector {
-  margin-bottom: 24px;
-}
-
-.trust-network-selector label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--white-60);
-  margin-bottom: 8px;
-}
-
-/* Trust Fee Estimate */
 .trust-fee-estimate {
   display: flex;
   justify-content: space-between;
@@ -3184,18 +3349,10 @@ body:has(.modal.active) .nav-bar {
   font-size: 0.875rem;
 }
 
-.trust-fee-label {
-  color: var(--white-60);
-}
+.trust-fee-label { color: var(--white-60); }
+.trust-fee-value { font-family: var(--font-mono); color: var(--white-90); font-weight: 500; }
 
-.trust-fee-value {
-  font-family: var(--font-mono);
-  color: var(--white-90);
-  font-weight: 500;
-}
-
-/* Trust Actions */
-.trust-actions {
+.trust-modal-actions {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
@@ -3214,37 +3371,13 @@ body:has(.modal.active) .nav-bar {
   margin-bottom: 24px;
 }
 
-.trust-warning svg {
-  margin-bottom: 16px;
-  color: var(--monster);
-}
+.trust-warning svg { margin-bottom: 16px; color: var(--monster); }
+.trust-warning p { line-height: 1.6; color: var(--white-70); margin-bottom: 12px; }
+.trust-warning p:last-child { margin-bottom: 0; }
+.trust-warning strong { color: var(--monster); }
 
-.trust-warning p {
-  line-height: 1.6;
-  color: var(--white-70);
-  margin-bottom: 12px;
-}
-
-.trust-warning p:last-child {
-  margin-bottom: 0;
-}
-
-.trust-warning strong {
-  color: var(--monster);
-}
-
-/* Trust Transaction Hash */
-.trust-tx-hash {
-  margin-bottom: 24px;
-}
-
-.trust-tx-hash label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--white-60);
-  margin-bottom: 8px;
-}
-
+.trust-tx-hash { margin-bottom: 24px; }
+.trust-tx-hash label { display: block; font-size: 0.875rem; color: var(--white-60); margin-bottom: 8px; }
 .trust-tx-hash code {
   display: block;
   padding: 12px;
@@ -3256,92 +3389,70 @@ body:has(.modal.active) .nav-bar {
   color: var(--white-90);
 }
 
-/* Trust Timeline */
-.trust-timeline-empty {
-  text-align: center;
-  padding: 48px;
-  color: var(--white-50);
-  font-size: 0.875rem;
+/* =============================================================================
+   Trust Map - Rules Builder
+   ============================================================================= */
+
+.trust-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  max-height: 350px;
+  overflow-y: auto;
 }
 
-.trust-timeline-item {
+.trust-rule-item {
   display: flex;
-  gap: 16px;
-  padding: 16px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 8px;
-  margin-bottom: 12px;
-  transition: all 0.15s ease;
 }
 
-.trust-timeline-item:hover {
-  background: var(--glass-hover);
+.trust-rule-item select,
+.trust-rule-item input {
+  background: var(--white-05);
+  border: 1px solid var(--white-10);
+  border-radius: 6px;
+  color: var(--white-90);
+  font-size: 0.75rem;
+  padding: 4px 8px;
 }
 
-.trust-timeline-icon {
-  font-size: 1.5rem;
+.trust-rule-item select { min-width: 100px; }
+.trust-rule-item input[type="number"] { width: 60px; }
+
+.trust-rule-delete {
+  background: none;
+  border: none;
+  color: var(--white-30);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 1rem;
   line-height: 1;
 }
 
-.trust-timeline-content {
-  flex: 1;
-}
+.trust-rule-delete:hover { color: #f87171; }
 
-.trust-timeline-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.trust-timeline-level {
-  font-weight: 600;
-  font-size: 0.9375rem;
-  color: var(--white-90);
-}
-
-.trust-timeline-date {
-  font-size: 0.8125rem;
-  color: var(--white-50);
-  font-family: var(--font-mono);
-}
-
-.trust-timeline-details {
+.trust-rules-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--white-30);
   font-size: 0.8125rem;
 }
 
-.trust-timeline-tx {
-  font-family: var(--font-mono);
-  color: var(--weapon);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
+/* =============================================================================
+   Trust Map - Mobile
+   ============================================================================= */
 
-.trust-timeline-tx:hover {
-  color: var(--white-90);
-  text-decoration: underline;
-}
-
-/* Mobile Responsive */
 @media (max-width: 768px) {
-  .trust-map-controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
-  }
-
-  .trust-stats {
-    justify-content: space-around;
-  }
-
-  .trust-legend-items {
-    flex-direction: column;
-  }
-
-  #trust-graph-canvas {
-    width: 100%;
-  }
+  .trust-actions-bar { flex-wrap: wrap; }
+  .trust-levels-badges { gap: 6px; }
+  .trust-row-header { padding: 8px 10px; gap: 6px; }
+  .trust-row-address { font-size: 0.75rem; }
 }
 
 
