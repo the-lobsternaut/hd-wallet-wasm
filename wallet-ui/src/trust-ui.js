@@ -178,9 +178,81 @@ export function renderTrustList(container, relationships, ownAddresses) {
 // 2. showEstablishTrustModal
 // =============================================================================
 
+// Address format detection
+function detectChainFromAddress(address) {
+  if (!address) return null;
+  const a = address.trim();
+  // Bitcoin: starts with 1, 3, or bc1
+  if (/^(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(a)) return 'btc';
+  if (/^bc1[a-z0-9]{25,90}$/.test(a)) return 'btc';
+  // Ethereum: 0x + 40 hex chars
+  if (/^0x[0-9a-fA-F]{40}$/.test(a)) return 'eth';
+  // Solana: base58, 32-44 chars, no 0/O/I/l
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a)) return 'sol';
+  return null;
+}
+
+// Simple VCF parser for trust modal
+function parseVCFForTrust(vcfText) {
+  const lines = vcfText.replace(/\r?\n /g, '').split(/\r?\n/);
+  const result = { name: null, email: null, org: null, photo: null, keys: [], addresses: [] };
+
+  for (const line of lines) {
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+    const prop = line.substring(0, colonIdx).toUpperCase();
+    const value = line.substring(colonIdx + 1);
+
+    if (prop === 'FN') {
+      result.name = value;
+    } else if (prop.startsWith('EMAIL')) {
+      result.email = value;
+    } else if (prop.startsWith('ORG')) {
+      result.org = value.replace(/;/g, ', ');
+    } else if (prop.startsWith('PHOTO')) {
+      if (prop.includes('VALUE=URI') || value.startsWith('data:') || value.startsWith('http')) {
+        result.photo = value;
+      } else if (prop.includes('ENCODING=B') || prop.includes('ENCODING=b')) {
+        const typeMatch = prop.match(/TYPE=(\w+)/i);
+        const imgType = typeMatch ? typeMatch[1].toLowerCase() : 'jpeg';
+        result.photo = `data:image/${imgType};base64,${value}`;
+      }
+    } else if (prop.startsWith('KEY') || prop.startsWith('X-CRYPTO') || prop.startsWith('X-KEY')) {
+      result.keys.push(value);
+      const chain = detectChainFromAddress(value);
+      if (chain) result.addresses.push({ address: value, chain });
+    }
+  }
+
+  // Also scan NOTE or other fields for addresses
+  return result;
+}
+
+const TRUST_LEVEL_CONFIG = [
+  { value: TrustLevel.NEVER, name: 'Never Trust', desc: 'Block this address from all interactions', color: '#ef4444', border: 'rgba(239, 68, 68, 0.4)' },
+  { value: TrustLevel.UNKNOWN, name: 'Unknown', desc: 'No opinion on this address yet', color: '#9ca3af', border: 'rgba(107, 114, 128, 0.4)' },
+  { value: TrustLevel.MARGINAL, name: 'Marginal', desc: 'Somewhat trusted, proceed with caution', color: '#fbbf24', border: 'rgba(245, 158, 11, 0.4)' },
+  { value: TrustLevel.FULL, name: 'Full Trust', desc: 'Highly trusted, verified relationship', color: '#6ee7b7', border: 'rgba(16, 185, 129, 0.4)' },
+  { value: TrustLevel.ULTIMATE, name: 'Ultimate', desc: 'Your own address or absolute trust', color: '#a78bfa', border: 'rgba(139, 92, 246, 0.4)' },
+];
+
 export function showEstablishTrustModal(onConfirm) {
+  let vcfData = null;
+
   const modal = document.createElement('div');
-  modal.className = 'modal trust-modal';
+  modal.className = 'modal trust-modal establish-trust-modal';
+
+  const levelOptionsHtml = TRUST_LEVEL_CONFIG.map((lvl, i) => `
+    <label class="trust-level-option" style="--level-color: ${lvl.color}; --level-border: ${lvl.border}">
+      <input type="radio" name="trust-level" value="${lvl.value}" ${i === 2 ? 'checked' : ''}>
+      <span class="trust-level-indicator" style="background: ${lvl.color}"></span>
+      <span class="trust-level-label">
+        <span class="trust-level-name">${lvl.name}</span>
+        <span class="trust-level-desc">${lvl.desc}</span>
+      </span>
+    </label>
+  `).join('');
+
   modal.innerHTML = `
     <div class="modal-glass">
       <div class="modal-header">
@@ -188,55 +260,43 @@ export function showEstablishTrustModal(onConfirm) {
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label>Recipient Address</label>
-          <input type="text" id="trust-recipient" class="glass-input" placeholder="Enter address..." autocomplete="off" />
-        </div>
 
-        <div class="form-group">
-          <label>Trust Level</label>
-          <div class="trust-level-options">
-            <label class="trust-level-option">
-              <input type="radio" name="trust-level" value="${TrustLevel.MARGINAL}" checked>
-              <span class="trust-level-label">
-                <span class="trust-level-name">Marginal</span>
-                <span class="trust-level-desc">Some trust -- limited signing authority</span>
-              </span>
+        <div class="trust-input-section">
+          <label class="trust-section-label">Recipient</label>
+          <div class="trust-input-tabs">
+            <button class="trust-input-tab active" data-tab="address">Paste Address</button>
+            <button class="trust-input-tab" data-tab="vcf">Import vCard</button>
+          </div>
+
+          <div class="trust-tab-panel" id="trust-address-panel">
+            <input type="text" id="trust-recipient" class="trust-address-input invalid" placeholder="BTC, ETH, or SOL address" autocomplete="off" spellcheck="false" />
+            <div class="trust-address-status" id="trust-address-status">
+              <span id="trust-address-status-text"></span>
+            </div>
+          </div>
+
+          <div class="trust-tab-panel" id="trust-vcf-panel" style="display:none">
+            <label class="trust-vcf-dropzone" id="trust-vcf-dropzone">
+              <input type="file" id="trust-vcf-input" accept=".vcf,.vcard" style="display:none" />
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <span>Drop .vcf file or click to browse</span>
             </label>
-            <label class="trust-level-option">
-              <input type="radio" name="trust-level" value="${TrustLevel.FULL}">
-              <span class="trust-level-label">
-                <span class="trust-level-name">Full</span>
-                <span class="trust-level-desc">Fully trusted -- can sign other keys</span>
-              </span>
-            </label>
-            <label class="trust-level-option">
-              <input type="radio" name="trust-level" value="${TrustLevel.NEVER}">
-              <span class="trust-level-label">
-                <span class="trust-level-name">Never</span>
-                <span class="trust-level-desc">Blocklist -- explicitly untrusted</span>
-              </span>
-            </label>
+            <div class="trust-vcf-summary" id="trust-vcf-summary" style="display:none"></div>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Blockchain Network</label>
-          <select id="trust-network" class="glass-select">
-            <option value="btc">Bitcoin (OP_RETURN)</option>
-            <option value="sol">Solana (Memo)</option>
-            <option value="eth">Ethereum (Input Data)</option>
-          </select>
+        <div class="trust-input-section">
+          <label class="trust-section-label">Trust Level</label>
+          <div class="trust-level-options">
+            ${levelOptionsHtml}
+          </div>
         </div>
 
-        <div class="trust-fee-estimate">
-          <span class="trust-fee-label">Estimated Fee:</span>
-          <span class="trust-fee-value" id="trust-fee-value">~0.0001 BTC</span>
-        </div>
-
-        <div class="trust-actions">
+        <div class="trust-modal-actions">
           <button class="glass-btn" id="trust-cancel">Cancel</button>
-          <button class="glass-btn primary" id="trust-confirm">Publish Trust Transaction</button>
+          <button class="glass-btn primary" id="trust-confirm">Publish Transaction</button>
         </div>
       </div>
     </div>
@@ -248,27 +308,155 @@ export function showEstablishTrustModal(onConfirm) {
   const closeBtn = modal.querySelector('.modal-close');
   const cancelBtn = modal.querySelector('#trust-cancel');
   const confirmBtn = modal.querySelector('#trust-confirm');
-  const networkSelect = modal.querySelector('#trust-network');
+  const recipientInput = modal.querySelector('#trust-recipient');
+  const addressStatus = modal.querySelector('#trust-address-status');
+  const addressStatusText = modal.querySelector('#trust-address-status-text');
+  const vcfInput = modal.querySelector('#trust-vcf-input');
+  const vcfSummary = modal.querySelector('#trust-vcf-summary');
+  const vcfDropzone = modal.querySelector('#trust-vcf-dropzone');
+  const addressPanel = modal.querySelector('#trust-address-panel');
+  const vcfPanel = modal.querySelector('#trust-vcf-panel');
+
+  let detectedNetwork = null;
+  const fees = { btc: '~0.0001 BTC', sol: '~0.000005 SOL', eth: '~0.001 ETH' };
+  const chainNames = { btc: 'Bitcoin', eth: 'Ethereum', sol: 'Solana' };
 
   const close = () => closeModal(modal);
-
   closeBtn.addEventListener('click', close);
   cancelBtn.addEventListener('click', close);
 
-  networkSelect.addEventListener('change', (e) => {
-    const feeValue = modal.querySelector('#trust-fee-value');
-    const fees = { btc: '~0.0001 BTC', sol: '~0.000005 SOL', eth: '~0.001 ETH' };
-    feeValue.textContent = fees[e.target.value] || '--';
+  // Tab switching
+  modal.querySelectorAll('.trust-input-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      modal.querySelectorAll('.trust-input-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const isVcf = tab.dataset.tab === 'vcf';
+      addressPanel.style.display = isVcf ? 'none' : '';
+      vcfPanel.style.display = isVcf ? '' : 'none';
+    });
   });
 
+  // Address auto-detect chain with validation
+  recipientInput.addEventListener('input', () => {
+    const val = recipientInput.value.trim();
+    if (!val) {
+      recipientInput.classList.add('invalid');
+      recipientInput.classList.remove('valid');
+      addressStatus.className = 'trust-address-status';
+      addressStatusText.textContent = '';
+      detectedNetwork = null;
+      return;
+    }
+    const chain = detectChainFromAddress(val);
+    if (chain) {
+      detectedNetwork = chain;
+      recipientInput.classList.remove('invalid');
+      recipientInput.classList.add('valid');
+      addressStatus.className = 'trust-address-status detected';
+      addressStatusText.textContent = `${chainNames[chain]} (${fees[chain]})`;
+    } else {
+      detectedNetwork = null;
+      recipientInput.classList.add('invalid');
+      recipientInput.classList.remove('valid');
+      addressStatus.className = 'trust-address-status invalid';
+      addressStatusText.textContent = 'Unrecognized address format';
+    }
+  });
+
+  // VCF file handling
+  function handleVCFFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      vcfData = parseVCFForTrust(e.target.result);
+      vcfDropzone.style.display = 'none';
+      vcfSummary.style.display = 'block';
+
+      let html = '<div class="trust-vcf-card">';
+      if (vcfData.photo) {
+        html += `<img class="trust-vcf-photo" src="${vcfData.photo}" alt="" />`;
+      }
+      html += '<div class="trust-vcf-info">';
+      if (vcfData.name) html += `<div class="trust-vcf-name">${vcfData.name}</div>`;
+      if (vcfData.org) html += `<div class="trust-vcf-org">${vcfData.org}</div>`;
+      if (vcfData.email) html += `<div class="trust-vcf-email">${vcfData.email}</div>`;
+      html += '</div></div>';
+
+      if (vcfData.addresses.length > 0) {
+        html += '<label class="trust-section-label" style="margin-top:12px">Select Address</label>';
+        html += '<div class="trust-vcf-addresses">';
+        vcfData.addresses.forEach((a, i) => {
+          const labels = { btc: 'Bitcoin', eth: 'Ethereum', sol: 'Solana' };
+          html += `
+            <label class="trust-vcf-addr-option">
+              <input type="radio" name="vcf-address" value="${i}" ${i === 0 ? 'checked' : ''} />
+              <span class="chain-badge chain-${a.chain}">${a.chain.toUpperCase()}</span>
+              <code>${truncatePubkey(a.address)}</code>
+            </label>`;
+        });
+        html += '</div>';
+      } else if (vcfData.keys.length > 0) {
+        html += `<div class="trust-vcf-note">Found ${vcfData.keys.length} key(s) but no recognized blockchain addresses.</div>`;
+      } else {
+        html += '<div class="trust-vcf-note">No blockchain addresses found in this vCard.</div>';
+      }
+
+      html += `<button class="glass-btn glass-btn-sm trust-vcf-clear" id="trust-vcf-clear">Remove</button>`;
+      vcfSummary.innerHTML = html;
+
+      // Set detected network from first address
+      if (vcfData.addresses.length > 0) {
+        detectedNetwork = vcfData.addresses[0].chain;
+      }
+
+      // Handle address radio changes
+      vcfSummary.querySelectorAll('input[name="vcf-address"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          const addr = vcfData.addresses[parseInt(radio.value, 10)];
+          if (addr) detectedNetwork = addr.chain;
+        });
+      });
+
+      modal.querySelector('#trust-vcf-clear')?.addEventListener('click', () => {
+        vcfData = null;
+        vcfSummary.style.display = 'none';
+        vcfDropzone.style.display = '';
+        vcfInput.value = '';
+      });
+    };
+    reader.readAsText(file);
+  }
+
+  vcfInput.addEventListener('change', (e) => handleVCFFile(e.target.files[0]));
+
+  vcfDropzone.addEventListener('dragover', (e) => { e.preventDefault(); vcfDropzone.classList.add('dragover'); });
+  vcfDropzone.addEventListener('dragleave', () => vcfDropzone.classList.remove('dragover'));
+  vcfDropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    vcfDropzone.classList.remove('dragover');
+    handleVCFFile(e.dataTransfer.files[0]);
+  });
+
+  // Confirm
   confirmBtn.addEventListener('click', () => {
-    const recipientAddress = modal.querySelector('#trust-recipient').value.trim();
-    if (!recipientAddress) {
-      modal.querySelector('#trust-recipient').focus();
+    let recipientAddress;
+    let network = detectedNetwork;
+    const isVcfTab = modal.querySelector('.trust-input-tab.active')?.dataset.tab === 'vcf';
+
+    if (isVcfTab && vcfData && vcfData.addresses.length > 0) {
+      const selectedRadio = vcfSummary.querySelector('input[name="vcf-address"]:checked');
+      const idx = selectedRadio ? parseInt(selectedRadio.value, 10) : 0;
+      recipientAddress = vcfData.addresses[idx].address;
+      network = vcfData.addresses[idx].chain;
+    } else {
+      recipientAddress = recipientInput.value.trim();
+    }
+
+    if (!recipientAddress || !network) {
+      recipientInput.focus();
       return;
     }
     const level = parseInt(modal.querySelector('input[name="trust-level"]:checked').value, 10);
-    const network = networkSelect.value;
 
     onConfirm({ level, network, recipientAddress });
     close();

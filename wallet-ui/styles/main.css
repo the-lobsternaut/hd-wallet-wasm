@@ -32,6 +32,9 @@ a, button, nav, nav * {
   --white-20: rgba(255, 255, 255, 0.2);
   --white-10: rgba(255, 255, 255, 0.1);
   --white-05: rgba(255, 255, 255, 0.05);
+  --white-03: rgba(255, 255, 255, 0.03);
+  --white-08: rgba(255, 255, 255, 0.08);
+  --white-15: rgba(255, 255, 255, 0.15);
 
   --muted: rgba(134, 134, 139, 1.0);
 
@@ -3280,24 +3283,65 @@ body:has(.modal.active) .nav-bar {
    ============================================================================= */
 
 .trust-modal .modal-glass {
-  max-width: 500px;
+  max-width: 520px;
 }
 
-.trust-recipient { margin-bottom: 24px; }
-.trust-recipient label,
-.trust-network-selector label,
-.trust-level-selector label {
+/* Sections with consistent spacing */
+.trust-input-section {
+  margin-bottom: 20px;
+}
+
+.trust-section-label {
   display: block;
-  font-size: 0.875rem;
-  color: var(--white-60);
-  margin-bottom: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--white-50);
+  margin-bottom: 10px;
 }
 
-.trust-pubkey,
+/* Input Tabs (Address / vCard) */
+.trust-input-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--white-10);
+}
+
+.trust-input-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: var(--white-05);
+  color: var(--white-50);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.trust-input-tab + .trust-input-tab {
+  border-left: 1px solid var(--white-10);
+}
+
+.trust-input-tab.active {
+  background: var(--white-10);
+  color: var(--white-90);
+}
+
+.trust-input-tab:hover:not(.active) {
+  background: var(--white-08);
+  color: var(--white-70);
+}
+
+/* Address input */
 .trust-address-input {
   display: block;
   width: 100%;
-  padding: 12px;
+  padding: 12px 14px;
   background: var(--white-05);
   border: 1px solid var(--white-10);
   border-radius: 8px;
@@ -3306,56 +3350,221 @@ body:has(.modal.active) .nav-bar {
   color: var(--white-90);
   word-break: break-all;
   box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.trust-address-input::placeholder {
+  color: var(--white-30);
+  font-family: var(--font-mono);
 }
 
 .trust-address-input:focus {
   outline: none;
-  border-color: var(--weapon);
 }
 
-.trust-level-selector { margin-bottom: 24px; }
-.trust-level-options { display: flex; flex-direction: column; gap: 8px; }
+.trust-address-input.invalid {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.trust-address-input.invalid:focus {
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+.trust-address-input.valid {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.trust-address-input.valid:focus {
+  border-color: rgba(16, 185, 129, 0.6);
+}
+
+/* Address status line */
+.trust-address-status {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 18px;
+  margin-top: 5px;
+  font-size: 0.75rem;
+  color: var(--white-30);
+}
+
+.trust-address-status.detected {
+  color: #6ee7b7;
+}
+
+.trust-address-status.invalid {
+  color: #f87171;
+}
+
+/* VCF dropzone */
+.trust-vcf-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border: 2px dashed var(--white-15);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--white-40);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.trust-vcf-dropzone:hover,
+.trust-vcf-dropzone.dragover {
+  border-color: var(--weapon);
+  background: rgba(59, 130, 246, 0.05);
+  color: var(--white-60);
+}
+
+.trust-vcf-dropzone svg {
+  opacity: 0.4;
+}
+
+/* VCF summary card */
+.trust-vcf-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--white-05);
+  border: 1px solid var(--white-10);
+  border-radius: 8px;
+}
+
+.trust-vcf-photo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.trust-vcf-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.trust-vcf-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--white-90);
+  line-height: 1.3;
+}
+
+.trust-vcf-org, .trust-vcf-email {
+  font-size: 0.8125rem;
+  color: var(--white-50);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trust-vcf-addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trust-vcf-addr-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--white-05);
+  border: 1px solid var(--white-10);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: border-color 0.15s;
+}
+
+.trust-vcf-addr-option:hover {
+  border-color: var(--white-20);
+}
+
+.trust-vcf-addr-option input[type="radio"] {
+  accent-color: var(--weapon);
+}
+
+.trust-vcf-addr-option code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--white-70);
+}
+
+.trust-vcf-note {
+  font-size: 0.8125rem;
+  color: var(--white-40);
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--white-05);
+  border-radius: 6px;
+}
+
+.trust-vcf-clear {
+  margin-top: 10px;
+}
+
+/* Trust level options */
+.trust-level-options { display: flex; flex-direction: column; gap: 6px; }
 
 .trust-level-option {
   display: flex;
   align-items: center;
-  padding: 12px;
-  background: var(--glass-bg);
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--white-03);
   border: 1px solid var(--glass-border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.trust-level-option:hover { background: var(--glass-hover); border-color: var(--white-20); }
-
-.trust-level-option input[type="radio"] { margin-right: 12px; accent-color: var(--weapon); }
-.trust-level-option input[type="radio"]:checked ~ .trust-level-label { color: var(--white-90); }
-
-.trust-level-label { display: flex; flex-direction: column; gap: 4px; flex: 1; color: var(--white-70); }
-.trust-level-name { font-weight: 600; font-size: 0.9375rem; }
-.trust-level-desc { font-size: 0.8125rem; color: var(--white-50); }
-
-.trust-network-selector { margin-bottom: 24px; }
-
-.trust-fee-estimate {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px;
+.trust-level-option:hover {
   background: var(--white-05);
-  border: 1px solid var(--white-10);
-  border-radius: 8px;
-  margin-bottom: 24px;
-  font-size: 0.875rem;
+  border-color: var(--level-border, var(--white-20));
 }
 
-.trust-fee-label { color: var(--white-60); }
-.trust-fee-value { font-family: var(--font-mono); color: var(--white-90); font-weight: 500; }
+.trust-level-option:has(input:checked) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--level-border, var(--white-30));
+}
 
+.trust-level-option input[type="radio"] {
+  display: none;
+}
+
+.trust-level-indicator {
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.trust-level-option:has(input:checked) .trust-level-indicator {
+  opacity: 1;
+}
+
+.trust-level-label { display: flex; flex-direction: column; gap: 1px; flex: 1; color: var(--white-60); transition: color 0.15s; }
+.trust-level-option:has(input:checked) .trust-level-label { color: var(--white-90); }
+.trust-level-name { font-weight: 600; font-size: 0.875rem; }
+.trust-level-desc { font-size: 0.75rem; color: var(--white-40); }
+.trust-level-option:has(input:checked) .trust-level-desc { color: var(--white-50); }
+
+
+/* Modal actions */
 .trust-modal-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
+  padding-top: 4px;
 }
 
 /* Trust Warning */
