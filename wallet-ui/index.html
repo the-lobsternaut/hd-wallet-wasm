@@ -5,7 +5,7 @@
   <link rel="icon" href="data:,">
   <meta name="description" content="HD Wallet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HD Wallet</title>
+  <title>HD Wallet WASM - Hierarchical Deterministic Wallet Library</title>
   <link rel="stylesheet" href="styles/main.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,7 +27,9 @@
         </svg>
         <span>HD Wallet</span>
       </a>
-      <div class="nav-links" id="demo-nav-links"></div>
+      <div class="nav-links" id="demo-nav-links">
+        <a href="#adversarial" class="nav-link">Security</a>
+      </div>
       <div class="nav-actions">
         <button id="nav-login" class="nav-btn glass-btn primary">Login</button>
         <button id="nav-keys" class="nav-icon-btn" style="display: none;" title="Account">
@@ -54,66 +56,245 @@
     <button id="mobile-logout" class="glass-btn mobile-auth-btn" style="display: none;">Logout</button>
   </div>
 
-  <!-- Main Content -->
-  <main class="wallet-main">
-    <div class="adversarial-login-required" id="adversarial-login-required">
-      <div class="login-prompt">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--white-40)" stroke-width="1.5">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-        <p>Login to derive addresses from your keys and check live balances across multiple blockchain networks.</p>
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">HD Wallet <span class="text-gradient">WASM</span></h1>
+      <p class="hero-subtitle">
+        A comprehensive hierarchical deterministic wallet implementation in pure C++,
+        compiled to WebAssembly for cross-platform compatibility. BIP-32/39/44 compliant
+        with multi-curve cryptography and multi-chain support.
+      </p>
+      <div class="hero-actions">
+        <button id="hero-login" class="glass-btn primary hero-btn">Try Interactive Demo</button>
+        <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" class="glass-btn hero-btn" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
       </div>
     </div>
+  </section>
 
-    <div class="adversarial-balances" id="adversarial-balances" style="display: none;">
-      <div class="balances-header">
-        <h3 class="card-subtitle">Your Derived Addresses</h3>
-        <button id="refresh-balances" class="glass-btn small">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 4 23 10 17 10"/>
-            <polyline points="1 20 1 14 7 14"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-          Refresh
-        </button>
-      </div>
-      <p class="balances-intro">These addresses are mathematically derived from your HD wallet keys. Anyone can verify the derivation and send funds to increase trust in your keys.</p>
-
-      <div class="wallet-networks-grid" id="wallet-networks-grid">
-        <div class="wallet-network-card" id="wallet-btc-card">
-          <div class="network-icon btc"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-1.67v-1.89c-1.05-.1-2.07-.45-2.81-.95l.47-1.84c.82.43 1.82.79 2.75.79.82 0 1.42-.29 1.42-.95 0-.63-.52-.97-1.73-1.39-1.73-.6-2.92-1.43-2.92-3.07 0-1.48 1.08-2.64 2.82-2.98V6h1.67v1.69c.82.08 1.59.29 2.22.59l-.43 1.77c-.63-.26-1.43-.55-2.32-.55-.92 0-1.24.38-1.24.83 0 .53.5.87 1.9 1.39 1.92.7 2.76 1.63 2.76 3.17-.01 1.53-1.12 2.72-2.89 3.1z"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">Bitcoin</span><span class="derivation-path">m/44'/0'/0'/0/0</span></div>
-            <a href="#" id="wallet-btc-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-btc-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-btc-balance">--</span><span class="balance-unit">BTC</span></div>
-          </div>
+  <!-- Quick Install -->
+  <section class="homepage-section">
+    <div class="section-container section-sm">
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-lang">bash</span>
+          <button class="code-copy-btn" title="Copy code">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
         </div>
-        <div class="wallet-network-card" id="wallet-eth-card">
-          <div class="network-icon eth"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l-7 10.8 7 4.2 7-4.2-7-10.8zm0 15.6l-7-4.2 7 9.6 7-9.6-7 4.2z"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">Ethereum</span><span class="derivation-path">m/44'/60'/0'/0/0</span></div>
-            <a href="#" id="wallet-eth-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-eth-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-eth-balance">--</span><span class="balance-unit">ETH</span></div>
-          </div>
-        </div>
-        <div class="wallet-network-card" id="wallet-sol-card">
-          <div class="network-icon sol"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg></div>
-          <div class="network-info">
-            <div class="network-name-row"><span class="network-name">Solana</span><span class="derivation-path">m/44'/501'/0'/0'</span></div>
-            <a href="#" id="wallet-sol-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-sol-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
-            <div class="network-balance-row"><span class="balance-value" id="wallet-sol-balance">--</span><span class="balance-unit">SOL</span></div>
-          </div>
-        </div>
-        <!-- Commented out — BTC/ETH/SOL only for now
-        <div class="wallet-network-card" id="wallet-sui-card">...</div>
-        <div class="wallet-network-card" id="wallet-monad-card">...</div>
-        <div class="wallet-network-card" id="wallet-ada-card">...</div>
-        <div class="wallet-network-card" id="wallet-xrp-card">...</div>
-        -->
+        <pre><code>npm install hd-wallet-wasm</code></pre>
       </div>
     </div>
-  </main>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="homepage-section">
+    <div class="section-container">
+      <h2 class="section-heading">Features</h2>
+      <div class="features-grid">
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <h3>BIP Standards Compliant</h3>
+          <p>Full implementation of BIP-32 (HD keys), BIP-39 (mnemonic phrases), BIP-44/49/84 (account hierarchy), and SLIP-44 (coin types).</p>
+        </div>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+          <h3>Multi-Curve Cryptography</h3>
+          <p>Support for secp256k1 (Bitcoin, Ethereum), Ed25519 (Solana, Polkadot), NIST P-256, P-384, and X25519 key exchange.</p>
+        </div>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 10-5.656-5.656l-1.102 1.101"/></svg></div>
+          <h3>Multi-Chain Support</h3>
+          <p>Bitcoin (all address types), Ethereum/EVM, Solana, Cosmos/Tendermint, Polkadot/Substrate, and 50+ coins via SLIP-44.</p>
+        </div>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <h3>WebAssembly Native</h3>
+          <p>Compiled to WASM for browser, Node.js, and WASI runtimes. Works with Go, Rust, Python, and any WASI-compatible host.</p>
+        </div>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01M17 12h.01M7 12h.01"/></svg></div>
+          <h3>Hardware Wallet Support</h3>
+          <p>Abstraction layer for Trezor, Ledger, and KeepKey devices with WASI bridge integration for USB/HID communication.</p>
+        </div>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3>Security First</h3>
+          <p>Secure memory wiping, optional FIPS-compliant mode, and comprehensive input validation for production use.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Start Code -->
+  <section class="homepage-section">
+    <div class="section-container section-sm">
+      <h2 class="section-heading">Quick Start</h2>
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-lang">javascript</span>
+          <button class="code-copy-btn" title="Copy code">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+        <pre><code>import HDWalletWasm from 'hd-wallet-wasm';
+
+// Initialize the WASM module
+const wallet = await HDWalletWasm();
+
+// Generate a 24-word mnemonic
+const mnemonic = wallet.mnemonic.generate(24);
+console.log('Mnemonic:', mnemonic);
+
+// Convert mnemonic to seed
+const seed = wallet.mnemonic.toSeed(mnemonic, 'optional passphrase');
+
+// Create master HD key from seed
+const masterKey = wallet.hdkey.fromSeed(seed);
+
+// Derive Bitcoin address (BIP-84 native SegWit)
+const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
+const btcAddress = wallet.bitcoin.getAddress(btcKey.publicKey(), 2);
+
+// Derive Ethereum address
+const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
+const ethAddress = wallet.ethereum.getAddress(ethKey.publicKey());
+
+console.log('Bitcoin:', btcAddress);
+console.log('Ethereum:', ethAddress);</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Supported Blockchains -->
+  <section class="homepage-section">
+    <div class="section-container">
+      <h2 class="section-heading">Supported Blockchains</h2>
+      <div class="chains-grid">
+        <div class="chain-card glass-card"><strong>Bitcoin</strong><span>P2PKH, P2SH, P2WPKH, Taproot</span></div>
+        <div class="chain-card glass-card"><strong>Ethereum</strong><span>EIP-55, EIP-712, EIP-1559</span></div>
+        <div class="chain-card glass-card"><strong>Solana</strong><span>Ed25519 signatures</span></div>
+        <div class="chain-card glass-card"><strong>Cosmos</strong><span>Amino & Direct signing</span></div>
+        <div class="chain-card glass-card"><strong>Polkadot</strong><span>SS58 addresses</span></div>
+        <div class="chain-card glass-card"><strong>Litecoin</strong><span>All address types</span></div>
+        <div class="chain-card glass-card"><strong>Dogecoin</strong><span>P2PKH addresses</span></div>
+        <div class="chain-card glass-card"><strong>+ 50 more</strong><span>via SLIP-44</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Adversarial Security Section -->
+  <section class="homepage-section" id="adversarial">
+    <div class="section-container">
+      <h2 class="section-heading">Adversarial Security</h2>
+      <p class="section-subheading">Rational actors drain compromised keys. Undrained value proves key integrity.</p>
+
+      <div class="adversarial-card glass-card">
+        <div class="adversarial-intro">
+          <div class="adversarial-intro-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="white" stroke="white" stroke-width="1.5"/>
+              <path d="M9 12l2 2 4-4" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <h3>What is Adversarial Security?</h3>
+            <p>Cryptographic public keys can derive addresses on cryptocurrency networks. By depositing value at those derived addresses, you create a <strong>game-theoretic security bond</strong>. A rational actor who compromises the private key will drain the funds — the payout is immediate, anonymous, and risk-free. This makes the balance a <strong>real-time indicator of key integrity</strong>: undrained value implies an uncompromised key.</p>
+          </div>
+        </div>
+
+        <!-- Flow Diagram -->
+        <div class="adversarial-flow">
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(96,165,250,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div><div class="flow-step-label">Public Key</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(96,165,250,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div><div class="flow-step-label">Derive Address</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(52,211,153,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2 2"/></svg></div><div class="flow-step-label">Deposit Value</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(251,191,36,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="flow-step-label">Monitor</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(23,234,217,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17ead9" stroke-width="1.5" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="flow-step-label">Trusted</div></div>
+        </div>
+
+        <!-- Principles -->
+        <div class="adversarial-principles">
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div><div><h4>Key Derivation</h4><p>A public key used for signing data can mathematically derive addresses on multiple blockchain networks (BIP-32/44). One key pair serves both authentication and value custody.</p></div></div>
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><circle cx="16" cy="16" r="6"/><path d="M15 14h1v4"/></svg></div><div><h4>Value as Trust Signal</h4><p>Derived addresses are permissionless — anyone can deposit funds to signal trust in a key. The aggregate balance quantifies the economic cost of compromise.</p></div></div>
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg></div><div><h4>Rational Actor Assumption</h4><p>Draining funds is the dominant strategy: it's <strong>immediate, irreversible, and carries zero marginal risk</strong>. Undrained value therefore implies no compromise.</p></div></div>
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><h4>Real-Time Verification</h4><p>Blockchain state is publicly auditable and updates every block. This provides <strong>continuous, permissionless proof of key integrity</strong> — not a certificate, but a live signal.</p></div></div>
+        </div>
+
+        <!-- Login Required / Balances -->
+        <div class="adversarial-login-required" id="adversarial-login-required">
+          <div class="login-prompt">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--white-40)" stroke-width="1.5">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <p>Login to derive addresses from your keys and check live balances across multiple blockchain networks.</p>
+          </div>
+        </div>
+
+        <div class="adversarial-balances" id="adversarial-balances" style="display: none;">
+          <div class="balances-header">
+            <h3 class="card-subtitle">Your Derived Addresses</h3>
+            <button id="refresh-balances" class="glass-btn small">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+          <p class="balances-intro">These addresses are mathematically derived from your HD wallet keys. Anyone can verify the derivation and send funds to increase trust in your keys.</p>
+
+          <div class="wallet-networks-grid" id="wallet-networks-grid">
+            <div class="wallet-network-card" id="wallet-btc-card">
+              <div class="network-icon btc"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-1.67v-1.89c-1.05-.1-2.07-.45-2.81-.95l.47-1.84c.82.43 1.82.79 2.75.79.82 0 1.42-.29 1.42-.95 0-.63-.52-.97-1.73-1.39-1.73-.6-2.92-1.43-2.92-3.07 0-1.48 1.08-2.64 2.82-2.98V6h1.67v1.69c.82.08 1.59.29 2.22.59l-.43 1.77c-.63-.26-1.43-.55-2.32-.55-.92 0-1.24.38-1.24.83 0 .53.5.87 1.9 1.39 1.92.7 2.76 1.63 2.76 3.17-.01 1.53-1.12 2.72-2.89 3.1z"/></svg></div>
+              <div class="network-info">
+                <div class="network-name-row"><span class="network-name">Bitcoin</span><span class="derivation-path">m/44'/0'/0'/0/0</span></div>
+                <a href="#" id="wallet-btc-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-btc-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                <div class="network-balance-row"><span class="balance-value" id="wallet-btc-balance">--</span><span class="balance-unit">BTC</span></div>
+              </div>
+            </div>
+            <div class="wallet-network-card" id="wallet-eth-card">
+              <div class="network-icon eth"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l-7 10.8 7 4.2 7-4.2-7-10.8zm0 15.6l-7-4.2 7 9.6 7-9.6-7 4.2z"/></svg></div>
+              <div class="network-info">
+                <div class="network-name-row"><span class="network-name">Ethereum</span><span class="derivation-path">m/44'/60'/0'/0/0</span></div>
+                <a href="#" id="wallet-eth-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-eth-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                <div class="network-balance-row"><span class="balance-value" id="wallet-eth-balance">--</span><span class="balance-unit">ETH</span></div>
+              </div>
+            </div>
+            <div class="wallet-network-card" id="wallet-sol-card">
+              <div class="network-icon sol"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg></div>
+              <div class="network-info">
+                <div class="network-name-row"><span class="network-name">Solana</span><span class="derivation-path">m/44'/501'/0'/0'</span></div>
+                <a href="#" id="wallet-sol-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-sol-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                <div class="network-balance-row"><span class="balance-value" id="wallet-sol-balance">--</span><span class="balance-unit">SOL</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="section-container">
+      <div class="footer-content">
+        <p>HD Wallet WASM - Apache-2.0 License <span id="version-tag"></span></p>
+        <div class="footer-links">
+          <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://www.npmjs.com/package/hd-wallet-wasm" target="_blank" rel="noopener">NPM</a>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <!-- Keys Modal -->
   <div id="keys-modal" class="modal">

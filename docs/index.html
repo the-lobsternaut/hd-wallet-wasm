@@ -1,104 +1,89 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" href="data:,">
+  <meta name="description" content="HD Wallet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="HD Wallet WASM - A comprehensive hierarchical deterministic wallet implementation compiled to WebAssembly. BIP-32/39/44 compliant with multi-curve and multi-chain support.">
   <title>HD Wallet WASM - Hierarchical Deterministic Wallet Library</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=SF+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="./assets/main-lFcKew-L.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/main-H6SRxVhO.css">
 </head>
 <body>
+  <!-- Blurred Background -->
+  <div class="blurred-background"></div>
+
+  <!-- Grid Animation Background -->
+  <canvas id="grid-canvas" class="grid-background"></canvas>
+
   <!-- Navigation -->
-  <nav class="navbar">
-    <div class="container navbar-content">
-      <a href="index.html" class="navbar-brand">
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="32" height="32" rx="8" fill="url(#logo-gradient)"/>
-          <path d="M8 12h6v8H8v-8zm10 0h6v8h-6v-8zM11 8v4M21 8v4M11 20v4M21 20v4" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          <defs>
-            <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#6366f1"/>
-              <stop offset="1" stop-color="#a855f7"/>
-            </linearGradient>
-          </defs>
+  <nav class="nav-bar">
+    <div class="nav-content">
+      <a href="#" class="nav-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
         </svg>
-        HD Wallet WASM
+        <span>HD Wallet</span>
       </a>
-
-      <ul class="navbar-nav">
-        <li><a href="index.html" class="active">Home</a></li>
-        <li><a href="learn/how-it-works.html">Learn</a></li>
-        <li><a href="api/index.html">API</a></li>
-        <li><a href="examples/mnemonic/index.html">Examples</a></li>
-        <li><a href="examples/wallet/index.html">Wallet</a></li>
-      </ul>
-
-      <div class="navbar-actions">
-        <button id="nav-login" class="btn btn-primary btn-sm">Login</button>
-        <button id="nav-logout" class="btn btn-secondary btn-sm" style="display: none;">Logout</button>
-        <button class="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light mode">
-          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+      <div class="nav-links" id="demo-nav-links">
+        <a href="#adversarial" class="nav-link">Security</a>
+      </div>
+      <div class="nav-actions">
+        <button id="nav-login" class="nav-btn glass-btn primary">Login</button>
+        <button id="nav-keys" class="nav-icon-btn" style="display: none;" title="Account">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
           </svg>
         </button>
-        <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-          </svg>
-          GitHub
-        </a>
-        <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <button id="nav-logout" class="nav-btn glass-btn" style="display: none;">Logout</button>
+        <button id="nav-menu-btn" class="nav-menu-btn" aria-label="Toggle menu">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12h18M3 6h18M3 18h18"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
         </button>
       </div>
     </div>
   </nav>
 
+  <!-- Mobile Menu -->
+  <div id="nav-mobile-menu" class="nav-mobile-menu">
+    <button id="mobile-login" class="glass-btn primary mobile-auth-btn">Login</button>
+    <button id="mobile-logout" class="glass-btn mobile-auth-btn" style="display: none;">Logout</button>
+  </div>
+
   <!-- Hero Section -->
-  <section class="hero">
-    <div class="container">
-      <h1 class="hero-title">
-        <span class="text-gradient">HD Wallet WASM</span>
-      </h1>
+  <section class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">HD Wallet <span class="text-gradient">WASM</span></h1>
       <p class="hero-subtitle">
         A comprehensive hierarchical deterministic wallet implementation in pure C++,
         compiled to WebAssembly for cross-platform compatibility. BIP-32/39/44 compliant
         with multi-curve cryptography and multi-chain support.
       </p>
       <div class="hero-actions">
-        <a href="examples/mnemonic/index.html" class="btn btn-primary btn-lg">
-          Try Interactive Demo
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </a>
-        <a href="api/index.html" class="btn btn-secondary btn-lg">
-          View API Docs
+        <button id="hero-login" class="glass-btn primary hero-btn">Try Interactive Demo</button>
+        <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" class="glass-btn hero-btn" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
         </a>
       </div>
     </div>
   </section>
 
   <!-- Quick Install -->
-  <section class="section">
-    <div class="container container-sm">
+  <section class="homepage-section">
+    <div class="section-container section-sm">
       <div class="code-block">
         <div class="code-block-header">
-          <span class="code-block-lang">bash</span>
+          <span class="code-lang">bash</span>
           <button class="code-copy-btn" title="Copy code">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2"/>
-              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-            </svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           </button>
         </div>
         <pre><code>npm install hd-wallet-wasm</code></pre>
@@ -107,117 +92,56 @@
   </section>
 
   <!-- Features Grid -->
-  <section class="section">
-    <div class="container">
-      <h2 class="text-center mb-xl">Features</h2>
-      <div class="grid grid-3">
-        <!-- BIP Standards -->
-        <div class="glass card feature-card glass-hover">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-          <h3 class="feature-title">BIP Standards Compliant</h3>
-          <p class="feature-description">
-            Full implementation of BIP-32 (HD keys), BIP-39 (mnemonic phrases),
-            BIP-44/49/84 (account hierarchy), and SLIP-44 (coin types).
-          </p>
+  <section class="homepage-section">
+    <div class="section-container">
+      <h2 class="section-heading">Features</h2>
+      <div class="features-grid">
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <h3>BIP Standards Compliant</h3>
+          <p>Full implementation of BIP-32 (HD keys), BIP-39 (mnemonic phrases), BIP-44/49/84 (account hierarchy), and SLIP-44 (coin types).</p>
         </div>
-
-        <!-- Multi-Curve -->
-        <div class="glass card feature-card glass-hover">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
-            </svg>
-          </div>
-          <h3 class="feature-title">Multi-Curve Cryptography</h3>
-          <p class="feature-description">
-            Support for secp256k1 (Bitcoin, Ethereum), Ed25519 (Solana, Polkadot),
-            NIST P-256, P-384, and X25519 key exchange.
-          </p>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+          <h3>Multi-Curve Cryptography</h3>
+          <p>Support for secp256k1 (Bitcoin, Ethereum), Ed25519 (Solana, Polkadot), NIST P-256, P-384, and X25519 key exchange.</p>
         </div>
-
-        <!-- Multi-Chain -->
-        <div class="glass card feature-card glass-hover">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/>
-              <path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 10-5.656-5.656l-1.102 1.101"/>
-            </svg>
-          </div>
-          <h3 class="feature-title">Multi-Chain Support</h3>
-          <p class="feature-description">
-            Bitcoin (all address types), Ethereum/EVM, Solana, Cosmos/Tendermint,
-            Polkadot/Substrate, and 50+ coins via SLIP-44.
-          </p>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 10-5.656-5.656l-1.102 1.101"/></svg></div>
+          <h3>Multi-Chain Support</h3>
+          <p>Bitcoin (all address types), Ethereum/EVM, Solana, Cosmos/Tendermint, Polkadot/Substrate, and 50+ coins via SLIP-44.</p>
         </div>
-
-        <!-- WebAssembly -->
-        <div class="glass card feature-card glass-hover">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="3" width="20" height="14" rx="2"/>
-              <path d="M8 21h8M12 17v4"/>
-            </svg>
-          </div>
-          <h3 class="feature-title">WebAssembly Native</h3>
-          <p class="feature-description">
-            Compiled to WASM for browser, Node.js, and WASI runtimes.
-            Works with Go, Rust, Python, and any WASI-compatible host.
-          </p>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <h3>WebAssembly Native</h3>
+          <p>Compiled to WASM for browser, Node.js, and WASI runtimes. Works with Go, Rust, Python, and any WASI-compatible host.</p>
         </div>
-
-        <!-- Hardware Wallets -->
-        <div class="glass card feature-card glass-hover">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="6" width="20" height="12" rx="2"/>
-              <path d="M12 12h.01M17 12h.01M7 12h.01"/>
-            </svg>
-          </div>
-          <h3 class="feature-title">Hardware Wallet Support</h3>
-          <p class="feature-description">
-            Abstraction layer for Trezor, Ledger, and KeepKey devices
-            with WASI bridge integration for USB/HID communication.
-          </p>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01M17 12h.01M7 12h.01"/></svg></div>
+          <h3>Hardware Wallet Support</h3>
+          <p>Abstraction layer for Trezor, Ledger, and KeepKey devices with WASI bridge integration for USB/HID communication.</p>
         </div>
-
-        <!-- Security -->
-        <div class="glass card feature-card glass-hover">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <h3 class="feature-title">Security First</h3>
-          <p class="feature-description">
-            Secure memory wiping, optional FIPS-compliant mode,
-            and comprehensive input validation for production use.
-          </p>
+        <div class="feature-card glass-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3>Security First</h3>
+          <p>Secure memory wiping, optional FIPS-compliant mode, and comprehensive input validation for production use.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Quick Start Code Example -->
-  <section class="section">
-    <div class="container container-sm">
-      <h2 class="text-center mb-xl">Quick Start</h2>
-
+  <!-- Quick Start Code -->
+  <section class="homepage-section">
+    <div class="section-container section-sm">
+      <h2 class="section-heading">Quick Start</h2>
       <div class="code-block">
         <div class="code-block-header">
-          <span class="code-block-lang">javascript</span>
+          <span class="code-lang">javascript</span>
           <button class="code-copy-btn" title="Copy code">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2"/>
-              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
-            </svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           </button>
         </div>
-        <pre><code class="language-javascript">import HDWalletWasm from 'hd-wallet-wasm';
+        <pre><code>import HDWalletWasm from 'hd-wallet-wasm';
 
 // Initialize the WASM module
 const wallet = await HDWalletWasm();
@@ -234,7 +158,7 @@ const masterKey = wallet.hdkey.fromSeed(seed);
 
 // Derive Bitcoin address (BIP-84 native SegWit)
 const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
-const btcAddress = wallet.bitcoin.getAddress(btcKey.publicKey(), 2); // P2WPKH
+const btcAddress = wallet.bitcoin.getAddress(btcKey.publicKey(), 2);
 
 // Derive Ethereum address
 const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
@@ -243,257 +167,481 @@ const ethAddress = wallet.ethereum.getAddress(ethKey.publicKey());
 console.log('Bitcoin:', btcAddress);
 console.log('Ethereum:', ethAddress);</code></pre>
       </div>
+    </div>
+  </section>
 
-      <div class="text-center mt-xl">
-        <a href="api/index.html" class="btn btn-secondary">
-          View Full API Reference
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </a>
+  <!-- Supported Blockchains -->
+  <section class="homepage-section">
+    <div class="section-container">
+      <h2 class="section-heading">Supported Blockchains</h2>
+      <div class="chains-grid">
+        <div class="chain-card glass-card"><strong>Bitcoin</strong><span>P2PKH, P2SH, P2WPKH, Taproot</span></div>
+        <div class="chain-card glass-card"><strong>Ethereum</strong><span>EIP-55, EIP-712, EIP-1559</span></div>
+        <div class="chain-card glass-card"><strong>Solana</strong><span>Ed25519 signatures</span></div>
+        <div class="chain-card glass-card"><strong>Cosmos</strong><span>Amino & Direct signing</span></div>
+        <div class="chain-card glass-card"><strong>Polkadot</strong><span>SS58 addresses</span></div>
+        <div class="chain-card glass-card"><strong>Litecoin</strong><span>All address types</span></div>
+        <div class="chain-card glass-card"><strong>Dogecoin</strong><span>P2PKH addresses</span></div>
+        <div class="chain-card glass-card"><strong>+ 50 more</strong><span>via SLIP-44</span></div>
       </div>
     </div>
   </section>
 
-  <!-- Supported Chains -->
-  <section class="section">
-    <div class="container">
-      <h2 class="text-center mb-xl">Supported Blockchains</h2>
-      <div class="grid grid-4">
-        <div class="glass card-sm text-center">
-          <strong>Bitcoin</strong>
-          <p class="text-muted text-sm">P2PKH, P2SH, P2WPKH, Taproot</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>Ethereum</strong>
-          <p class="text-muted text-sm">EIP-55, EIP-712, EIP-1559</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>Solana</strong>
-          <p class="text-muted text-sm">Ed25519 signatures</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>Cosmos</strong>
-          <p class="text-muted text-sm">Amino & Direct signing</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>Polkadot</strong>
-          <p class="text-muted text-sm">SS58 addresses</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>Litecoin</strong>
-          <p class="text-muted text-sm">All address types</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>Dogecoin</strong>
-          <p class="text-muted text-sm">P2PKH addresses</p>
-        </div>
-        <div class="glass card-sm text-center">
-          <strong>+ 50 more</strong>
-          <p class="text-muted text-sm">via SLIP-44</p>
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- Adversarial Security Section -->
+  <section class="homepage-section" id="adversarial">
+    <div class="section-container">
+      <h2 class="section-heading">Adversarial Security</h2>
+      <p class="section-subheading">Rational actors drain compromised keys. Undrained value proves key integrity.</p>
 
-  <!-- Interactive Demos -->
-  <section class="section">
-    <div class="container">
-      <h2 class="text-center mb-xl">Interactive Demos</h2>
-      <div class="grid grid-3">
-        <a href="examples/wallet/index.html" class="glass card glass-hover" style="text-decoration: none; color: inherit;">
-          <h3>Wallet UI</h3>
-          <p class="text-secondary">
-            Full wallet interface with multi-chain address derivation (BTC, ETH, SOL),
-            live balance checking, QR codes, on-chain trust management, and secure storage via PIN or Passkey.
-          </p>
-          <span class="btn btn-ghost btn-sm mt-md">
-            Try Demo
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
+      <div class="adversarial-card glass-card">
+        <div class="adversarial-intro">
+          <div class="adversarial-intro-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="white" stroke="white" stroke-width="1.5"/>
+              <path d="M9 12l2 2 4-4" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-          </span>
-        </a>
+          </div>
+          <div>
+            <h3>What is Adversarial Security?</h3>
+            <p>Cryptographic public keys can derive addresses on cryptocurrency networks. By depositing value at those derived addresses, you create a <strong>game-theoretic security bond</strong>. A rational actor who compromises the private key will drain the funds — the payout is immediate, anonymous, and risk-free. This makes the balance a <strong>real-time indicator of key integrity</strong>: undrained value implies an uncompromised key.</p>
+          </div>
+        </div>
 
-        <a href="examples/mnemonic/index.html" class="glass card glass-hover" style="text-decoration: none; color: inherit;">
-          <h3>Mnemonic Generator</h3>
-          <p class="text-secondary">
-            Generate and validate BIP-39 mnemonic phrases. See the entropy, checksum,
-            and seed derivation in action.
-          </p>
-          <span class="btn btn-ghost btn-sm mt-md">
-            Try Demo
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
+        <!-- Flow Diagram -->
+        <div class="adversarial-flow">
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(96,165,250,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div><div class="flow-step-label">Public Key</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(96,165,250,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div><div class="flow-step-label">Derive Address</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(52,211,153,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2 2"/></svg></div><div class="flow-step-label">Deposit Value</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(251,191,36,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="flow-step-label">Monitor</div></div>
+          <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14m-4-4l4 4-4 4"/></svg></div>
+          <div class="flow-step"><div class="flow-step-icon" style="background:rgba(23,234,217,0.15);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17ead9" stroke-width="1.5" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="flow-step-label">Trusted</div></div>
+        </div>
+
+        <!-- Principles -->
+        <div class="adversarial-principles">
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div><div><h4>Key Derivation</h4><p>A public key used for signing data can mathematically derive addresses on multiple blockchain networks (BIP-32/44). One key pair serves both authentication and value custody.</p></div></div>
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><circle cx="16" cy="16" r="6"/><path d="M15 14h1v4"/></svg></div><div><h4>Value as Trust Signal</h4><p>Derived addresses are permissionless — anyone can deposit funds to signal trust in a key. The aggregate balance quantifies the economic cost of compromise.</p></div></div>
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg></div><div><h4>Rational Actor Assumption</h4><p>Draining funds is the dominant strategy: it's <strong>immediate, irreversible, and carries zero marginal risk</strong>. Undrained value therefore implies no compromise.</p></div></div>
+          <div class="principle"><div class="principle-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div><h4>Real-Time Verification</h4><p>Blockchain state is publicly auditable and updates every block. This provides <strong>continuous, permissionless proof of key integrity</strong> — not a certificate, but a live signal.</p></div></div>
+        </div>
+
+        <!-- Login Required / Balances -->
+        <div class="adversarial-login-required" id="adversarial-login-required">
+          <div class="login-prompt">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--white-40)" stroke-width="1.5">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
-          </span>
-        </a>
+            <p>Login to derive addresses from your keys and check live balances across multiple blockchain networks.</p>
+          </div>
+        </div>
 
-        <a href="examples/derivation/index.html" class="glass card glass-hover" style="text-decoration: none; color: inherit;">
-          <h3>HD Key Derivation</h3>
-          <p class="text-secondary">
-            Explore hierarchical key derivation with an interactive path builder.
-            Generate xprv/xpub keys and derive child keys.
-          </p>
-          <span class="btn btn-ghost btn-sm mt-md">
-            Try Demo
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </span>
-        </a>
-      </div>
-    </div>
-  </section>
+        <div class="adversarial-balances" id="adversarial-balances" style="display: none;">
+          <div class="balances-header">
+            <h3 class="card-subtitle">Your Derived Addresses</h3>
+            <button id="refresh-balances" class="glass-btn small">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+          <p class="balances-intro">These addresses are mathematically derived from your HD wallet keys. Anyone can verify the derivation and send funds to increase trust in your keys.</p>
 
-  <!-- Build Targets Table -->
-  <section class="section">
-    <div class="container container-sm">
-      <h2 class="text-center mb-xl">Build Targets</h2>
-      <div class="glass card">
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Target</th>
-                <th>Description</th>
-                <th>Output</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>hd_wallet_wasm</code></td>
-                <td>WASI standalone module</td>
-                <td><code>.wasm</code></td>
-              </tr>
-              <tr>
-                <td><code>hd_wallet_wasm_js</code></td>
-                <td>JavaScript ES6 module</td>
-                <td><code>.js + .wasm</code></td>
-              </tr>
-              <tr>
-                <td><code>hd_wallet_wasm_inline</code></td>
-                <td>Single-file (inlined WASM)</td>
-                <td><code>.js</code></td>
-              </tr>
-              <tr>
-                <td><code>hd_wallet_wasm_npm</code></td>
-                <td>NPM package</td>
-                <td><code>wasm/dist/</code></td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="wallet-networks-grid" id="wallet-networks-grid">
+            <div class="wallet-network-card" id="wallet-btc-card">
+              <div class="network-icon btc"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-1.67v-1.89c-1.05-.1-2.07-.45-2.81-.95l.47-1.84c.82.43 1.82.79 2.75.79.82 0 1.42-.29 1.42-.95 0-.63-.52-.97-1.73-1.39-1.73-.6-2.92-1.43-2.92-3.07 0-1.48 1.08-2.64 2.82-2.98V6h1.67v1.69c.82.08 1.59.29 2.22.59l-.43 1.77c-.63-.26-1.43-.55-2.32-.55-.92 0-1.24.38-1.24.83 0 .53.5.87 1.9 1.39 1.92.7 2.76 1.63 2.76 3.17-.01 1.53-1.12 2.72-2.89 3.1z"/></svg></div>
+              <div class="network-info">
+                <div class="network-name-row"><span class="network-name">Bitcoin</span><span class="derivation-path">m/44'/0'/0'/0/0</span></div>
+                <a href="#" id="wallet-btc-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-btc-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                <div class="network-balance-row"><span class="balance-value" id="wallet-btc-balance">--</span><span class="balance-unit">BTC</span></div>
+              </div>
+            </div>
+            <div class="wallet-network-card" id="wallet-eth-card">
+              <div class="network-icon eth"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l-7 10.8 7 4.2 7-4.2-7-10.8zm0 15.6l-7-4.2 7 9.6 7-9.6-7 4.2z"/></svg></div>
+              <div class="network-info">
+                <div class="network-name-row"><span class="network-name">Ethereum</span><span class="derivation-path">m/44'/60'/0'/0/0</span></div>
+                <a href="#" id="wallet-eth-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-eth-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                <div class="network-balance-row"><span class="balance-value" id="wallet-eth-balance">--</span><span class="balance-unit">ETH</span></div>
+              </div>
+            </div>
+            <div class="wallet-network-card" id="wallet-sol-card">
+              <div class="network-icon sol"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg></div>
+              <div class="network-info">
+                <div class="network-name-row"><span class="network-name">Solana</span><span class="derivation-path">m/44'/501'/0'/0'</span></div>
+                <a href="#" id="wallet-sol-explorer" class="network-address-link" target="_blank" rel="noopener"><code id="wallet-sol-address">--</code><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+                <div class="network-balance-row"><span class="balance-value" id="wallet-sol-balance">--</span><span class="balance-unit">SOL</span></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Footer -->
-  <footer class="footer">
-    <div class="container">
+  <footer class="site-footer">
+    <div class="section-container">
       <div class="footer-content">
-        <p class="footer-text">
-          HD Wallet WASM - Apache-2.0 License
-        </p>
-        <ul class="footer-links">
-          <li><a href="https://github.com/DigitalArsenal/hd-wallet-wasm" target="_blank" rel="noopener">GitHub</a></li>
-          <li><a href="https://www.npmjs.com/package/hd-wallet-wasm" target="_blank" rel="noopener">NPM</a></li>
-          <li><a href="api/index.html">API Docs</a></li>
-        </ul>
+        <p>HD Wallet WASM - Apache-2.0 License <span id="version-tag"></span></p>
+        <div class="footer-links">
+          <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://www.npmjs.com/package/hd-wallet-wasm" target="_blank" rel="noopener">NPM</a>
+        </div>
       </div>
     </div>
   </footer>
 
+  <!-- Keys Modal -->
+  <div id="keys-modal" class="modal">
+  <div class="modal-glass modal-wide">
+      <div class="modal-header"><div class="account-header-info"><div class="account-header-top"><h3>Account</h3><h3 class="account-total-value" id="account-total-value"></h3></div><div class="account-address-row"><select id="account-address-select" class="glass-select compact account-address-select"><option value="xpub">xpub</option></select><code class="account-address-display" id="account-address-display"></code><button class="account-address-copy" id="account-address-copy" title="Copy address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><span class="account-address-value" id="account-address-value"></span></div></div><button class="modal-close">&times;</button></div>
+      <div class="modal-body">
+        <div class="modal-tabs">
+          <button class="modal-tab active" data-modal-tab="vcard-tab-content">Identity</button>
+          <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
+          <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
+          <button class="modal-tab" data-modal-tab="bond-tab-content">Security Bond</button>
+        </div>
+        <div id="keys-tab-content" class="modal-tab-content">
+          <div id="memory-info-box" class="memory-info-box" style="display:none"><div class="memory-info-content"><p><strong>Your keys never leave your device.</strong></p></div><button class="wallet-info-close" id="memory-info-close" title="Close">&times;</button></div>
+          <div class="xpub-section">
+            <div class="xpub-header">
+              <h4 class="section-label">Extended Public Key (xpub)</h4>
+              <div class="wallet-info-icon-wrap" id="xpub-info-toggle" title="What is an xpub?"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="0.75"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="11" fill="currentColor">i</text></svg></div>
+              <div class="memory-notice-row"><span class="memory-notice-label">Local Storage Only</span><div class="wallet-info-icon-wrap" id="memory-info-toggle" title="What does this mean?"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="0.75"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="11" fill="currentColor">i</text></svg></div></div>
+            </div>
+            <div id="xpub-info-box" class="xpub-info-box" style="display:none"><div class="xpub-info-content"><p><strong>Your xpub is your public identity root.</strong></p></div><button class="wallet-info-close" id="xpub-info-close" title="Close">&times;</button></div>
+            <div class="key-value-row">
+              <code id="keys-xpub" class="key-value truncate"></code>
+              <button class="copy-key-btn" data-copy="keys-xpub" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            </div>
+          </div>
+          <div class="keys-section hd-section">
+            <h4 class="section-label">HD Wallet Derivation (BIP44)</h4>
+            <div class="hd-controls-row">
+              <div class="hd-control-group"><label>Network</label>
+                <select id="hd-coin" class="glass-select compact">
+                  <option value="0" data-symbol="BTC" data-name="Bitcoin">Bitcoin</option>
+                  <option value="60" data-symbol="ETH" data-name="Ethereum">Ethereum</option>
+                  <option value="501" data-symbol="SOL" data-name="Solana">Solana</option>
+                  <!-- Commented out — BTC/ETH/SOL only for now
+                  <option value="2" data-symbol="LTC" data-name="Litecoin">Litecoin</option>
+                  <option value="145" data-symbol="BCH" data-name="Bitcoin Cash">Bitcoin Cash</option>
+                  <option value="3" data-symbol="DOGE" data-name="Dogecoin">Dogecoin</option>
+                  <option value="118" data-symbol="ATOM" data-name="Cosmos">Cosmos</option>
+                  <option value="330" data-symbol="ALGO" data-name="Algorand">Algorand</option>
+                  <option value="354" data-symbol="DOT" data-name="Polkadot">Polkadot</option>
+                  <option value="1815" data-symbol="ADA" data-name="Cardano">Cardano</option>
+                  <option value="144" data-symbol="XRP" data-name="Ripple">Ripple (XRP)</option>
+                  -->
+                </select>
+              </div>
+              <div class="hd-control-group"><label>Account</label><input type="number" id="hd-account" class="glass-input compact hd-num-input" value="0" min="0" step="1"></div>
+              <div class="hd-control-group"><label>Index</label><input type="number" id="hd-index" class="glass-input compact hd-num-input" value="0" min="0" step="1"></div>
+            </div>
+            <div id="hd-not-initialized" class="hd-not-initialized" style="display: none;"><p>HD wallet not initialized. Please log in with a password or seed phrase.</p></div>
+            <div id="derived-result" class="derived-result" style="display: none;">
+              <div class="hd-key-row"><div class="hd-key-label">Signing</div><div class="hd-key-path"><code id="signing-path">m/44'/0'/0'/0'/0'</code></div><div class="hd-key-value"><code id="signing-pubkey" class="truncate"></code><button class="copy-btn" data-copy="signing-pubkey" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
+              <div class="hd-key-row"><div class="hd-key-label">Encryption</div><div class="hd-key-path"><code id="encryption-path">m/44'/0'/0'/1'/0'</code></div><div class="hd-key-value"><code id="encryption-pubkey" class="truncate"></code><button class="copy-btn" data-copy="encryption-pubkey" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
+              <div class="hd-address-row"><div class="hd-address-info"><span class="crypto-icon" id="derived-icon"></span><span class="crypto-name" id="derived-crypto-name">Bitcoin</span><code id="derived-address" class="hd-address"></code><a id="derived-explorer-link" href="#" target="_blank" class="explorer-link" title="View on Explorer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a></div><div class="qr-section"><canvas id="address-qr" width="64" height="64"></canvas></div></div>
+            </div>
+          </div>
+          <details class="keys-section collapsible-section">
+            <summary class="section-label collapsible-header"><span>HD Wallet Root</span></summary>
+            <div class="collapsible-content">
+              <div class="key-item"><label>Master Public Key (xpub)</label><div class="key-value-row"><code id="wallet-xpub" class="key-value truncate"></code><button class="copy-key-btn" data-copy="wallet-xpub" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
+              <div class="key-item sensitive"><label>Master Private Key (xprv)</label><div class="key-value-row"><code id="wallet-xprv" class="key-value truncate blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-xprv" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-xprv" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
+              <div class="key-item sensitive"><label>Seed Phrase (BIP39)</label><div class="key-value-row"><code id="wallet-seed-phrase" class="key-value seed-phrase blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-seed-phrase" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-seed-phrase" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
+              <div class="export-section"><div class="export-dropdown"><button class="glass-btn small export-btn" id="export-wallet-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Wallet</button><div class="export-menu" id="export-menu"><button class="export-option" data-format="mnemonic"><span class="export-label">BIP39 Mnemonic</span></button><button class="export-option" data-format="xpub"><span class="export-label">Extended Public Key</span></button><button class="export-option" data-format="xprv"><span class="export-label">Extended Private Key</span></button></div></div></div>
+            </div>
+          </details>
+        </div>
+        <div id="vcard-tab-content" class="modal-tab-content active">
+          <div id="vcard-form-view">
+            <div class="photo-upload-section">
+              <div class="photo-preview" id="vcard-photo-preview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="photo-placeholder-icon">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                <video id="vcard-camera-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:cover;"></video>
+              </div>
+              <div class="photo-actions">
+                <label class="glass-btn small" for="vcard-photo-input">Upload</label>
+                <input type="file" id="vcard-photo-input" accept="image/*" hidden>
+                <button id="vcard-camera-btn" class="glass-btn small" style="display:none;">Take Photo</button>
+                <button id="vcard-camera-capture" class="glass-btn small primary" style="display:none;">Capture</button>
+                <button id="vcard-camera-cancel" class="glass-btn small" style="display:none;">Cancel</button>
+                <button id="vcard-photo-remove" class="glass-btn small" style="display:none;">Remove</button>
+              </div>
+            </div>
+
+            <div class="identity-form">
+              <div class="vcard-form-stack">
+                <div class="vcard-form-row name-row">
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>Prefix</label>
+                    <input type="text" id="vcard-prefix" class="vcard-input" placeholder="Mr.">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>First Name</label>
+                    <input type="text" id="vcard-firstname" class="vcard-input" placeholder="John">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>Middle</label>
+                    <input type="text" id="vcard-middlename" class="vcard-input" placeholder="A.">
+                  </div>
+                </div>
+                <div class="vcard-form-row name-row-2">
+                  <div class="vcard-input-group">
+                    <label>Last Name</label>
+                    <input type="text" id="vcard-lastname" class="vcard-input" placeholder="Doe">
+                  </div>
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>Suffix</label>
+                    <input type="text" id="vcard-suffix" class="vcard-input" placeholder="Jr.">
+                  </div>
+                </div>
+                <div class="vcard-form-row">
+                  <div class="vcard-input-group">
+                    <label>Email</label>
+                    <input type="email" id="vcard-email" class="vcard-input" placeholder="john@example.com">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>Phone</label>
+                    <input type="tel" id="vcard-phone" class="vcard-input" placeholder="+1 555-0100">
+                  </div>
+                </div>
+                <div class="vcard-form-row">
+                  <div class="vcard-input-group">
+                    <label>Organization</label>
+                    <input type="text" id="vcard-org" class="vcard-input" placeholder="Company Name">
+                  </div>
+                  <div class="vcard-input-group">
+                    <label>Job Title</label>
+                    <input type="text" id="vcard-title" class="vcard-input" placeholder="Software Engineer">
+                  </div>
+                </div>
+                <div class="vcard-input-group">
+                  <label>Street Address</label>
+                  <input type="text" id="vcard-street" class="vcard-input" placeholder="123 Main St">
+                </div>
+                <div class="vcard-form-row">
+                  <div class="vcard-input-group">
+                    <label>City</label>
+                    <input type="text" id="vcard-city" class="vcard-input" placeholder="San Francisco">
+                  </div>
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>State</label>
+                    <input type="text" id="vcard-region" class="vcard-input" placeholder="CA">
+                  </div>
+                  <div class="vcard-input-group vcard-input-sm">
+                    <label>ZIP</label>
+                    <input type="text" id="vcard-postal" class="vcard-input" placeholder="94102">
+                  </div>
+                </div>
+                <div class="vcard-input-group">
+                  <label>Country</label>
+                  <input type="text" id="vcard-country" class="vcard-input" placeholder="United States">
+                </div>
+              </div>
+            </div>
+
+            <div class="keys-display-section">
+              <h4 class="section-label">Cryptographic Keys <span class="readonly-badge">Read Only</span></h4>
+              <p class="keys-display-info">These keys are derived from your HD wallet master seed and cannot be edited.</p>
+
+              <div class="keys-display-grid" id="vcard-keys-display">
+                <!-- Keys will be populated here -->
+              </div>
+            </div>
+
+            <div id="vcf-import-result" class="vcf-import-result" style="display: none;">
+              <h4 class="section-label">Imported Contact</h4>
+              <div class="vcf-import-card">
+                <div class="vcf-import-photo" id="vcf-import-photo"></div>
+                <div class="vcf-import-fields" id="vcf-import-fields"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="vcard-result-view" style="display: none;">
+            <div class="qr-container"><canvas id="qr-code"></canvas></div>
+            <div class="vcard-result-actions">
+              <button id="download-vcard" class="glass-btn primary">Download .vcf</button>
+              <button id="copy-vcard" class="glass-btn">Copy</button>
+            </div>
+            <details class="vcard-details">
+              <summary>View Raw vCard</summary>
+              <pre id="vcard-preview"></pre>
+            </details>
+            <button id="vcard-back-btn" class="glass-btn vcard-back-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg> Back to Editor
+            </button>
+          </div>
+          <div class="vcard-actions-footer">
+            <button id="generate-vcard" class="glass-btn vcard-export-btn">Export vCard</button>
+            <label class="glass-btn vcard-import-btn" for="vcf-import-input">Import vCard</label>
+            <input type="file" id="vcf-import-input" accept=".vcf,text/vcard" hidden>
+          </div>
+        </div>
+        <!-- Trust Map Tab -->
+        <div id="trust-tab-content" class="modal-tab-content">
+          <!-- Collapsible Trust Levels -->
+          <details class="trust-levels-box" open>
+            <summary class="trust-levels-header">
+              <span>Trust Levels</span>
+              <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </summary>
+            <div class="trust-levels-badges">
+              <span class="trust-badge trust-ultimate">Ultimate</span>
+              <span class="trust-badge trust-full">Full</span>
+              <span class="trust-badge trust-marginal">Marginal</span>
+              <span class="trust-badge trust-unknown">Unknown</span>
+              <span class="trust-badge trust-never">Never</span>
+            </div>
+          </details>
+
+          <!-- Actions bar -->
+          <div class="trust-actions-bar">
+            <button id="establish-trust-btn" class="glass-btn small primary">+ Establish Trust</button>
+            <button id="trust-rules-btn" class="glass-btn small"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707"/><circle cx="12" cy="12" r="4"/></svg> Rules</button>
+            <div class="trust-actions-right">
+              <button id="trust-export-btn" class="glass-btn small" title="Export trust data"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+              <label class="glass-btn small" for="trust-import-input" title="Import trust data"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></label>
+              <input type="file" id="trust-import-input" accept=".json,.trust.json" hidden>
+            </div>
+          </div>
+
+          <!-- Trust scan status -->
+          <div id="trust-scan-status" class="trust-scan-status">
+            <span class="trust-scan-dot"></span>
+            <span id="trust-scan-label">Scanning...</span>
+            <span id="trust-scan-count" class="trust-scan-count"></span>
+          </div>
+
+          <!-- Scrollable Trust List -->
+          <div id="trust-list" class="trust-list">
+            <div id="trust-list-empty" class="trust-list-empty">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+                <circle cx="12" cy="5" r="3"/><circle cx="6" cy="15" r="3"/><circle cx="18" cy="15" r="3"/>
+                <line x1="12" y1="8" x2="8" y2="12"/><line x1="12" y1="8" x2="16" y2="12"/>
+              </svg>
+              <p>No trust relationships found yet.</p>
+              <p class="trust-list-subtitle">Relationships will appear here as your addresses are scanned.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security Bond Tab -->
+        <div id="bond-tab-content" class="modal-tab-content">
+          <div class="bond-intro">
+            <h4 class="section-label">Trust Proof</h4>
+            <p>Holding value on your keys signals commitment and reduces Sybil risk. Your total balance across all networks serves as proof of stake in the trust network.</p>
+          </div>
+          <div class="bond-networks-grid">
+            <div class="bond-network-card" id="bond-btc-card">
+              <div class="bond-net-header"><span class="bond-net-name">Bitcoin</span><span class="bond-net-balance" id="bond-btc-balance">--</span></div>
+              <a href="#" id="bond-btc-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-btc-address">--</code></a>
+            </div>
+            <div class="bond-network-card" id="bond-eth-card">
+              <div class="bond-net-header"><span class="bond-net-name">Ethereum</span><span class="bond-net-balance" id="bond-eth-balance">--</span></div>
+              <a href="#" id="bond-eth-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-eth-address">--</code></a>
+            </div>
+            <div class="bond-network-card" id="bond-sol-card">
+              <div class="bond-net-header"><span class="bond-net-name">Solana</span><span class="bond-net-balance" id="bond-sol-balance">--</span></div>
+              <a href="#" id="bond-sol-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sol-address">--</code></a>
+            </div>
+            <!-- Commented out — BTC/ETH/SOL only for now
+            <div class="bond-network-card" id="bond-sui-card">...</div>
+            <div class="bond-network-card" id="bond-monad-card">...</div>
+            <div class="bond-network-card" id="bond-ada-card">...</div>
+            <div class="bond-network-card" id="bond-xrp-card">...</div>
+            -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- Login Modal -->
   <div id="login-modal" class="modal">
     <div class="modal-glass login-modal-content">
-      <div class="modal-header">
-        <h3>Login</h3>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="login-explanation">
-        <p><strong>This is a client-side demo.</strong> Your seed phrase never leaves your browser. We use it to derive cryptographic keys for the demos. Nothing is sent to any server.</p>
+      <div class="modal-header"><h3>Login</h3><button class="modal-close">&times;</button></div>
+      <div id="wallet-info-box" class="wallet-info-box">
+        <div id="wallet-info-expanded" class="wallet-info-expanded"><div class="wallet-info-content"><strong>Decentralized Wallet</strong> — Your credentials never leave your browser.</div><button class="wallet-info-close" id="wallet-info-dismiss" title="Dismiss">&times;</button></div>
+        <div id="wallet-info-collapsed" class="wallet-info-collapsed" style="display:none"><span>Decentralized Wallet</span><div class="wallet-info-icon-wrap"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="0.75"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="11" fill="currentColor">i</text></svg></div></div>
       </div>
       <div class="modal-body">
         <div class="method-tabs">
-          <button class="method-tab active" data-method="seed">Seed Phrase</button>
+          <button class="method-tab active" data-method="password">Password</button>
+          <button class="method-tab" data-method="seed">Seed Phrase</button>
           <button class="method-tab" data-method="stored" id="stored-tab" style="display: none;">Stored</button>
         </div>
-
-        <div id="seed-method" class="method-content active">
-          <div class="form-group">
-            <textarea id="seed-phrase" class="form-textarea" rows="3" placeholder="Enter 12 or 24 word seed phrase..."></textarea>
-            <div class="seed-actions">
-              <button id="generate-seed" class="btn btn-ghost btn-sm">Generate</button>
-            </div>
+        <form id="password-method" class="method-content active" onsubmit="return false;">
+          <div class="glass-input-group"><input type="text" id="wallet-username" class="glass-input" placeholder="Username" autocomplete="username"></div>
+          <div class="glass-input-group">
+            <input type="password" id="wallet-password" class="glass-input" placeholder="Password (24+ chars)" autocomplete="new-password">
+            <div class="entropy-bar"><div class="entropy-fill" id="strength-fill"></div><div class="entropy-threshold"></div></div>
+            <span class="entropy-label"><span id="entropy-bits">0</span> bits entropy</span>
           </div>
           <div class="remember-wallet-group">
-            <label class="glass-checkbox">
-              <input type="checkbox" id="remember-wallet-seed">
-              <span class="checkmark"></span>
-              <span>Remember wallet</span>
-            </label>
+            <label class="glass-checkbox"><input type="checkbox" id="remember-wallet-password"><span class="checkmark"></span><span>Remember wallet</span></label>
+            <div class="remember-options" id="remember-options-password" style="display: none;">
+              <div class="remember-method-selector"><button type="button" class="remember-method-btn" data-method="pin" data-target="password">PIN</button><button type="button" class="remember-method-btn active" data-method="passkey" data-target="password" id="passkey-btn-password">Passkey</button></div>
+              <div class="pin-input-group" id="pin-group-password" style="display: none;"><input type="password" id="pin-input-password" class="glass-input pin-input" placeholder="6-digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*"></div>
+              <div class="passkey-info" id="passkey-info-password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/><rect x="3" y="10" width="18" height="12" rx="2"/><circle cx="12" cy="16" r="1"/></svg><span>Use Face ID, Touch ID, or device PIN</span></div>
+            </div>
+          </div>
+          <button id="derive-from-password" class="glass-btn primary full-width" disabled type="button">Login</button>
+        </form>
+        <div id="seed-method" class="method-content">
+          <div class="glass-input-group"><textarea id="seed-phrase" class="glass-input glass-textarea" rows="3" placeholder="Enter 12 or 24 word seed phrase..."></textarea><div class="seed-actions"><button id="generate-seed" class="glass-btn small">Generate</button><button id="validate-seed" class="glass-btn small">Validate</button></div></div>
+          <div class="remember-wallet-group">
+            <label class="glass-checkbox"><input type="checkbox" id="remember-wallet-seed"><span class="checkmark"></span><span>Remember wallet</span></label>
             <div class="remember-options" id="remember-options-seed" style="display: none;">
-              <div class="remember-method-selector">
-                <button type="button" class="remember-method-btn" data-method="pin" data-target="seed">PIN</button>
-                <button type="button" class="remember-method-btn active" data-method="passkey" data-target="seed" id="passkey-btn-seed">Passkey</button>
-              </div>
-              <div class="pin-input-group" id="pin-group-seed" style="display: none;">
-                <input type="password" id="pin-input-seed" class="form-input pin-input" placeholder="6-digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*">
-              </div>
-              <div class="passkey-info" id="passkey-info-seed">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/>
-                  <rect x="3" y="10" width="18" height="12" rx="2"/>
-                  <circle cx="12" cy="16" r="1"/>
-                </svg>
-                <span>Use Face ID, Touch ID, or device PIN</span>
-              </div>
+              <div class="remember-method-selector"><button type="button" class="remember-method-btn" data-method="pin" data-target="seed">PIN</button><button type="button" class="remember-method-btn active" data-method="passkey" data-target="seed" id="passkey-btn-seed">Passkey</button></div>
+              <div class="pin-input-group" id="pin-group-seed" style="display: none;"><input type="password" id="pin-input-seed" class="glass-input pin-input" placeholder="6-digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*"></div>
+              <div class="passkey-info" id="passkey-info-seed"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/><rect x="3" y="10" width="18" height="12" rx="2"/><circle cx="12" cy="16" r="1"/></svg><span>Use Face ID, Touch ID, or device PIN</span></div>
             </div>
           </div>
-          <button id="derive-from-seed" class="btn btn-primary full-width" disabled>
-            Login
-          </button>
+          <button id="derive-from-seed" class="glass-btn primary full-width" disabled>Login</button>
         </div>
-
         <div id="stored-method" class="method-content">
-          <div class="stored-wallet-info">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            <p>Encrypted wallet found</p>
-            <span class="stored-wallet-date" id="stored-wallet-date"></span>
-          </div>
-          <div id="stored-pin-section">
-            <div class="form-group">
-              <input type="password" id="pin-input-unlock" class="form-input pin-input-large" placeholder="Enter 6-digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*">
-            </div>
-            <button id="unlock-stored-wallet" class="btn btn-primary full-width" disabled>
-              Unlock with PIN
-            </button>
-          </div>
-          <div id="stored-passkey-section" style="display: none;">
-            <button id="unlock-with-passkey" class="btn btn-primary full-width passkey-unlock-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/>
-                <rect x="3" y="10" width="18" height="12" rx="2"/>
-                <circle cx="12" cy="16" r="1"/>
-              </svg>
-              Unlock with Passkey
-            </button>
-          </div>
-          <div class="stored-divider" id="stored-divider" style="display: none;">
-            <span>or</span>
-          </div>
-          <button id="forget-stored-wallet" class="btn btn-secondary full-width mt-md">
-            Forget Wallet
-          </button>
+          <div class="stored-wallet-info"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><p>Encrypted wallet found</p><span class="stored-wallet-date" id="stored-wallet-date"></span></div>
+          <div id="stored-pin-section"><div class="glass-input-group"><input type="password" id="pin-input-unlock" class="glass-input pin-input-large" placeholder="Enter 6-digit PIN" maxlength="6" inputmode="numeric" pattern="[0-9]*"></div><button id="unlock-stored-wallet" class="glass-btn primary full-width" disabled>Unlock with PIN</button></div>
+          <div id="stored-passkey-section" style="display: none;"><button id="unlock-with-passkey" class="glass-btn primary full-width passkey-unlock-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a5 5 0 0 1 5 5v3H7V7a5 5 0 0 1 5-5z"/><rect x="3" y="10" width="18" height="12" rx="2"/><circle cx="12" cy="16" r="1"/></svg> Unlock with Passkey</button></div>
+          <div class="stored-divider" id="stored-divider" style="display: none;"><span>or</span></div>
+          <button id="forget-stored-wallet" class="glass-btn secondary full-width">Forget Wallet</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script type="module" src="assets/js/app.mjs"></script>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <span id="status">Loading WASM modules...</span>
+  </div>
+
+  <!-- Photo remove confirmation modal -->
+  <div id="photo-remove-confirm-modal" class="modal">
+    <div class="modal-glass" style="max-width:340px;padding:24px;text-align:center;">
+      <p style="margin:0 0 20px;font-size:1rem;color:var(--white-70);">Are you sure you want to remove this photo?</p>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button id="photo-remove-yes" class="glass-btn small" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#f87171;">Remove</button>
+        <button id="photo-remove-no" class="glass-btn small">Cancel</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

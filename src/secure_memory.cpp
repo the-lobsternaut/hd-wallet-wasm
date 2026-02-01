@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 #if !HD_WALLET_IS_WASM

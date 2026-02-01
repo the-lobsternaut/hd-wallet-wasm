@@ -907,6 +907,30 @@ body:has(.modal.active) .nav-bar {
   margin-bottom: 20px;
 }
 
+.modal-glass.login-modal-content .method-content {
+  max-width: 75%;
+  margin: 0 auto;
+}
+
+.modal-glass.login-modal-content .glass-input-group {
+  margin-bottom: 20px;
+}
+
+.modal-glass.login-modal-content .seed-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.modal-glass.login-modal-content .remember-wallet-group {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.modal-glass.login-modal-content .full-width {
+  margin-top: 8px;
+}
+
 .wallet-info-box {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -1252,7 +1276,7 @@ body:has(.modal.active) .nav-bar {
 /* Wide Modal - match login modal size, fixed height so all tabs are same size */
 .modal-wide {
   max-width: 560px;
-  height: 85vh;
+  height: 75vh;
 }
 
 /* =============================================================================
@@ -3857,10 +3881,11 @@ body:has(.modal.active) .nav-bar {
 .vcard-actions-footer {
   flex-shrink: 0;
   display: flex;
-  gap: 12px;
+  gap: 16px;
   align-items: center;
   justify-content: center;
-  padding: 4px 0;
+  padding: 24px 0;
+  margin-top: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -4052,3 +4077,368 @@ body:has(.modal.active) .nav-bar {
   border-radius: 6px;
 }
 
+
+/* =============================================================================
+   Homepage Sections
+   ============================================================================= */
+
+.hero-section {
+  padding: 160px 24px 80px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-content {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 24px;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: 1.125rem;
+  color: var(--white-60);
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hero-btn {
+  padding: 14px 28px !important;
+  font-size: 1rem !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.homepage-section {
+  padding: 80px 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.section-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.section-container.section-sm {
+  max-width: 720px;
+}
+
+.section-heading {
+  text-align: center;
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 48px;
+  letter-spacing: -0.02em;
+}
+
+.section-subheading {
+  text-align: center;
+  color: var(--white-50);
+  font-size: 1rem;
+  max-width: 600px;
+  margin: -32px auto 48px;
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.feature-card {
+  padding: 28px;
+  transition: border-color 0.2s;
+}
+
+.feature-card:hover {
+  border-color: var(--white-20);
+}
+
+.feature-card .feature-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 16px;
+  color: #60a5fa;
+}
+
+.feature-card .feature-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--white-50);
+  line-height: 1.6;
+}
+
+.code-block {
+  background: rgba(20, 20, 22, 0.8);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--white-05);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.code-lang {
+  font-size: 0.75rem;
+  color: var(--white-40);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.code-copy-btn {
+  background: none;
+  border: none;
+  color: var(--white-40);
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+.code-copy-btn:hover {
+  color: var(--white-80);
+}
+
+.code-block pre {
+  padding: 20px;
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--white-70);
+}
+
+.chains-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.chain-card {
+  padding: 20px;
+  text-align: center;
+}
+
+.chain-card strong {
+  display: block;
+  font-size: 0.9375rem;
+  margin-bottom: 4px;
+}
+
+.chain-card span {
+  font-size: 0.75rem;
+  color: var(--white-40);
+}
+
+.adversarial-card {
+  padding: 40px;
+}
+
+.adversarial-intro {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.adversarial-intro-icon {
+  flex-shrink: 0;
+}
+
+.adversarial-intro h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.adversarial-intro p {
+  font-size: 0.875rem;
+  color: var(--white-60);
+  line-height: 1.7;
+}
+
+.adversarial-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 40px;
+  padding: 24px 0;
+  flex-wrap: wrap;
+}
+
+.flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-step-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flow-step-label {
+  font-size: 0.6875rem;
+  color: var(--white-50);
+  white-space: nowrap;
+}
+
+.flow-arrow {
+  color: var(--white-20);
+}
+
+.adversarial-principles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.principle {
+  display: flex;
+  gap: 12px;
+}
+
+.principle-icon {
+  flex-shrink: 0;
+  color: var(--white-40);
+  margin-top: 2px;
+}
+
+.principle h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.principle p {
+  font-size: 0.8125rem;
+  color: var(--white-50);
+  line-height: 1.6;
+}
+
+.site-footer {
+  padding: 40px 24px;
+  border-top: 1px solid var(--glass-border);
+  position: relative;
+  z-index: 1;
+}
+
+.site-footer .footer-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.site-footer p {
+  font-size: 0.8125rem;
+  color: var(--white-40);
+}
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+}
+
+.footer-links a {
+  font-size: 0.8125rem;
+  color: var(--white-50);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: var(--white);
+}
+
+#version-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--white-25);
+}
+
+.nav-link {
+  color: var(--white-60);
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--white);
+}
+
+@media (max-width: 768px) {
+  .features-grid { grid-template-columns: 1fr; }
+  .chains-grid { grid-template-columns: repeat(2, 1fr); }
+  .adversarial-principles { grid-template-columns: 1fr; }
+  .adversarial-card { padding: 24px; }
+  .adversarial-intro { flex-direction: column; }
+  .adversarial-flow .flow-arrow { display: none; }
+  .adversarial-flow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    justify-items: center;
+  }
+  .site-footer .footer-content {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+  .hero-section { padding: 120px 24px 60px; }
+}

@@ -2400,6 +2400,9 @@ function setupMainAppHandlers() {
   $('nav-login')?.addEventListener('click', () => {
     $('login-modal')?.classList.add('active');
   });
+  $('hero-login')?.addEventListener('click', () => {
+    $('login-modal')?.classList.add('active');
+  });
   $('nav-logout')?.addEventListener('click', logout);
   $('nav-keys')?.addEventListener('click', async () => {
     $('keys-modal')?.classList.add('active');
@@ -3131,6 +3134,34 @@ function setupTrustHandlers() {
 }
 
 // =============================================================================
+// Homepage Handlers
+// =============================================================================
+
+function setupHomepageHandlers() {
+  // Version tag
+  const versionTag = $('version-tag');
+  if (versionTag) {
+    try {
+      const pkg = __APP_VERSION__;
+      versionTag.textContent = pkg ? `v${pkg}` : '';
+    } catch { /* ignore */ }
+  }
+
+  // Code copy buttons
+  document.querySelectorAll('.code-copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const code = btn.closest('.code-block')?.querySelector('code');
+      if (code) {
+        navigator.clipboard.writeText(code.textContent).then(() => {
+          btn.title = 'Copied!';
+          setTimeout(() => { btn.title = 'Copy code'; }, 2000);
+        });
+      }
+    });
+  });
+}
+
+// =============================================================================
 // Initialization
 // =============================================================================
 
@@ -3173,6 +3204,7 @@ export async function init(rootElement) {
     setupLoginHandlers();
     setupMainAppHandlers();
     initCurrencySelector();
+    setupHomepageHandlers();
 
     // Handle initial hash navigation
     const initialHash = window.location.hash.slice(1);
