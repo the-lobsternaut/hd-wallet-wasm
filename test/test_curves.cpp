@@ -494,9 +494,9 @@ TEST_CASE(Curves, CurveProperties_KeySizes) {
 TEST_CASE(Curves, CurveProperties_Names) {
     ASSERT_STR_EQ("secp256k1", curveToString(Curve::SECP256K1));
     ASSERT_STR_EQ("Ed25519", curveToString(Curve::ED25519));
-    ASSERT_STR_EQ("p256", curveToString(Curve::P256));
-    ASSERT_STR_EQ("p384", curveToString(Curve::P384));
-    ASSERT_STR_EQ("x25519", curveToString(Curve::X25519));
+    ASSERT_STR_EQ("P-256 (secp256r1)", curveToString(Curve::P256));
+    ASSERT_STR_EQ("P-384 (secp384r1)", curveToString(Curve::P384));
+    ASSERT_STR_EQ("X25519", curveToString(Curve::X25519));
 }
 
 // =============================================================================
