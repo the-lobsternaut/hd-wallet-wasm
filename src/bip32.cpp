@@ -594,22 +594,32 @@ Result<DerivationPath> DerivationPath::parse(const std::string& path) {
     // Start parsing
     size_t pos = 0;
 
-    // Check for 'm' or 'M' prefix (master key indicator)
+    // Require 'm' or 'M' prefix (master key indicator)
+    bool afterSlash = false;
     if (normalized[0] == 'm' || normalized[0] == 'M') {
         pos = 1;
         if (pos < normalized.size() && normalized[pos] == '/') {
             pos++;
+            afterSlash = true;
         }
+    } else {
+        return Result<DerivationPath>::fail(Error::INVALID_PATH);
     }
 
     // Parse components
+    bool expectComponent = afterSlash;
     while (pos < normalized.size()) {
-        // Skip any leading slashes
-        while (pos < normalized.size() && normalized[pos] == '/') {
+        // Expect a single slash separator between components
+        if (normalized[pos] == '/') {
+            if (expectComponent) {
+                // Double slash or trailing slash with no component
+                return Result<DerivationPath>::fail(Error::INVALID_PATH);
+            }
             pos++;
+            expectComponent = true;
+            continue;
         }
-
-        if (pos >= normalized.size()) break;
+        expectComponent = false;
 
         // Parse number
         size_t numStart = pos;
@@ -662,6 +672,11 @@ Result<DerivationPath> DerivationPath::parse(const std::string& path) {
         if (result.components.size() > HD_WALLET_MAX_PATH_DEPTH) {
             return Result<DerivationPath>::fail(Error::INVALID_PATH);
         }
+    }
+
+    // Trailing slash with no component
+    if (expectComponent) {
+        return Result<DerivationPath>::fail(Error::INVALID_PATH);
     }
 
     return Result<DerivationPath>::success(std::move(result));
@@ -1116,7 +1131,7 @@ uint32_t ExtendedKey::fingerprint() const {
  */
 Result<Bytes32> ExtendedKey::privateKey() const {
     if (!has_private_key_) {
-        return Result<Bytes32>::fail(Error::HARDENED_FROM_PUBLIC);
+        return Result<Bytes32>::fail(Error::KEY_DERIVATION_FAILED);
     }
     return Result<Bytes32>::success(Bytes32(private_key_));
 }

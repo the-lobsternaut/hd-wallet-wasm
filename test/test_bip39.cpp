@@ -56,32 +56,32 @@ static const Bip39TestVector BIP39_TEST_VECTORS[] = {
     {
         "ffffffffffffffffffffffffffffffff",
         "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
-        "0cd6e5d827bb62eb8fc1e262254223817fd068a74b5b449cc2f667c3f1f985a76379b43348d952e2265b4cd129090758b3e3c2c49103b5051aac2eaeb890a528",
+        "ac27495480225222079d7be181583751e86f571027b0497b5b5d11218e0a8a13332572917f0f8e5a589620c6f15b11c61dee327651a14c34e18231052e48c069",
         "xprv9s21ZrQH143K2V4oox4M8Zmhi2Fjx5XK4Lf7GKRvPSgydU3mjZuKGCTg7UPiBUD7ydVPvSLtg9hjp7MQTYsW67rZHAXeccqYqrsx8LcXnyd"
     },
     // 15 words (160 bits entropy)
     {
-        "000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000",
         "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon address",
-        "035895f2f481b1b0f01fcf8c289c794660b289981a78f8106447707fdd9666ca06da5a9a565181599b79f53b844d8a71dd9f439c52a3d7b3e8a79c906ac845fa",
+        "fa08713f46bf5cb48728ceb70e3aae1bc53c5cb7b4e29c5610261d1cbb7be3bed4d805256fec515754d2be35974fc5da678168e9d9bb0cb70948026923b0def3",
         "xprv9s21ZrQH143K3mEDrypcZ2usWqFgzKB6jBBx9B6GfC7fu26X6hPRzVjzkqkPvDqp6g5eypdk6cyhGnBngbjeHTe4LsuLG1cCmKJka5SMkmU"
     },
     {
         "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
         "legal winner thank year wave sausage worth useful legal winner thank year wave sausage wise",
-        "f2b94508732bcbacbcc020faefecfc89feafa6649a5491b8c952cede496c214a0c7b3c392d168748f2d4a612bada0753b52a1c7ac53c1e93abd5c6320b9e95dd",
+        "f938c2f3ebd11f1c9057b713d977b5260e4282a57811ab163a9708c4ce15307983ac24c4451c7cb353b2002d0a1ee8a404fa59f0f6aa8323fa9bb61248cf4808",
         "xprv9s21ZrQH143K3Lv9MZLj16np5GzLe7tDKQfVusBni7toqJGcnKRtHSxUwbKUyUWiwpK55g1DUSsw76TF1T93VR4NjB52RVLuTmcXL4YHQpQ"
     },
     {
-        "808080808080808080808080808080808080808080",
-        "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor academic",
-        "107d7c02a5aa6f38c58083ff74f04c607c2d2c0ecc55501dadd72d025b751bc27fe913ffb796f841c49b1d33b610cf0e91d3aa239027f5e99fe4ce9e5088cd65",
+        "8080808080808080808080808080808080808080",
+        "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor accident",
+        "bc40a19ec918698b32e3e13ed906006d9e3b9987ba7dee6fc53a824774cc5be68f89b865bbfbac21b2fb99c016e214f54f239f77dd99881c1b81de275c60be3d",
         "xprv9s21ZrQH143K3VPCbxbUtpkh9pRG371UCLDz3BjceqP1jz7XZsQ5EnNkYAEkfeZp62cDNj13ZTEVG1TEro9sZ9grfRmcYWLBhCocViKEJae"
     },
     {
         "ffffffffffffffffffffffffffffffffffffffff",
         "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrist",
-        "0cd6e5d827bb62eb8fc1e262254223817fd068a74b5b449cc2f667c3f1f985a76379b43348d952e2265b4cd129090758b3e3c2c49103b5051aac2eaeb890a528",
+        "bfee6f9d2bcfa1331bd6482a24abca521e5f7e769498b9a0146672194c7356e4e409be22bc379c8b64fee2aa24b54d3ec20d10a083eaa5d1d6b4b365941ad37c",
         "xprv9s21ZrQH143K2V4oox4M8Zmhi2Fjx5XK4Lf7GKRvPSgydU3mjZuKGCTg7UPiBUD7ydVPvSLtg9hjp7MQTYsW67rZHAXeccqYqrsx8LcXnyd"
     },
     // 18 words (192 bits entropy)
@@ -111,27 +111,27 @@ static const Bip39TestVector BIP39_TEST_VECTORS[] = {
     },
     // 21 words (224 bits entropy)
     {
-        "0000000000000000000000000000000000000000000000000000000000",
+        "00000000000000000000000000000000000000000000000000000000",
         "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon admit",
-        "035895f2f481b1b0f01fcf8c289c794660b289981a78f8106447707fdd9666ca06da5a9a565181599b79f53b844d8a71dd9f439c52a3d7b3e8a79c906ac845fa",
+        "e7dadc189d2e8d07ac278d9ec98a1d2d327e4a6b7df494c00cbf2cbf2d3543dac7000fc72d4ada8d9997dc8db388ff22c6d79f604a7455f2df5534a28eee04c6",
         "xprv9s21ZrQH143K3mEDrypcZ2usWqFgzKB6jBBx9B6GfC7fu26X6hPRzVjzkqkPvDqp6g5eypdk6cyhGnBngbjeHTe4LsuLG1cCmKJka5SMkmU"
     },
     {
         "7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f",
-        "legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth useful legal winner thank year wage",
-        "f2b94508732bcbacbcc020faefecfc89feafa6649a5491b8c952cede496c214a0c7b3c392d168748f2d4a612bada0753b52a1c7ac53c1e93abd5c6320b9e95dd",
+        "legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth useful legal winner thank year viable",
+        "99c0597b2bef5ca4859e21075fee0fc931747a30469b6f564d95f74913c357aceb55221b4f4fe6965e871340b45754b1ae59e53da1797b69b30c5fa40ec105b8",
         "xprv9s21ZrQH143K3Lv9MZLj16np5GzLe7tDKQfVusBni7toqJGcnKRtHSxUwbKUyUWiwpK55g1DUSsw76TF1T93VR4NjB52RVLuTmcXL4YHQpQ"
     },
     {
         "80808080808080808080808080808080808080808080808080808080",
-        "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor adjust",
-        "107d7c02a5aa6f38c58083ff74f04c607c2d2c0ecc55501dadd72d025b751bc27fe913ffb796f841c49b1d33b610cf0e91d3aa239027f5e99fe4ce9e5088cd65",
+        "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd apart",
+        "708f0487a927474944ed882e5f05954656bd82bebcf4119b1233e90ee8b27b16d48a77be2c2aceecc32b07a94a5e9a04d94856a2b9fd7c2362ac4153420ef2e6",
         "xprv9s21ZrQH143K3VPCbxbUtpkh9pRG371UCLDz3BjceqP1jz7XZsQ5EnNkYAEkfeZp62cDNj13ZTEVG1TEro9sZ9grfRmcYWLBhCocViKEJae"
     },
     {
-        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote",
-        "0cd6e5d827bb62eb8fc1e262254223817fd068a74b5b449cc2f667c3f1f985a76379b43348d952e2265b4cd129090758b3e3c2c49103b5051aac2eaeb890a528",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo veteran",
+        "4aa0af4ca02ef1d9fa675cd02aa06d318425564e7fadd3d51b6165cc56d77398f28d8522073cd036c2a4a24a83e919211c84500d96cb120084e613ff5fcd96c1",
         "xprv9s21ZrQH143K2V4oox4M8Zmhi2Fjx5XK4Lf7GKRvPSgydU3mjZuKGCTg7UPiBUD7ydVPvSLtg9hjp7MQTYsW67rZHAXeccqYqrsx8LcXnyd"
     },
     // 24 words (256 bits entropy)
@@ -156,8 +156,8 @@ static const Bip39TestVector BIP39_TEST_VECTORS[] = {
     {
         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo vote",
-        "0cd6e5d827bb62eb8fc1e262254223817fd068a74b5b449cc2f667c3f1f985a76379b43348d952e2265b4cd129090758b3e3c2c49103b5051aac2eaeb890a528",
-        "xprv9s21ZrQH143K2V4oox4M8Zmhi2Fjx5XK4Lf7GKRvPSgydU3mjZuKGCTg7UPiBUD7ydVPvSLtg9hjp7MQTYsW67rZHAXeccqYqrsx8LcXnyd"
+        "dd48c104698c30cfe2b6142103248622fb7bb0ff692eebb00089b32d22484e1613912f0a5b694407be899ffd31ed3992c456cdf60f5d4564b8ba3f05a69890ad",
+        "xprv9s21ZrQH143K2WFF16X85T2QCpndrGwx6GueB72Zf3AHwHJaknRXNF37ZmDrtHrrLSHvbuRejXcnYxoZKvRquTPyp2JiNG3XcjQyzSEgqCB"
     },
     // Additional test vectors with varied entropy
     {
@@ -181,7 +181,7 @@ static const Bip39TestVector BIP39_TEST_VECTORS[] = {
     {
         "c0ba5a8e914111210f2bd131f3d5e08d",
         "scheme spot photo card baby mountain device kick cradle pact join borrow",
-        "ea725895aaae8d4c1cf682c1bfd2d358d52ed9f0f0591131b559e2724bb234fca05aa9c02c57407cfb9d0d691cfd9a37dafa14a84f56a98d67f4dc04ab4ad2e2",
+        "ea725895aaae8d4c1cf682c1bfd2d358d52ed9f0f0591131b559e2724bb234fca05aa9c02c57407e04ee9dc3b454aa63fbff483a8b11de949624b9f1831a9612",
         "xprv9s21ZrQH143K3FperxDp8vFsFycKCRcJGAFmcV7umQmcnMZaLtZRt13QJDsoS5F6oYT6BB4sS6zmTmyQAEkJKxJ7yByDNtRe5asP2jFGhT6"
     },
     {
@@ -204,9 +204,9 @@ static const Bip39TestVector BIP39_TEST_VECTORS[] = {
     },
     {
         "8197a4a47f0425faeaa69deebc05ca29c0a5b5cc76ceacc0",
-        "light will tree swarm hunt upset join announce discover yard glory fever ginger exile juice father exact cart",
-        "66de66c3f64a9d1f9d23ea1c99d47f5ed5b2f38f7fc2d4dc0d2f8da2c6ea44e8b5c3a90e3f2d7e0a1b4c5d6e7f8091a2b3c4d5e6f7081929a0b1c2d3e4f50617",
-        "xprv9s21ZrQH143K2x63uS3tBGFWGMo5Wv8C1bNrLGqiLN4UqhL7RoxDLvP5ELQZ4p7MnuH3LeGCKm4Y7E8CrMb2VHmDJsKMoJw7VK8vRMcTHGK"
+        "light rule cinnamon wrap drastic word pride squirrel upgrade then income fatal apart sustain crack supply proud access",
+        "4cbdff1ca2db800fd61cae72a57475fdc6bab03e441fd63f96dabd1f183ef5b782925f00105f318309a7e9c3ea6967c7801e46c8a58082674c860a37b93eda02",
+        "xprv9s21ZrQH143K3wtsvY8L2aZyxkiWULZH4vyQE5XkHTXkmx8gHo6RUEfH3Jyr6NwkJhvano7Xb2o6UqFKWHVo5scE31SGDCAUsgVhiUuUDyh"
     },
     {
         "066dca1a2bb7e8a1db2832148ce9933eea0f3ac9548d793112d9a95c9407efad",
@@ -529,7 +529,7 @@ TEST_CASE(BIP39, FindWord_Valid) {
     ASSERT_EQ(2047, findWord("zoo"));
 
     // Middle word
-    ASSERT_EQ(1024, findWord("letter"));
+    ASSERT_EQ(1028, findWord("letter"));
 }
 
 TEST_CASE(BIP39, FindWord_Invalid) {

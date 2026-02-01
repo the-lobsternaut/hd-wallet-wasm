@@ -180,10 +180,9 @@ static const Bip32TestVector VECTOR4 = {
 
 TEST_CASE(BIP32, TestVector1_MasterKey) {
     auto seed = test::hexToBytes(VECTOR1.seed_hex);
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto xprvResult = keyResult.value.toXprv();
@@ -196,10 +195,9 @@ TEST_CASE(BIP32, TestVector1_MasterKey) {
 
 TEST_CASE(BIP32, TestVector1_Derivations) {
     auto seed = test::hexToBytes(VECTOR1.seed_hex);
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto masterResult = ExtendedKey::fromSeed(seed64);
+    auto masterResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(masterResult);
 
     for (size_t i = 1; i < VECTOR1.num_steps; ++i) {
@@ -217,10 +215,9 @@ TEST_CASE(BIP32, TestVector1_Derivations) {
 
 TEST_CASE(BIP32, TestVector2_MasterKey) {
     auto seed = test::hexToBytes(VECTOR2.seed_hex);
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto xprvResult = keyResult.value.toXprv();
@@ -233,10 +230,9 @@ TEST_CASE(BIP32, TestVector2_MasterKey) {
 
 TEST_CASE(BIP32, TestVector2_Derivations) {
     auto seed = test::hexToBytes(VECTOR2.seed_hex);
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto masterResult = ExtendedKey::fromSeed(seed64);
+    auto masterResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(masterResult);
 
     for (size_t i = 1; i < VECTOR2.num_steps; ++i) {
@@ -254,10 +250,9 @@ TEST_CASE(BIP32, TestVector2_Derivations) {
 
 TEST_CASE(BIP32, TestVector3_MasterKey) {
     auto seed = test::hexToBytes(VECTOR3.seed_hex);
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto xprvResult = keyResult.value.toXprv();
@@ -270,10 +265,9 @@ TEST_CASE(BIP32, TestVector3_MasterKey) {
 
 TEST_CASE(BIP32, TestVector3_Derivations) {
     auto seed = test::hexToBytes(VECTOR3.seed_hex);
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto masterResult = ExtendedKey::fromSeed(seed64);
+    auto masterResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(masterResult);
 
     for (size_t i = 1; i < VECTOR3.num_steps; ++i) {
@@ -317,10 +311,9 @@ TEST_CASE(BIP32, HardenedDerivation_Unharden) {
 
 TEST_CASE(BIP32, HardenedDerivation_FromPublicKey) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto masterResult = ExtendedKey::fromSeed(seed64);
+    auto masterResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(masterResult);
 
     // Neuter the key (remove private key)
@@ -343,10 +336,9 @@ TEST_CASE(BIP32, HardenedDerivation_FromPublicKey) {
 
 TEST_CASE(BIP32, Serialization_XprvRoundTrip) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto xprvResult = keyResult.value.toXprv();
@@ -367,10 +359,9 @@ TEST_CASE(BIP32, Serialization_XprvRoundTrip) {
 
 TEST_CASE(BIP32, Serialization_XpubRoundTrip) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto xpub = keyResult.value.toXpub();
@@ -392,7 +383,7 @@ TEST_CASE(BIP32, Serialization_InvalidString) {
     auto result = ExtendedKey::fromString(
         "xprv9s21ZrQH143K3GJpoapnV8SFfuZaEZKzFDdMFpvGaAXF5oisQXe4pJWv8NTJK4GnvYXZj8umJsHvTzXBxhqCeLcMqF5fmNGHvGGxXHpXXXX"
     );
-    ASSERT_EQ(Error::INVALID_EXTENDED_KEY, result.error);
+    ASSERT_EQ(Error::INVALID_CHECKSUM, result.error);
 
     // Too short
     result = ExtendedKey::fromString("xprv9s21ZrQH143K3");
@@ -510,10 +501,9 @@ TEST_CASE(BIP32, BIP84Path_Bitcoin) {
 
 TEST_CASE(BIP32, KeyProperties_Master) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     ASSERT_TRUE(keyResult.value.isMaster());
@@ -525,10 +515,9 @@ TEST_CASE(BIP32, KeyProperties_Master) {
 
 TEST_CASE(BIP32, KeyProperties_Derived) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto masterResult = ExtendedKey::fromSeed(seed64);
+    auto masterResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(masterResult);
 
     auto childResult = masterResult.value.deriveChild(harden(0));
@@ -542,10 +531,9 @@ TEST_CASE(BIP32, KeyProperties_Derived) {
 
 TEST_CASE(BIP32, KeyProperties_PublicKey) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto pubkey = keyResult.value.publicKey();
@@ -557,10 +545,9 @@ TEST_CASE(BIP32, KeyProperties_PublicKey) {
 
 TEST_CASE(BIP32, KeyProperties_PrivateKey) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto privkeyResult = keyResult.value.privateKey();
@@ -579,10 +566,9 @@ TEST_CASE(BIP32, KeyProperties_PrivateKey) {
 
 TEST_CASE(BIP32, KeyClone) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     auto clone = keyResult.value.clone();
@@ -597,10 +583,9 @@ TEST_CASE(BIP32, KeyClone) {
 
 TEST_CASE(BIP32, KeyWipe) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto keyResult = ExtendedKey::fromSeed(seed64);
+    auto keyResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(keyResult);
 
     // Wipe the key
@@ -640,10 +625,9 @@ TEST_CASE(BIP32, VersionBytes_BIP84) {
 
 TEST_CASE(BIP32, PublicKeyDerivation_NonHardened) {
     auto seed = test::hexToBytes("000102030405060708090a0b0c0d0e0f");
-    Bytes64 seed64{};
-    std::copy(seed.begin(), seed.end(), seed64.begin());
+    ByteVector seedVec(seed.begin(), seed.end());
 
-    auto masterResult = ExtendedKey::fromSeed(seed64);
+    auto masterResult = ExtendedKey::fromSeed(seedVec);
     ASSERT_OK(masterResult);
 
     // Derive m/0'/1 from private key

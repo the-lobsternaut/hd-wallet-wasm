@@ -20,6 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <cstddef>
+#include <cstdlib>
 #include <memory>
 #include <type_traits>
 #include <vector>
@@ -123,7 +124,11 @@ public:
 
     T* allocate(size_type n) {
         if (n > std::size_t(-1) / sizeof(T)) {
+#if defined(__wasi__) || defined(HD_WALLET_NO_EXCEPTIONS) || (defined(__EMSCRIPTEN__) && !defined(__EXCEPTIONS))
+            std::abort();
+#else
             throw std::bad_alloc();
+#endif
         }
         T* ptr = static_cast<T*>(::operator new(n * sizeof(T)));
         return ptr;
