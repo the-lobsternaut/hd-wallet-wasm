@@ -113,7 +113,7 @@ static const Bip32DerivationStep VECTOR2_STEPS[] = {
     {
         "m/0/2147483647'/1/2147483646'/2",
         "xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt",
-        "xprv9zn8u4KBxsqNQPDKLRm4sF9y2C3fWMvkKahht9mP9TD4dqL1stPaTBY5HpDwkYbPKbWvNgvqq5AchCEMFJd7T2E4bgbFGVA4G6CWLCmiJHq"
+        "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j"
     }
 };
 
