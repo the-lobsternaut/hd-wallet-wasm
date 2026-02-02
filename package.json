@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "prepare": "husky",
+    "dev": "cd wallet-ui && npm run dev",
     "build:docs": "cd wallet-ui && npm run build:docs"
   },
   "devDependencies": {

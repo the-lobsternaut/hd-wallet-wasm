@@ -9,6 +9,7 @@ export function getModalHTML() {
         <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
         <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
         <button class="modal-tab" data-modal-tab="bond-tab-content">Security Bond</button>
+        <button class="modal-tab" data-modal-tab="encryption-tab-content">Encrypt</button>
       </div>
       <div class="modal-body">
         <div id="keys-tab-content" class="modal-tab-content">
@@ -268,6 +269,94 @@ export function getModalHTML() {
             <div class="bond-network-card" id="bond-ada-card">...</div>
             <div class="bond-network-card" id="bond-xrp-card">...</div>
             -->
+          </div>
+        </div>
+
+        <!-- Encryption Tab -->
+        <div id="encryption-tab-content" class="modal-tab-content">
+          <div class="encrypt-tab-intro">
+            <h4 class="section-label">ECIES Encrypt / Decrypt</h4>
+            <p>End-to-end encryption using your HD wallet keys. Uses ECDH key agreement + HKDF + AES-256-GCM (ECIES).</p>
+          </div>
+
+          <div class="encrypt-keys-section">
+            <div class="encrypt-key-row">
+              <div class="encrypt-key-card glass-card">
+                <div class="encrypt-key-header">
+                  <span class="encrypt-role-badge sender">Sender (You)</span>
+                </div>
+                <div class="encrypt-key-detail">
+                  <label>Encryption Public Key</label>
+                  <code id="encrypt-sender-pubkey" class="truncate">--</code>
+                </div>
+                <div class="encrypt-key-detail">
+                  <label>Derivation Path</label>
+                  <code id="encrypt-sender-path">--</code>
+                </div>
+              </div>
+              <div class="encrypt-key-card glass-card">
+                <div class="encrypt-key-header">
+                  <span class="encrypt-role-badge recipient">Recipient</span>
+                </div>
+                <div class="encrypt-key-detail">
+                  <label>Recipient Public Key (hex)</label>
+                  <div class="encrypt-recipient-input-row">
+                    <input type="text" id="encrypt-recipient-pubkey" class="glass-input compact" placeholder="Paste recipient's secp256k1 public key (hex)">
+                    <button id="encrypt-use-self" class="glass-btn small" title="Use your own key (for testing)">Self</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="encrypt-message-section">
+            <div class="encrypt-input-group">
+              <label class="section-label">Message</label>
+              <textarea id="encrypt-plaintext" class="glass-input glass-textarea" rows="3" placeholder="Enter a message to encrypt..."></textarea>
+            </div>
+            <div class="encrypt-actions">
+              <button id="encrypt-btn" class="glass-btn primary" disabled>Encrypt</button>
+              <button id="decrypt-btn" class="glass-btn" disabled>Decrypt</button>
+              <button id="encrypt-clear-btn" class="glass-btn small">Clear</button>
+            </div>
+          </div>
+
+          <div id="encrypt-output-section" class="encrypt-output-section" style="display:none;">
+            <h4 class="section-label">Encrypted Payload</h4>
+            <div class="encrypt-output-fields">
+              <div class="encrypt-field"><label>Ciphertext</label><code id="encrypt-out-ciphertext" class="encrypt-out-value truncate"></code><button class="copy-btn" data-copy="encrypt-out-ciphertext" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div>
+              <div class="encrypt-field"><label>Auth Tag</label><code id="encrypt-out-tag" class="encrypt-out-value truncate"></code></div>
+              <div class="encrypt-field"><label>IV (nonce)</label><code id="encrypt-out-iv" class="encrypt-out-value truncate"></code></div>
+              <div class="encrypt-field"><label>HKDF Salt</label><code id="encrypt-out-salt" class="encrypt-out-value truncate"></code></div>
+              <div class="encrypt-field"><label>Sender Public Key</label><code id="encrypt-out-sender-pub" class="encrypt-out-value truncate"></code></div>
+            </div>
+            <div class="encrypt-bundle-group">
+              <div class="encrypt-format-toggle">
+                <label class="section-label">Payload Bundle</label>
+                <div class="encrypt-format-btns">
+                  <button class="glass-btn small encrypt-fmt-btn active" data-format="json">JSON</button>
+                  <button class="glass-btn small encrypt-fmt-btn" data-format="flatbuffer">FlatBuffer</button>
+                </div>
+              </div>
+              <div class="encrypt-format-info">
+                <span id="encrypt-format-label" class="encrypt-format-label">EME (Encrypted Message Envelope) — SpaceDataStandards.org</span>
+              </div>
+              <textarea id="encrypt-bundle" class="glass-input glass-textarea" rows="4" readonly></textarea>
+              <div class="encrypt-bundle-actions">
+                <button class="glass-btn small" id="encrypt-copy-bundle">Copy</button>
+                <button class="glass-btn small" id="encrypt-download-bundle">Download</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="encrypt-decrypt-section">
+            <h4 class="section-label">Decrypt a Message</h4>
+            <p class="encrypt-decrypt-info">Paste an EME payload (JSON or base64 FlatBuffer) to decrypt with your key.</p>
+            <textarea id="decrypt-payload" class="glass-input glass-textarea" rows="4" placeholder='Paste EME JSON or base64 FlatBuffer here...'></textarea>
+            <div id="decrypt-result" class="decrypt-result" style="display:none;">
+              <label>Decrypted Message</label>
+              <div class="decrypt-result-value" id="decrypt-result-value"></div>
+            </div>
           </div>
         </div>
 

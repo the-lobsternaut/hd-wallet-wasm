@@ -4544,3 +4544,192 @@ a.chain-card:hover {
     padding-right: 8px;
   }
 }
+
+/* =============================================================================
+   Encryption Tab
+   ============================================================================= */
+
+.encrypt-tab-intro {
+  margin-bottom: 20px;
+}
+.encrypt-tab-intro p {
+  font-size: 0.85rem;
+  color: var(--white-60);
+  margin: 4px 0 0;
+}
+
+.encrypt-key-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+@media (max-width: 640px) {
+  .encrypt-key-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.encrypt-key-card {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+}
+.encrypt-key-header {
+  margin-bottom: 10px;
+}
+.encrypt-role-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.encrypt-role-badge.sender {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+.encrypt-role-badge.recipient {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+.encrypt-key-detail {
+  margin-bottom: 8px;
+}
+.encrypt-key-detail label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--white-40);
+  margin-bottom: 4px;
+}
+.encrypt-key-detail code {
+  font-size: 0.8rem;
+  color: var(--white-70);
+  word-break: break-all;
+}
+.encrypt-recipient-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.encrypt-recipient-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.encrypt-message-section {
+  margin-bottom: 20px;
+}
+.encrypt-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.encrypt-output-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+.encrypt-output-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.encrypt-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.encrypt-field label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--white-40);
+  white-space: nowrap;
+  min-width: 100px;
+}
+.encrypt-out-value {
+  font-size: 0.8rem;
+  color: var(--white-70);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.encrypt-bundle-group {
+  margin-top: 12px;
+}
+.encrypt-format-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.encrypt-format-btns {
+  display: flex;
+  gap: 4px;
+}
+.encrypt-fmt-btn {
+  font-size: 0.72rem !important;
+  padding: 4px 10px !important;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.encrypt-fmt-btn.active {
+  opacity: 1;
+  border-color: var(--accent, #00dc82);
+  color: var(--accent, #00dc82);
+}
+.encrypt-format-info {
+  margin-bottom: 8px;
+}
+.encrypt-format-label {
+  font-size: 0.72rem;
+  color: var(--white-40);
+  font-style: italic;
+}
+.encrypt-bundle-group textarea {
+  font-size: 0.78rem;
+  font-family: 'SF Mono', monospace;
+}
+.encrypt-bundle-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.encrypt-decrypt-section {
+  margin-bottom: 16px;
+}
+.encrypt-decrypt-info {
+  font-size: 0.85rem;
+  color: var(--white-60);
+  margin: 4px 0 10px;
+}
+.decrypt-result {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-sm);
+}
+.decrypt-result label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #34d399;
+  margin-bottom: 6px;
+}
+.decrypt-result-value {
+  font-size: 0.95rem;
+  color: var(--white);
+  word-break: break-word;
+}

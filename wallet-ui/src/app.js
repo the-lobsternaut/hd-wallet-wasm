@@ -19,6 +19,10 @@ import QRCode from 'qrcode';
 import { Buffer } from 'buffer';
 import { createV3 } from 'vcard-cryptoperson';
 
+// SpaceDataStandards EME (Encrypted Message Envelope)
+import { EME, EMET } from '@sds/lib/js/ts/EME/EME.js';
+import * as flatbuffers from 'flatbuffers';
+
 // Make Buffer available globally for various crypto libraries
 window.Buffer = Buffer;
 
@@ -2772,14 +2776,17 @@ function setupMainAppHandlers() {
   $('hd-coin')?.addEventListener('change', () => {
     updatePathDisplay();
     deriveAndDisplayAddress();
+    updateEncryptionTab();
   });
   $('hd-account')?.addEventListener('input', () => {
     updatePathDisplay();
     deriveAndDisplayAddress();
+    updateEncryptionTab();
   });
   $('hd-index')?.addEventListener('input', () => {
     updatePathDisplay();
     deriveAndDisplayAddress();
+    updateEncryptionTab();
   });
 
   // PKI clear keys
@@ -3129,6 +3136,284 @@ function setupTrustHandlers() {
   // Expose start/stop for login/logout
   state._startTrustScanning = startTrustScanning;
   state._stopTrustScanning = stopTrustScanning;
+
+  // =========================================================================
+  // Encryption Tab Handlers (ECIES: ECDH + HKDF + AES-256-GCM)
+  // =========================================================================
+
+  function updateEncryptionTab() {
+    if (!state.hdRoot || !state.hdWalletModule) return;
+    const coin = $('hd-coin')?.value || '0';
+    const account = $('hd-account')?.value || '0';
+    const index = $('hd-index')?.value || '0';
+    const encPath = buildEncryptionPath(coin, account, index);
+    const encKey = deriveHDKey(encPath);
+    const pubKey = encKey.publicKey();
+    const pubHex = toHexCompact(pubKey);
+
+    const senderPubEl = $('encrypt-sender-pubkey');
+    const senderPathEl = $('encrypt-sender-path');
+    if (senderPubEl) senderPubEl.textContent = pubHex;
+    if (senderPathEl) senderPathEl.textContent = encPath;
+
+    const encryptBtn = $('encrypt-btn');
+    if (encryptBtn) encryptBtn.disabled = false;
+  }
+
+  // Update encryption tab when it becomes active or HD controls change
+  $qa('.modal-tab[data-modal-tab="encryption-tab-content"]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      if (state.hdRoot) updateEncryptionTab();
+    });
+  });
+
+  // "Self" button - fill recipient with own public key for testing
+  $('encrypt-use-self')?.addEventListener('click', () => {
+    const senderPub = $('encrypt-sender-pubkey')?.textContent;
+    if (senderPub && senderPub !== '--') {
+      $('encrypt-recipient-pubkey').value = senderPub;
+    }
+  });
+
+  // ---- EME state for current encryption result ----
+  let currentEME = null;   // EMET instance
+  let currentFormat = 'json';
+
+  function emeToJSON(eme) {
+    return JSON.stringify({
+      ENCRYPTED_BLOB: eme.ENCRYPTED_BLOB,
+      EPHEMERAL_PUBLIC_KEY: eme.EPHEMERAL_PUBLIC_KEY,
+      MAC: eme.MAC,
+      NONCE: eme.NONCE,
+      TAG: eme.TAG,
+      IV: eme.IV,
+      SALT: eme.SALT,
+      PUBLIC_KEY_IDENTIFIER: eme.PUBLIC_KEY_IDENTIFIER,
+      CIPHER_SUITE: eme.CIPHER_SUITE,
+      KDF_PARAMETERS: eme.KDF_PARAMETERS,
+      ENCRYPTION_ALGORITHM_PARAMETERS: eme.ENCRYPTION_ALGORITHM_PARAMETERS,
+    }, null, 2);
+  }
+
+  function emeToFlatBuffer(eme) {
+    const builder = new flatbuffers.Builder(1);
+    const packed = eme.pack(builder);
+    builder.finishSizePrefixed(packed, '$EME');
+    return builder.asUint8Array();
+  }
+
+  function emeToFlatBufferBase64(eme) {
+    return Buffer.from(emeToFlatBuffer(eme)).toString('base64');
+  }
+
+  function updateBundleDisplay() {
+    if (!currentEME) return;
+    const textarea = $('encrypt-bundle');
+    if (!textarea) return;
+    if (currentFormat === 'json') {
+      textarea.value = emeToJSON(currentEME);
+    } else {
+      textarea.value = emeToFlatBufferBase64(currentEME);
+    }
+  }
+
+  // Format toggle buttons
+  $qa('.encrypt-fmt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $qa('.encrypt-fmt-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFormat = btn.dataset.format;
+      const label = $('encrypt-format-label');
+      if (label) label.textContent = currentFormat === 'json'
+        ? 'EME (Encrypted Message Envelope) — SpaceDataStandards.org'
+        : 'EME FlatBuffer binary (base64-encoded)';
+      updateBundleDisplay();
+    });
+  });
+
+  // Encrypt button
+  $('encrypt-btn')?.addEventListener('click', () => {
+    const w = state.hdWalletModule;
+    if (!w || !state.hdRoot) return;
+
+    const recipientHex = $('encrypt-recipient-pubkey')?.value?.trim();
+    const plainStr = $('encrypt-plaintext')?.value;
+    if (!recipientHex || !plainStr) {
+      alert('Please enter both a recipient public key and a message.');
+      return;
+    }
+
+    try {
+      const coin = $('hd-coin')?.value || '0';
+      const account = $('hd-account')?.value || '0';
+      const index = $('hd-index')?.value || '0';
+      const encPath = buildEncryptionPath(coin, account, index);
+      const senderKey = deriveHDKey(encPath);
+      const senderPriv = senderKey.privateKey();
+      const senderPub = senderKey.publicKey();
+
+      // Parse recipient public key from hex
+      const recipientPub = new Uint8Array(recipientHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+
+      // 1. ECDH shared secret
+      const shared = w.curves.secp256k1.ecdh(senderPriv, recipientPub);
+
+      // 2. HKDF: derive 32-byte AES key from shared secret
+      const salt = w.utils.getRandomBytes(32);
+      const info = new TextEncoder().encode('ecies-secp256k1-aes256gcm');
+      const aesKey = w.utils.hkdf(shared, salt, info, 32);
+
+      // 3. AES-256-GCM encrypt
+      const iv = w.utils.generateIv();
+      const plaintext = new TextEncoder().encode(plainStr);
+      const { ciphertext, tag } = w.utils.aesGcm.encrypt(aesKey, plaintext, iv);
+
+      // Display field-level results
+      $('encrypt-out-ciphertext').textContent = toHexCompact(ciphertext);
+      $('encrypt-out-tag').textContent = toHexCompact(tag);
+      $('encrypt-out-iv').textContent = toHexCompact(iv);
+      $('encrypt-out-salt').textContent = toHexCompact(salt);
+      $('encrypt-out-sender-pub').textContent = toHexCompact(senderPub);
+      $('encrypt-output-section').style.display = 'block';
+
+      // Build EME (Encrypted Message Envelope) standard object
+      currentEME = new EMET(
+        Array.from(ciphertext),             // ENCRYPTED_BLOB
+        toHexCompact(senderPub),            // EPHEMERAL_PUBLIC_KEY
+        null,                               // MAC (not used, tag covers it)
+        null,                               // NONCE (we use IV field instead)
+        toHexCompact(tag),                  // TAG
+        toHexCompact(iv),                   // IV
+        toHexCompact(salt),                 // SALT
+        null,                               // PUBLIC_KEY_IDENTIFIER
+        'aes-256-gcm',                      // CIPHER_SUITE
+        'hkdf-sha256',                      // KDF_PARAMETERS
+        'secp256k1',                        // ENCRYPTION_ALGORITHM_PARAMETERS
+      );
+
+      updateBundleDisplay();
+
+      // Clear any previous decrypt result
+      $('decrypt-result').style.display = 'none';
+    } catch (err) {
+      console.error('Encryption failed:', err);
+      alert('Encryption failed: ' + err.message);
+    }
+  });
+
+  // Copy bundle
+  $('encrypt-copy-bundle')?.addEventListener('click', () => {
+    const bundle = $('encrypt-bundle')?.value;
+    if (bundle) {
+      navigator.clipboard.writeText(bundle).catch(() => {});
+    }
+  });
+
+  // Download bundle
+  $('encrypt-download-bundle')?.addEventListener('click', () => {
+    if (!currentEME) return;
+    let blob, filename;
+    if (currentFormat === 'json') {
+      blob = new Blob([emeToJSON(currentEME)], { type: 'application/json' });
+      filename = 'message.eme.json';
+    } else {
+      const buf = emeToFlatBuffer(currentEME);
+      blob = new Blob([buf], { type: 'application/octet-stream' });
+      filename = 'message.eme.fbs';
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Parse EME from input (JSON or base64 FlatBuffer)
+  function parseEMEPayload(input) {
+    const trimmed = input.trim();
+    // Try JSON first
+    if (trimmed.startsWith('{')) {
+      return JSON.parse(trimmed);
+    }
+    // Try base64 FlatBuffer (size-prefixed)
+    const buf = new Uint8Array(Buffer.from(trimmed, 'base64'));
+    const bb = new flatbuffers.ByteBuffer(buf);
+    const root = EME.getSizePrefixedRootAsEME(bb);
+    const eme = root.unpack();
+    return eme;
+  }
+
+  // Decrypt button
+  $('decrypt-btn')?.addEventListener('click', () => {
+    const w = state.hdWalletModule;
+    if (!w || !state.hdRoot) return;
+
+    const payloadStr = $('decrypt-payload')?.value?.trim();
+    if (!payloadStr) {
+      alert('Paste an EME payload to decrypt.');
+      return;
+    }
+
+    try {
+      const payload = parseEMEPayload(payloadStr);
+      const fromHex = (h) => new Uint8Array(h.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+
+      const senderPub = fromHex(payload.EPHEMERAL_PUBLIC_KEY);
+      const tag = fromHex(payload.TAG);
+      const iv = fromHex(payload.IV);
+      const salt = fromHex(payload.SALT);
+
+      // ENCRYPTED_BLOB can be a number array (from EMET) or hex string
+      let ciphertext;
+      if (Array.isArray(payload.ENCRYPTED_BLOB)) {
+        ciphertext = new Uint8Array(payload.ENCRYPTED_BLOB);
+      } else {
+        ciphertext = fromHex(payload.ENCRYPTED_BLOB);
+      }
+
+      const coin = $('hd-coin')?.value || '0';
+      const account = $('hd-account')?.value || '0';
+      const index = $('hd-index')?.value || '0';
+      const encPath = buildEncryptionPath(coin, account, index);
+      const recipientKey = deriveHDKey(encPath);
+      const recipientPriv = recipientKey.privateKey();
+
+      // 1. ECDH shared secret (using sender's public key)
+      const shared = w.curves.secp256k1.ecdh(recipientPriv, senderPub);
+
+      // 2. HKDF: derive same AES key
+      const info = new TextEncoder().encode('ecies-secp256k1-aes256gcm');
+      const aesKey = w.utils.hkdf(shared, salt, info, 32);
+
+      // 3. AES-256-GCM decrypt
+      const decrypted = w.utils.aesGcm.decrypt(aesKey, ciphertext, tag, iv);
+      const decStr = new TextDecoder().decode(decrypted);
+
+      $('decrypt-result-value').textContent = decStr;
+      $('decrypt-result').style.display = 'block';
+    } catch (err) {
+      console.error('Decryption failed:', err);
+      alert('Decryption failed: ' + err.message);
+    }
+  });
+
+  // Enable decrypt button when payload is pasted
+  $('decrypt-payload')?.addEventListener('input', () => {
+    const btn = $('decrypt-btn');
+    if (btn) btn.disabled = !$('decrypt-payload')?.value?.trim();
+  });
+
+  // Clear button
+  $('encrypt-clear-btn')?.addEventListener('click', () => {
+    $('encrypt-plaintext').value = '';
+    $('encrypt-recipient-pubkey').value = '';
+    $('encrypt-output-section').style.display = 'none';
+    $('decrypt-payload').value = '';
+    $('decrypt-result').style.display = 'none';
+    $('encrypt-btn').disabled = !state.hdRoot;
+    $('decrypt-btn').disabled = true;
+  });
 }
 
 // =============================================================================
