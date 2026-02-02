@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=SF+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/main-Dtog6tFs.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/main-CmU-1USF.css">
+  <script type="module" crossorigin src="./assets/main-Czq12_-G.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/main-DBLyeG__.css">
 </head>
 <body>
   <!-- Blurred Background -->
@@ -29,6 +29,9 @@
         <span>HD Wallet</span>
       </a>
       <div class="nav-links" id="demo-nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#quickstart" class="nav-link">Quick Start</a>
+        <a href="#blockchains" class="nav-link">Blockchains</a>
         <a href="#adversarial" class="nav-link">Security</a>
       </div>
       <div class="nav-actions">
@@ -53,12 +56,17 @@
 
   <!-- Mobile Menu -->
   <div id="nav-mobile-menu" class="nav-mobile-menu">
+    <a href="#features" class="nav-link">Features</a>
+    <a href="#quickstart" class="nav-link">Quick Start</a>
+    <a href="#blockchains" class="nav-link">Blockchains</a>
+    <a href="#adversarial" class="nav-link">Security</a>
+    <div class="nav-divider"></div>
     <button id="mobile-login" class="glass-btn primary mobile-auth-btn">Login</button>
     <button id="mobile-logout" class="glass-btn mobile-auth-btn" style="display: none;">Logout</button>
   </div>
 
   <!-- Hero Section -->
-  <section class="hero-section">
+  <section class="hero-section page-section" id="hero">
     <div class="hero-content">
       <h1 class="hero-title">HD Wallet <span class="text-gradient">WASM</span></h1>
       <p class="hero-subtitle">
@@ -92,7 +100,7 @@
   </section>
 
   <!-- Features Grid -->
-  <section class="homepage-section">
+  <section class="homepage-section page-section" id="features">
     <div class="section-container">
       <h2 class="section-heading">Features</h2>
       <div class="features-grid">
@@ -131,9 +139,14 @@
   </section>
 
   <!-- Quick Start Code -->
-  <section class="homepage-section">
+  <section class="homepage-section page-section" id="quickstart">
     <div class="section-container section-sm">
       <h2 class="section-heading">Quick Start</h2>
+      <div class="example-tabs">
+        <button class="example-tab active" data-example="addresses">Addresses</button>
+        <button class="example-tab" data-example="signing">Signing</button>
+        <button class="example-tab" data-example="encryption">Encryption</button>
+      </div>
       <div class="code-block">
         <div class="code-block-header">
           <span class="code-lang">javascript</span>
@@ -141,37 +154,71 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           </button>
         </div>
-        <pre><code>import HDWalletWasm from 'hd-wallet-wasm';
+        <pre><code id="example-code-addresses" class="example-code active">import HDWalletWasm from 'hd-wallet-wasm';
 
-// Initialize the WASM module
 const wallet = await HDWalletWasm();
-
-// Generate a 24-word mnemonic
 const mnemonic = wallet.mnemonic.generate(24);
-console.log('Mnemonic:', mnemonic);
-
-// Convert mnemonic to seed
 const seed = wallet.mnemonic.toSeed(mnemonic, 'optional passphrase');
-
-// Create master HD key from seed
 const masterKey = wallet.hdkey.fromSeed(seed);
 
-// Derive Bitcoin address (BIP-84 native SegWit)
 const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
 const btcAddress = wallet.bitcoin.getAddress(btcKey.publicKey(), 2);
 
-// Derive Ethereum address
 const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
 const ethAddress = wallet.ethereum.getAddress(ethKey.publicKey());
 
 console.log('Bitcoin:', btcAddress);
-console.log('Ethereum:', ethAddress);</code></pre>
+console.log('Ethereum:', ethAddress);</code><code id="example-code-signing" class="example-code">import HDWalletWasm from 'hd-wallet-wasm';
+
+const wallet = await HDWalletWasm();
+const seed = wallet.mnemonic.toSeed(mnemonic, 'passphrase');
+const masterKey = wallet.hdkey.fromSeed(seed);
+
+// Sign a Bitcoin message (secp256k1)
+const btcKey = masterKey.derivePath("m/84'/0'/0'/0/0");
+const btcSig = wallet.bitcoin.signMessage('Hello Bitcoin!', btcKey.privateKey());
+
+// Sign an Ethereum message (EIP-191)
+const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0");
+const ethSig = wallet.ethereum.signMessage('Hello Ethereum!', ethKey.privateKey());
+
+// Raw secp256k1 recoverable signature
+const msgHash = wallet.utils.sha256('my message');
+const { signature, recoveryId } = wallet.curves.secp256k1.signRecoverable(
+  msgHash, btcKey.privateKey()
+);
+
+// Ed25519 signing (Solana)
+const solKey = masterKey.derivePath("m/44'/501'/0'/0/0");
+const edSig = wallet.curves.ed25519.sign('payload', solKey.privateKey());
+const valid = wallet.curves.ed25519.verify('payload', edSig, solKey.publicKey());</code><code id="example-code-encryption" class="example-code">import HDWalletWasm from 'hd-wallet-wasm';
+
+const wallet = await HDWalletWasm();
+
+// Generate a 256-bit AES key and 12-byte IV
+const aesKey = wallet.utils.generateAesKey(256);
+const iv = wallet.utils.generateIv();
+
+// Encrypt with AES-256-GCM
+const plaintext = new TextEncoder().encode('Secret message');
+const { ciphertext, tag } = wallet.utils.aesGcm.encrypt(aesKey, plaintext, iv);
+
+// Decrypt
+const decrypted = wallet.utils.aesGcm.decrypt(aesKey, ciphertext, tag, iv);
+console.log(new TextDecoder().decode(decrypted)); // 'Secret message'
+
+// With additional authenticated data (AAD)
+const aad = new TextEncoder().encode('metadata');
+const encrypted = wallet.utils.aesGcm.encrypt(aesKey, plaintext, iv, aad);
+const result = wallet.utils.aesGcm.decrypt(
+  aesKey, encrypted.ciphertext, encrypted.tag, iv, aad
+);</code></pre>
       </div>
     </div>
   </section>
 
   <!-- Supported Blockchains -->
-  <section class="homepage-section">
+  <section class="homepage-section page-section" id="blockchains">
     <div class="section-container">
       <h2 class="section-heading">Supported Blockchains</h2>
       <div class="chains-grid">
@@ -188,7 +235,7 @@ console.log('Ethereum:', ethAddress);</code></pre>
   </section>
 
   <!-- Adversarial Security Section -->
-  <section class="homepage-section" id="adversarial">
+  <section class="homepage-section page-section" id="adversarial">
     <div class="section-container">
       <h2 class="section-heading">Adversarial Security</h2>
       <p class="section-subheading">Rational actors drain compromised keys. Undrained value proves key integrity.</p>
@@ -643,5 +690,38 @@ console.log('Ethereum:', ethAddress);</code></pre>
     </div>
   </div>
 
+  <script>
+    // Deeplinking on scroll: update URL hash and active nav link
+    (function() {
+      const sections = document.querySelectorAll('.page-section[id]');
+      const navLinks = document.querySelectorAll('.nav-links .nav-link');
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            // Update hash without scrolling
+            history.replaceState(null, '', id === 'hero' ? '#' : '#' + id);
+            // Update active nav link
+            navLinks.forEach(link => {
+              link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+            });
+          }
+        });
+      }, { threshold: 0.3 });
+
+      sections.forEach(section => observer.observe(section));
+    })();
+
+    document.querySelectorAll('.example-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.example;
+        document.querySelectorAll('.example-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.example-code').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('example-code-' + target).classList.add('active');
+      });
+    });
+  </script>
 </body>
 </html>

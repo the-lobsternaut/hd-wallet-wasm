@@ -10,10 +10,9 @@ import { existsSync } from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Check if WASM module exists
-const wasmPath = join(__dirname, '../dist/hd-wallet.wasm');
 const jsPath = join(__dirname, '../dist/hd-wallet.js');
 
-if (!existsSync(wasmPath) || !existsSync(jsPath)) {
+if (!existsSync(jsPath)) {
   console.log('WASM module not built yet. Skipping tests.');
   console.log('Run "npm run build" to build the WASM module first.');
   process.exit(0);
@@ -115,6 +114,9 @@ async function runTests() {
 
     console.log('\n\x1b[1mCrypto Tests:\x1b[0m');
     await import('./test_crypto.mjs');
+
+    console.log('\n\x1b[1mIsomorphic Tests:\x1b[0m');
+    await import('./test_isomorphic.mjs');
 
   } catch (error) {
     console.error('\nTest suite error:', error.message);

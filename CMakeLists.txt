@@ -751,7 +751,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
-      -sENVIRONMENT=web,node
+      -sENVIRONMENT=web,worker
       -sNO_EXIT_RUNTIME=1
       -fexceptions
       -sDISABLE_EXCEPTION_THROWING=0
@@ -779,7 +779,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     # Target: NPM package
     # =========================================================================
     add_custom_target(hd_wallet_wasm_npm ALL
-      DEPENDS hd_wallet_wasm_inline hd_wallet_wasm
+      DEPENDS hd_wallet_wasm_inline hd_wallet_wasm_js
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${WASM_OUTPUT_DIR}/hd-wallet-inline.js"
         "${WASM_NPM_DIR}/hd-wallet.js"
@@ -792,7 +792,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       COMMENT "NPM package created in ${WASM_NPM_DIR}"
     )
 
-    # Run wasm-opt on Release builds to strip debug info and shrink the standalone .wasm
+    # Run wasm-opt on the standalone .wasm for non-JS runtimes
     if(WASM_OPT)
       add_custom_command(TARGET hd_wallet_wasm_npm POST_BUILD
         COMMAND "$<$<CONFIG:Release>:${WASM_OPT}>"
@@ -803,7 +803,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
                 $<$<CONFIG:Release>:-o>
                 $<$<CONFIG:Release>:${WASM_NPM_DIR}/hd-wallet.wasm>
                 $<$<CONFIG:Release>:${WASM_NPM_DIR}/hd-wallet.wasm>
-        COMMENT "Optimizing WASM binary with wasm-opt -O3"
+        COMMENT "Optimizing standalone WASM binary with wasm-opt -O3"
       )
     endif()
 

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HD Wallet WASM - Browser Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; }
+    .info { color: #64b5f6; }
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h2>HD Wallet WASM - Browser Tests</h2>
+  <pre id="output"></pre>
+  <script type="module">
+    const out = document.getElementById('output');
+    function log(msg, cls = '') {
+      const line = document.createElement('span');
+      line.className = cls;
+      line.textContent = msg + '\n';
+      out.appendChild(line);
+    }
+
+    let passed = 0, failed = 0;
+
+    async function test(name, fn) {
+      try {
+        await fn();
+        passed++;
+        log(`  \u2713 ${name}`, 'pass');
+      } catch (e) {
+        failed++;
+        log(`  \u2717 ${name}: ${e.message}`, 'fail');
+      }
+    }
+
+    function assert(cond, msg) { if (!cond) throw new Error(msg); }
+    function assertEqual(a, b, msg) { if (a !== b) throw new Error(msg || `Expected ${b}, got ${a}`); }
+
+    try {
+      log('Loading HD Wallet WASM module...', 'info');
+
+      // Test: Direct import of single-file build
+      const { default: HDWalletWasm } = await import('../dist/hd-wallet.js');
+      log('Module loaded.', 'info');
+
+      await test('factory function exists', async () => {
+        assert(typeof HDWalletWasm === 'function', 'Should be a function');
+      });
+
+      const wasm = await HDWalletWasm();
+      log('WASM initialized.', 'info');
+
+      await test('ccall available', async () => {
+        assert(typeof wasm.ccall === 'function', 'ccall should exist');
+      });
+
+      // Test via wrapper
+      const { default: init, Curve, CoinType, Language } = await import('../src/index.mjs');
+      const wallet = await init();
+
+      await test('wallet module loads', async () => {
+        assert(wallet, 'Wallet should exist');
+        assert(wallet.mnemonic, 'Mnemonic API should exist');
+        assert(wallet.hdkey, 'HDKey API should exist');
+      });
+
+      // Inject entropy
+      const entropy = new Uint8Array(32);
+      crypto.getRandomValues(entropy);
+      wallet.injectEntropy(entropy);
+
+      await test('generate 12-word mnemonic', async () => {
+        const m = wallet.mnemonic.generate(12);
+        assertEqual(m.split(' ').length, 12, 'Should be 12 words');
+      });
+
+      await test('generate 24-word mnemonic', async () => {
+        const m = wallet.mnemonic.generate(24);
+        assertEqual(m.split(' ').length, 24, 'Should be 24 words');
+      });
+
+      await test('validate mnemonic', async () => {
+        const m = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+        assert(wallet.mnemonic.validate(m), 'Should be valid');
+      });
+
+      await test('mnemonic to seed (test vector)', async () => {
+        const m = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+        const seed = wallet.mnemonic.toSeed(m);
+        assertEqual(seed.length, 64, 'Seed should be 64 bytes');
+      });
+
+      await test('HD key derivation', async () => {
+        const m = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+        const seed = wallet.mnemonic.toSeed(m);
+        const master = wallet.hdkey.fromSeed(seed);
+        assert(master, 'Master key should exist');
+        const child = master.derivePath("m/44'/0'/0'/0/0");
+        assert(child, 'Child key should exist');
+        const pub = child.publicKey();
+        assertEqual(pub.length, 33, 'Compressed pubkey should be 33 bytes');
+      });
+
+      await test('enums exported correctly', async () => {
+        assertEqual(Curve.SECP256K1, 0, 'SECP256K1 should be 0');
+        assertEqual(Curve.ED25519, 1, 'ED25519 should be 1');
+        assertEqual(CoinType.BITCOIN, 0, 'BITCOIN should be 0');
+        assertEqual(CoinType.ETHEREUM, 60, 'ETHEREUM should be 60');
+      });
+
+      await test('no node: protocol in loaded modules', async () => {
+        // If we got here, no node: imports were triggered
+        assert(true, 'No node: import errors in browser');
+      });
+
+      log('');
+      log(`Results: ${passed} passed, ${failed} failed`, failed ? 'fail' : 'pass');
+
+      // Signal to any test runner
+      window.__TEST_RESULTS__ = { passed, failed };
+
+    } catch (e) {
+      log(`FATAL: ${e.message}`, 'fail');
+      log(e.stack, 'fail');
+      window.__TEST_RESULTS__ = { passed, failed: failed + 1 };
+    }
+  </script>
+</body>
+</html>

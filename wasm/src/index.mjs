@@ -597,42 +597,27 @@ class HDKey {
 // =============================================================================
 
 /**
- * WASM module loader URL resolver
- * @param {string} [wasmPath] - Optional path to WASM file
- * @returns {Promise<Function>} WASM module factory
+ * WASM module loader (single-file, isomorphic)
+ * @returns {Promise<Object>} Initialized WASM module
  */
-async function loadWasmModule(wasmPath) {
-  // Try to import the Emscripten-generated module
+async function loadWasmModule() {
   let HDWalletWasm;
 
   try {
-    // Try dynamic import (works in Node.js and bundlers)
     const module = await import('../dist/hd-wallet.js');
     HDWalletWasm = module.default;
   } catch (e) {
-    // Fallback for browsers without ES module support
-    if (typeof window !== 'undefined' && window.HDWalletWasm) {
-      HDWalletWasm = window.HDWalletWasm;
+    if (typeof globalThis !== 'undefined' && globalThis.HDWalletWasm) {
+      HDWalletWasm = globalThis.HDWalletWasm;
     } else {
       throw new Error(
         'Failed to load HD Wallet WASM module. ' +
-        'Make sure hd-wallet.js is accessible or set it on window.HDWalletWasm'
+        'Make sure hd-wallet.js is accessible or set it on globalThis.HDWalletWasm'
       );
     }
   }
 
-  // Initialize the WASM module
-  const wasmOptions = {};
-  if (wasmPath) {
-    wasmOptions.locateFile = (path) => {
-      if (path.endsWith('.wasm')) {
-        return wasmPath;
-      }
-      return path;
-    };
-  }
-
-  return HDWalletWasm(wasmOptions);
+  return HDWalletWasm();
 }
 
 /**
@@ -2680,21 +2665,19 @@ function createModule(wasm) {
 
 /**
  * Initialize the HD Wallet WASM module
- * @param {string} [wasmPath] - Optional path to WASM file
  * @returns {Promise<Object>} Initialized HDWalletModule
  */
-export default async function init(wasmPath) {
-  const wasm = await loadWasmModule(wasmPath);
+export default async function init() {
+  const wasm = await loadWasmModule();
   return createModule(wasm);
 }
 
 /**
  * Create HD Wallet instance (alternative syntax)
- * @param {string} [wasmPath] - Optional path to WASM file
  * @returns {Promise<Object>} Initialized HDWalletModule
  */
-export async function createHDWallet(wasmPath) {
-  return init(wasmPath);
+export async function createHDWallet() {
+  return init();
 }
 
 // Export types and enums
