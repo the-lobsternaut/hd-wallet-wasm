@@ -119,11 +119,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Configure npm for OIDC trusted publishing
-        run: |
-          echo "//registry.npmjs.org/:_authToken=" > ~/.npmrc
-          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+          registry-url: "https://registry.npmjs.org"
 
       - name: Extract version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -149,11 +145,15 @@ jobs:
         if: github.event.inputs.dry_run == 'true'
         run: npm publish --dry-run --access public --provenance
         working-directory: wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to NPM with provenance
         if: github.event.inputs.dry_run != 'true'
         run: npm publish --access public --provenance
         working-directory: wasm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry_run != 'true'
