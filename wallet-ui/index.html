@@ -28,6 +28,7 @@
         <span>HD Wallet</span>
       </a>
       <div class="nav-links" id="demo-nav-links">
+        <a href="#packages" class="nav-link">Packages</a>
         <a href="#features" class="nav-link">Features</a>
         <a href="#quickstart" class="nav-link">Quick Start</a>
         <a href="#blockchains" class="nav-link">Blockchains</a>
@@ -55,6 +56,7 @@
 
   <!-- Mobile Menu -->
   <div id="nav-mobile-menu" class="nav-mobile-menu">
+    <a href="#packages" class="nav-link">Packages</a>
     <a href="#features" class="nav-link">Features</a>
     <a href="#quickstart" class="nav-link">Quick Start</a>
     <a href="#blockchains" class="nav-link">Blockchains</a>
@@ -83,17 +85,85 @@
     </div>
   </section>
 
-  <!-- Quick Install -->
-  <section class="homepage-section">
-    <div class="section-container section-sm">
-      <div class="code-block">
-        <div class="code-block-header">
-          <span class="code-lang">bash</span>
-          <button class="code-copy-btn" title="Copy code">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          </button>
+  <!-- Packages -->
+  <section class="homepage-section page-section" id="packages">
+    <div class="section-container">
+      <h2 class="section-heading">Packages</h2>
+      <div class="features-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+
+        <!-- hd-wallet-wasm -->
+        <div class="feature-card glass-card" style="text-align:left;">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+            <div class="feature-icon" style="margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+            <h3 style="margin:0;">hd-wallet-wasm</h3>
+          </div>
+          <p>Core WebAssembly library. BIP-32/39/44 HD key derivation, multi-curve cryptography (secp256k1, Ed25519, NIST P-256), address generation, signing, and encryption for 50+ blockchains.</p>
+          <div class="code-block" style="margin:1rem 0;">
+            <div class="code-block-header">
+              <span class="code-lang">bash</span>
+              <button class="code-copy-btn" title="Copy code">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+            </div>
+            <pre><code>npm install hd-wallet-wasm</code></pre>
+          </div>
+          <div class="code-block" style="margin:1rem 0;">
+            <div class="code-block-header"><span class="code-lang">javascript</span></div>
+            <pre><code>import HDWalletWasm from 'hd-wallet-wasm';
+
+const wallet = await HDWalletWasm();
+const mnemonic = wallet.mnemonic.generate(24);
+const seed = wallet.mnemonic.toSeed(mnemonic);
+const master = wallet.hdkey.fromSeed(seed);
+
+const btcKey = master.derivePath("m/84'/0'/0'/0/0");
+const address = wallet.bitcoin.getAddress(btcKey.publicKey(), 2);</code></pre>
+          </div>
+          <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+            <a href="https://www.npmjs.com/package/hd-wallet-wasm" class="glass-btn small" target="_blank" rel="noopener" style="font-size:0.85rem;padding:0.45rem 0.9rem;">npm</a>
+            <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" class="glass-btn small" target="_blank" rel="noopener" style="font-size:0.85rem;padding:0.45rem 0.9rem;">GitHub</a>
+          </div>
         </div>
-        <pre><code>npm install hd-wallet-wasm</code></pre>
+
+        <!-- hd-wallet-ui -->
+        <div class="feature-card glass-card" style="text-align:left;">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+            <div class="feature-icon" style="margin:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+            <h3 style="margin:0;">hd-wallet-ui</h3>
+          </div>
+          <p>Drop-in modal UI for any web app. Provides login, key management, identity (vCard), trust map, and adversarial security bond modals. Attach to any button &mdash; fully styleable via CSS custom properties.</p>
+          <div class="code-block" style="margin:1rem 0;">
+            <div class="code-block-header">
+              <span class="code-lang">bash</span>
+              <button class="code-copy-btn" title="Copy code">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+            </div>
+            <pre><code>npm install hd-wallet-ui</code></pre>
+          </div>
+          <div class="code-block" style="margin:1rem 0;">
+            <div class="code-block-header"><span class="code-lang">javascript</span></div>
+            <pre><code>import { createWalletUI } from 'hd-wallet-ui';
+
+const wallet = await createWalletUI();
+
+// Open login modal on any button click
+document.getElementById('my-btn')
+  .addEventListener('click', () => wallet.openLogin());
+
+// Open account/keys modal
+wallet.openAccount();
+
+// Remove all injected UI
+wallet.destroy();</code></pre>
+          </div>
+          <p style="font-size:0.85rem;opacity:0.7;margin:0.5rem 0;">Headless utilities (address derivation, wallet storage) are also available via <code>hd-wallet-ui/lib</code>.</p>
+          <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+            <a href="https://www.npmjs.com/package/hd-wallet-ui" class="glass-btn small" target="_blank" rel="noopener" style="font-size:0.85rem;padding:0.45rem 0.9rem;">npm</a>
+            <a href="https://github.com/DigitalArsenal/hd-wallet-wasm/tree/main/wallet-ui" class="glass-btn small" target="_blank" rel="noopener" style="font-size:0.85rem;padding:0.45rem 0.9rem;">GitHub</a>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
@@ -343,7 +413,8 @@ const result = wallet.utils.aesGcm.decrypt(
         <p>HD Wallet WASM - Apache-2.0 License <span id="version-tag"></span></p>
         <div class="footer-links">
           <a href="https://github.com/DigitalArsenal/hd-wallet-wasm" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://www.npmjs.com/package/hd-wallet-wasm" target="_blank" rel="noopener">NPM</a>
+          <a href="https://www.npmjs.com/package/hd-wallet-wasm" target="_blank" rel="noopener">hd-wallet-wasm</a>
+          <a href="https://www.npmjs.com/package/hd-wallet-ui" target="_blank" rel="noopener">hd-wallet-ui</a>
         </div>
       </div>
     </div>
