@@ -1,6 +1,6 @@
 {
   "name": "hd-wallet-wasm",
-  "version": "0.2.1",
+  "version": "0.2.5",
   "description": "Comprehensive HD Wallet implementation in WebAssembly - BIP-32/39/44, multi-curve, multi-chain support",
   "type": "module",
   "main": "src/index.mjs",
@@ -42,7 +42,7 @@
     "test:bip32": "node test/test_bip32.mjs",
     "test:vectors": "node test/test_vectors.mjs",
     "test:aligned": "node test/test_aligned.mjs",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "echo 'Build handled by CI'"
   },
   "repository": {
     "type": "git",
