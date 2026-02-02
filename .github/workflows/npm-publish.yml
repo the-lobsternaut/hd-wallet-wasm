@@ -97,8 +97,8 @@ jobs:
         run: npm pack --dry-run
         working-directory: wasm
 
-  publish:
-    name: Publish to NPM
+  publish-wasm:
+    name: Publish hd-wallet-wasm
     needs: [build, test]
     runs-on: ubuntu-latest
     permissions:
@@ -161,3 +161,61 @@ jobs:
             wasm/dist/hd-wallet.wasm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-ui:
+    name: Publish hd-wallet-ui
+    needs: [publish-wasm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version and dependency
+        run: |
+          cd wallet-ui
+          # Set version from tag (or keep current for workflow_dispatch)
+          if [ -n "${{ steps.version.outputs.version }}" ]; then
+            npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+            WASM_VERSION="${{ steps.version.outputs.version }}"
+          else
+            WASM_VERSION="$(node -p "require('../wasm/package.json').version")"
+          fi
+          # Replace file: dependency with published version
+          node -e "
+            const pkg = require('./package.json');
+            pkg.dependencies['hd-wallet-wasm'] = '^${WASM_VERSION}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Updated hd-wallet-wasm dependency to ^${WASM_VERSION}"
+          cat package.json | head -40
+
+      - name: Verify package
+        run: npm pack --dry-run
+        working-directory: wallet-ui
+
+      - name: Publish to NPM (dry run)
+        if: github.event.inputs.dry_run == 'true'
+        run: npm publish --dry-run --access public --provenance
+        working-directory: wallet-ui
+
+      - name: Publish to NPM with provenance
+        if: github.event.inputs.dry_run != 'true'
+        run: npm publish --access public --provenance
+        working-directory: wallet-ui
