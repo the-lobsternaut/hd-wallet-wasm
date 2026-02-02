@@ -1,0 +1,16 @@
+{
+  "name": "hd-wallet-wasm",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "build:docs": "cd wallet-ui && npm run build:docs"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DigitalArsenal/hd-wallet-wasm.git"
+  },
+  "license": "Apache-2.0"
+}

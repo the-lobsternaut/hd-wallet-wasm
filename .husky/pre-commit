@@ -1,0 +1,2 @@
+cd wallet-ui && npm run build:docs && cd ..
+git add docs/
