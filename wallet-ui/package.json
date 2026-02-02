@@ -1,16 +1,24 @@
 {
   "name": "hd-wallet-ui",
   "version": "1.0.0",
-  "description": "Standalone HD Wallet UI with glass morphism design",
+  "description": "HD Wallet modal UI — login, keys, identity, trust map, and security bond. Attach to any button in your app.",
   "type": "module",
   "main": "src/app.js",
+  "module": "src/app.js",
   "exports": {
     ".": "./src/app.js",
-    "./lib": "./src/lib.js"
+    "./lib": "./src/lib.js",
+    "./styles": "./styles/main.css"
   },
+  "files": [
+    "src/",
+    "styles/"
+  ],
+  "sideEffects": false,
   "scripts": {
     "build:wasm": "emcmake cmake -B ../build-wasm -S .. -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON && cmake --build ../build-wasm --target hd_wallet_wasm_npm -j8",
-    "dev": "npm run build:wasm && vite",
+    "dev": "vite",
+    "dev:full": "npm run build:wasm && vite",
     "build": "npm run build:wasm && vite build",
     "build:docs": "npm run build:wasm && vite build --outDir ../docs --emptyOutDir",
     "preview": "vite preview",
@@ -33,5 +41,19 @@
   "devDependencies": {
     "vite": "^5.0.0",
     "vitest": "^4.0.18"
-  }
+  },
+  "keywords": [
+    "hd-wallet",
+    "wallet-ui",
+    "webassembly",
+    "wasm",
+    "bip32",
+    "bip39",
+    "bip44",
+    "cryptocurrency",
+    "bitcoin",
+    "ethereum",
+    "solana"
+  ],
+  "license": "Apache-2.0"
 }

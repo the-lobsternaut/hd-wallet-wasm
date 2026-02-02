@@ -26,6 +26,7 @@ window.Buffer = Buffer;
 // Local Module Imports
 // =============================================================================
 
+import { getModalHTML } from './template.js';
 import WalletStorage, { StorageMethod } from './wallet-storage.js';
 
 import {
@@ -3166,6 +3167,15 @@ export async function init(rootElement, options = {}) {
   const { autoOpenWallet = false } = typeof rootElement === 'object' && !(rootElement instanceof Node)
     ? (options = rootElement, {}) : options;
   if (rootElement && rootElement instanceof Node) _root = rootElement;
+
+  // Inject modal HTML if not already present in the DOM
+  if (!document.getElementById('keys-modal')) {
+    const container = document.createElement('div');
+    container.id = 'hd-wallet-ui-container';
+    container.innerHTML = getModalHTML();
+    document.body.appendChild(container);
+  }
+
   const status = $('status');
   const loadingOverlay = $('loading-overlay');
 
@@ -3261,3 +3271,32 @@ export async function init(rootElement, options = {}) {
   }
 }
 
+/**
+ * Create a wallet UI instance that can be controlled programmatically.
+ * Consumers attach openLogin / openAccount to their own buttons.
+ *
+ * @param {Node}   [rootElement]  - Optional root element for DOM queries
+ * @param {Object} [options]      - Options passed to init()
+ * @returns {Promise<{openLogin: Function, openAccount: Function, destroy: Function}>}
+ */
+export async function createWalletUI(rootElement, options = {}) {
+  await init(rootElement, options);
+
+  return {
+    /** Open the login modal */
+    openLogin() {
+      const modal = document.getElementById('login-modal');
+      if (modal) modal.classList.add('active');
+    },
+    /** Open the account / keys modal (requires login first) */
+    openAccount() {
+      const modal = document.getElementById('keys-modal');
+      if (modal) modal.classList.add('active');
+    },
+    /** Remove all injected wallet UI elements from the DOM */
+    destroy() {
+      const container = document.getElementById('hd-wallet-ui-container');
+      if (container) container.remove();
+    },
+  };
+}
