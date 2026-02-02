@@ -118,11 +118,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Remove authToken from .npmrc for OIDC
-        run: sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org/"
 
       - name: Extract version from tag
         if: startsWith(github.ref, 'refs/tags/v')
