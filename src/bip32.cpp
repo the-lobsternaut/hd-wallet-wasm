@@ -17,6 +17,7 @@
 #if HD_WALLET_USE_CRYPTOPP
 #include <cryptopp/hmac.h>
 #include <cryptopp/sha.h>
+#include <cryptopp/secblock.h>
 #include <cryptopp/ripemd.h>
 #include <cryptopp/eccrypto.h>
 #include <cryptopp/osrng.h>
@@ -36,6 +37,7 @@ namespace bip32 {
 
 static void secureWipe(void* ptr, size_t size);
 static ByteVector hmacSha512(const ByteVector& key, const ByteVector& data);
+static CryptoPP::SecByteBlock hmacSha512Secure(const ByteVector& key, const ByteVector& data);
 static Bytes32 sha256(const uint8_t* data, size_t size);
 static Bytes32 doubleSha256(const uint8_t* data, size_t size);
 static ByteVector hash160(const uint8_t* data, size_t size);
@@ -132,12 +134,23 @@ static bool secureCompare(const void* a, const void* b, size_t size) {
 
 /**
  * HMAC-SHA512 using Crypto++
+ *
+ * SECURITY FIX [VULN-06]: Use CryptoPP::SecByteBlock instead of plain ByteVector
+ * for the result, since bytes 0-31 contain child private keys during BIP-32
+ * derivation. SecByteBlock auto-wipes on destruction.
  */
-static ByteVector hmacSha512(const ByteVector& key, const ByteVector& data) {
-    ByteVector result(64);
+static CryptoPP::SecByteBlock hmacSha512Secure(const ByteVector& key, const ByteVector& data) {
+    CryptoPP::SecByteBlock result(64);
     CryptoPP::HMAC<CryptoPP::SHA512> hmac(key.data(), key.size());
     hmac.Update(data.data(), data.size());
     hmac.Final(result.data());
+    return result;
+}
+
+// Backward-compatible wrapper that returns ByteVector (for non-sensitive uses)
+static ByteVector hmacSha512(const ByteVector& key, const ByteVector& data) {
+    auto secure = hmacSha512Secure(key, data);
+    ByteVector result(secure.begin(), secure.end());
     return result;
 }
 
@@ -176,15 +189,31 @@ static ByteVector hash160(const uint8_t* data, size_t size) {
 }
 
 /**
- * Compare two big-endian byte arrays
+ * Compare two big-endian byte arrays in constant time
  * Returns: -1 if a < b, 0 if a == b, 1 if a > b
+ *
+ * SECURITY FIX [VULN-10]: Previous implementation used early-return which
+ * leaked information about private key values via timing side channels.
+ * This version processes all bytes regardless of differences found.
  */
 static int compareBytes(const uint8_t* a, const uint8_t* b, size_t size) {
+    volatile int result = 0;
+    volatile int decided = 0;
+
     for (size_t i = 0; i < size; ++i) {
-        if (a[i] < b[i]) return -1;
-        if (a[i] > b[i]) return 1;
+        int diff = static_cast<int>(a[i]) - static_cast<int>(b[i]);
+        // Only set result on the first differing byte (decided == 0)
+        int not_decided = (decided == 0) ? 1 : 0;
+        int has_diff = (diff != 0) ? 1 : 0;
+        // Update result only if not yet decided and bytes differ
+        int update = not_decided & has_diff;
+        // Branchless conditional: result = update ? (diff < 0 ? -1 : 1) : result
+        int sign = (diff < 0) ? -1 : 1;
+        result = update * sign + (1 - update) * result;
+        decided |= has_diff;
     }
-    return 0;
+
+    return result;
 }
 
 /**
@@ -928,7 +957,8 @@ Result<ExtendedKey> ExtendedKey::fromSeed(const ByteVector& seed, Curve curve) {
     const std::string key = "Bitcoin seed";
     ByteVector keyBytes(key.begin(), key.end());
 
-    ByteVector hmacResult = hmacSha512(keyBytes, seed);
+    // SECURITY FIX [VULN-06]: Use secure variant to auto-wipe HMAC output
+    CryptoPP::SecByteBlock hmacResult = hmacSha512Secure(keyBytes, seed);
 
     // Split result: IL = private key, IR = chain code
     Bytes32 privateKey;
@@ -1187,7 +1217,8 @@ Result<ExtendedKey> ExtendedKey::deriveChild(uint32_t index) const {
 
     // HMAC-SHA512
     ByteVector chainCodeVec(chain_code_.begin(), chain_code_.end());
-    ByteVector hmacResult = hmacSha512(chainCodeVec, data);
+    // SECURITY FIX [VULN-06]: Use secure variant to auto-wipe HMAC output
+    CryptoPP::SecByteBlock hmacResult = hmacSha512Secure(chainCodeVec, data);
 
     // Split: IL (32 bytes), IR (32 bytes)
     Bytes32 il;
@@ -1199,7 +1230,6 @@ Result<ExtendedKey> ExtendedKey::deriveChild(uint32_t index) const {
     if (!isValidPrivateKey(il)) {
         // IL >= n, try next index per BIP-32
         secureWipe(il.data(), il.size());
-        secureWipe(hmacResult.data(), hmacResult.size());
         return Result<ExtendedKey>::fail(Error::KEY_DERIVATION_FAILED);
     }
 

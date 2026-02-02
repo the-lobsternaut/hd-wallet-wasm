@@ -321,6 +321,11 @@ class HDKey {
     this._path = path;
     /** @private */
     this._destroyed = false;
+
+    // SECURITY FIX [VULN-14]: Register for GC-based cleanup as safety net
+    if (_keyRegistry) {
+      _keyRegistry.register(this, { wasm, handle }, this);
+    }
   }
 
   /**
@@ -398,6 +403,8 @@ class HDKey {
       checkResult(result);
       return readBytes(this._wasm, ptr, 32);
     } finally {
+      // SECURITY FIX [VULN-04]: Wipe private key from WASM heap before freeing
+      this._wasm._hd_secure_wipe(ptr, 32);
       this._wasm._hd_dealloc(ptr);
     }
   }
@@ -546,6 +553,8 @@ class HDKey {
       checkResult(result);
       return readString(this._wasm, ptr);
     } finally {
+      // SECURITY FIX [VULN-05]: Wipe xprv (contains private key) from WASM heap
+      this._wasm._hd_secure_wipe(ptr, 128);
       this._wasm._hd_dealloc(ptr);
     }
   }
@@ -575,6 +584,10 @@ class HDKey {
       this._wasm._hd_key_destroy(this._handle);
       this._handle = null;
       this._destroyed = true;
+      // Unregister from FinalizationRegistry since we've cleaned up explicitly
+      if (_keyRegistry) {
+        _keyRegistry.unregister(this);
+      }
     }
   }
 
@@ -590,6 +603,33 @@ class HDKey {
     }
     return new HDKey(this._wasm, clonedHandle, this._path);
   }
+}
+
+// =============================================================================
+// SECURITY FIX [VULN-14]: FinalizationRegistry to auto-wipe leaked HDKey objects
+// =============================================================================
+
+/**
+ * Registry that wipes native key handles when HDKey JS objects are garbage collected
+ * without the user calling .wipe(). This is a safety net, not a replacement for
+ * explicit cleanup — users should still call .wipe() when done.
+ */
+let _keyRegistry = null;
+try {
+  if (typeof FinalizationRegistry !== 'undefined') {
+    _keyRegistry = new FinalizationRegistry(({ wasm, handle }) => {
+      if (handle) {
+        try {
+          wasm._hd_key_wipe(handle);
+          wasm._hd_key_destroy(handle);
+        } catch (e) {
+          // Ignore errors during GC cleanup
+        }
+      }
+    });
+  }
+} catch (e) {
+  // FinalizationRegistry not available in this environment
 }
 
 // =============================================================================
@@ -685,6 +725,9 @@ function createModule(wasm) {
         return readBytes(wasm, seedPtr, 64);
       } finally {
         wasm._hd_secure_wipe(seedPtr, 64);
+        // SECURITY FIX [VULN-07]: Wipe mnemonic and passphrase from WASM heap
+        wasm._hd_secure_wipe(mnemonicPtr, wasm.lengthBytesUTF8(mnemonicStr) + 1);
+        wasm._hd_secure_wipe(passphrasePtr, wasm.lengthBytesUTF8(passphrase) + 1);
         wasm._hd_dealloc(mnemonicPtr);
         wasm._hd_dealloc(passphrasePtr);
         wasm._hd_dealloc(seedPtr);

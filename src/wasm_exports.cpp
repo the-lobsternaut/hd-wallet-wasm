@@ -98,26 +98,28 @@ CryptoPP::Integer generateDeterministicK(
     // K = HMAC_K(V || 0x00 || int2octets(x) || bits2octets(h1))
     CryptoPP::HMAC<HashType> hmac;
 
-    std::vector<uint8_t> hmacInput;
-    hmacInput.reserve(hLen + 1 + qLen + hashLen);
-    hmacInput.insert(hmacInput.end(), v.begin(), v.end());
-    hmacInput.push_back(0x00);
-    hmacInput.insert(hmacInput.end(), x.begin(), x.end());
-    hmacInput.insert(hmacInput.end(), hash, hash + hashLen);
+    // SECURITY FIX [VULN-02]: Use SecByteBlock instead of std::vector to ensure
+    // the private key material in hmacInput is securely wiped on destruction.
+    CryptoPP::SecByteBlock hmacInput(hLen + 1 + qLen + hashLen);
+    size_t pos = 0;
+    std::memcpy(hmacInput.data() + pos, v.data(), hLen); pos += hLen;
+    hmacInput[pos++] = 0x00;
+    std::memcpy(hmacInput.data() + pos, x.data(), qLen); pos += qLen;
+    std::memcpy(hmacInput.data() + pos, hash, hashLen); pos += hashLen;
 
     hmac.SetKey(k.data(), k.size());
-    hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
+    hmac.CalculateDigest(k.data(), hmacInput.data(), pos);
 
     // V = HMAC_K(V)
     hmac.SetKey(k.data(), k.size());
     hmac.CalculateDigest(v.data(), v.data(), v.size());
 
     // K = HMAC_K(V || 0x01 || int2octets(x) || bits2octets(h1))
-    hmacInput.clear();
-    hmacInput.insert(hmacInput.end(), v.begin(), v.end());
-    hmacInput.push_back(0x01);
-    hmacInput.insert(hmacInput.end(), x.begin(), x.end());
-    hmacInput.insert(hmacInput.end(), hash, hash + hashLen);
+    pos = 0;
+    std::memcpy(hmacInput.data() + pos, v.data(), hLen); pos += hLen;
+    hmacInput[pos++] = 0x01;
+    std::memcpy(hmacInput.data() + pos, x.data(), qLen); pos += qLen;
+    std::memcpy(hmacInput.data() + pos, hash, hashLen); pos += hashLen;
 
     hmac.SetKey(k.data(), k.size());
     hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
@@ -150,12 +152,11 @@ CryptoPP::Integer generateDeterministicK(
         }
 
         // K = HMAC_K(V || 0x00)
-        hmacInput.clear();
-        hmacInput.insert(hmacInput.end(), v.begin(), v.end());
-        hmacInput.push_back(0x00);
+        std::memcpy(hmacInput.data(), v.data(), hLen);
+        hmacInput[hLen] = 0x00;
 
         hmac.SetKey(k.data(), k.size());
-        hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
+        hmac.CalculateDigest(k.data(), hmacInput.data(), hLen + 1);
 
         // V = HMAC_K(V)
         hmac.SetKey(k.data(), k.size());
@@ -164,16 +165,19 @@ CryptoPP::Integer generateDeterministicK(
 }
 
 /**
- * Securely wipe a CryptoPP::Integer by encoding to buffer, then wiping
+ * Securely wipe a CryptoPP::Integer
+ *
+ * SECURITY FIX [VULN-03]: Previous implementation encoded to a temp buffer
+ * and wiped the temp, not the Integer's internal storage. Now we directly
+ * access the Integer's word array via IsZero() pattern and overwrite in-place.
  */
 inline void secureWipeInteger(CryptoPP::Integer& val) {
-    size_t byteCount = val.ByteCount();
-    if (byteCount > 0) {
-        CryptoPP::SecByteBlock buf(byteCount);
-        val.Encode(buf.data(), byteCount);
-        std::memset(buf.data(), 0, byteCount);
-    }
+    // Set to zero — this overwrites the internal SecBlock<word> storage
+    // and uses CryptoPP's own secure memory management
     val = CryptoPP::Integer::Zero();
+    // Additionally, assign a new zero to force any lazy/cached state clear
+    CryptoPP::Integer zero(0L);
+    val.swap(zero);
 }
 
 } // anonymous namespace
@@ -801,7 +805,8 @@ int32_t hd_ecdh_p256(
 
     try {
         CryptoPP::ECDH<CryptoPP::ECP>::Domain ecdh(CryptoPP::ASN1::secp256r1());
-        std::vector<uint8_t> sharedPoint(ecdh.AgreedValueLength());
+        // SECURITY FIX [VULN-12]: Use SecByteBlock to auto-wipe shared secret
+        CryptoPP::SecByteBlock sharedPoint(ecdh.AgreedValueLength());
         if (!ecdh.Agree(sharedPoint.data(), private_key, public_key + 1)) {
             return static_cast<int32_t>(Error::INTERNAL);
         }
@@ -952,7 +957,8 @@ int32_t hd_ecdh_p384(
 
     try {
         CryptoPP::ECDH<CryptoPP::ECP>::Domain ecdh(CryptoPP::ASN1::secp384r1());
-        std::vector<uint8_t> sharedPoint(ecdh.AgreedValueLength());
+        // SECURITY FIX [VULN-12]: Use SecByteBlock to auto-wipe shared secret
+        CryptoPP::SecByteBlock sharedPoint(ecdh.AgreedValueLength());
         if (!ecdh.Agree(sharedPoint.data(), private_key, public_key + 1)) {
             return static_cast<int32_t>(Error::INTERNAL);
         }

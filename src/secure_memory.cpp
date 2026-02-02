@@ -778,10 +778,12 @@ void MaskedKey<N>::initializeMask() {
         // To fix: Call hd_inject_entropy() before creating MaskedKey objects,
         // or ensure the WASI runtime provides random_get capability.
 #if defined(__wasi__) || defined(HD_WALLET_NO_EXCEPTIONS)
-        // In WASI/no-exceptions mode, we cannot throw. Zero the mask and set
-        // a flag that will cause operations to fail safely.
+        // SECURITY FIX [VULN-11]: Zero the mask AND explicitly set initialized_
+        // to false to prevent store() from writing key XOR 0 = plaintext key.
+        // Also fill masked_ with zeros to ensure no partial state.
         std::memset(mask_.data(), 0, N);
-        // Note: initialized_ will remain false, causing reveal() to return zeros
+        std::memset(masked_.data(), 0, N);
+        initialized_ = false;
 #else
         throw std::runtime_error(
             "MaskedKey: entropy unavailable. Call hd_inject_entropy() before "

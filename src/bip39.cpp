@@ -15,8 +15,11 @@
 #include <bitset>
 #include <cctype>
 #include <cstring>
-#include <random>
 #include <sstream>
+
+#if HD_WALLET_USE_CRYPTOPP
+#include <cryptopp/osrng.h>
+#endif
 
 // Include wordlist from separate file
 #include "bip39_wordlist.inc"
@@ -228,11 +231,11 @@ Result<std::string> generateMnemonic(size_t word_count, Language lang) {
         return Result<std::string>::fail(Error::NO_ENTROPY);
     }
 #else
-    // Native: use OS random
-    std::random_device rd;
-    for (size_t i = 0; i < entropy_bytes; ++i) {
-        entropy[i] = static_cast<uint8_t>(rd() & 0xFF);
-    }
+    // SECURITY FIX [VULN-09]: Use Crypto++ AutoSeededRandomPool instead of
+    // std::random_device, which may be deterministic on some platforms (e.g., MinGW).
+    // Also avoids discarding entropy by using full-width random bytes directly.
+    CryptoPP::AutoSeededRandomPool rng;
+    rng.GenerateBlock(entropy.data(), entropy_bytes);
 #endif
 
     return entropyToMnemonic(entropy, lang);
@@ -336,19 +339,17 @@ Error validateMnemonic(const std::string& mnemonic, Language lang) {
 Result<Bytes64> mnemonicToSeed(const std::string& mnemonic, const std::string& passphrase) {
     std::string normalized = normalizeMnemonic(mnemonic);
 
-    // SECURITY NOTE [MEDIUM-05]: BIP-39 specifies NFKD Unicode normalization for
-    // both mnemonic and passphrase. This implementation normalizes the mnemonic
-    // (converting to lowercase and single spaces) but does NOT perform full NFKD
-    // normalization on the passphrase.
-    //
-    // For maximum compatibility with other BIP-39 implementations:
-    // - Use ASCII-only passphrases (letters, numbers, basic punctuation)
-    // - Avoid accented characters, emoji, or non-Latin scripts in passphrases
-    //
-    // If you use non-ASCII passphrases, the derived seed may differ from other
-    // wallets that implement full NFKD normalization. This could cause issues
-    // when importing your mnemonic into another wallet.
-    //
+    // SECURITY FIX [VULN-08]: Reject non-ASCII passphrases to prevent silent
+    // incompatibility with other BIP-39 implementations. BIP-39 specifies NFKD
+    // Unicode normalization which this library does not implement. Using non-ASCII
+    // passphrases would produce seeds that differ from other wallets, potentially
+    // making funds unrecoverable on import.
+    for (unsigned char c : passphrase) {
+        if (c > 127) {
+            return Result<Bytes64>::fail(Error::INVALID_ARGUMENT);
+        }
+    }
+
     // Salt = "mnemonic" + passphrase
     std::string salt = "mnemonic" + passphrase;
 
