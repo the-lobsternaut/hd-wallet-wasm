@@ -28,6 +28,9 @@
         <span>HD Wallet</span>
       </a>
       <div class="nav-links" id="demo-nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#quickstart" class="nav-link">Quick Start</a>
+        <a href="#blockchains" class="nav-link">Blockchains</a>
         <a href="#adversarial" class="nav-link">Security</a>
       </div>
       <div class="nav-actions">
@@ -52,12 +55,17 @@
 
   <!-- Mobile Menu -->
   <div id="nav-mobile-menu" class="nav-mobile-menu">
+    <a href="#features" class="nav-link">Features</a>
+    <a href="#quickstart" class="nav-link">Quick Start</a>
+    <a href="#blockchains" class="nav-link">Blockchains</a>
+    <a href="#adversarial" class="nav-link">Security</a>
+    <div class="nav-divider"></div>
     <button id="mobile-login" class="glass-btn primary mobile-auth-btn">Login</button>
     <button id="mobile-logout" class="glass-btn mobile-auth-btn" style="display: none;">Logout</button>
   </div>
 
   <!-- Hero Section -->
-  <section class="hero-section">
+  <section class="hero-section page-section" id="hero">
     <div class="hero-content">
       <h1 class="hero-title">HD Wallet <span class="text-gradient">WASM</span></h1>
       <p class="hero-subtitle">
@@ -91,7 +99,7 @@
   </section>
 
   <!-- Features Grid -->
-  <section class="homepage-section">
+  <section class="homepage-section page-section" id="features">
     <div class="section-container">
       <h2 class="section-heading">Features</h2>
       <div class="features-grid">
@@ -130,7 +138,7 @@
   </section>
 
   <!-- Quick Start Code -->
-  <section class="homepage-section">
+  <section class="homepage-section page-section" id="quickstart">
     <div class="section-container section-sm">
       <h2 class="section-heading">Quick Start</h2>
       <div class="example-tabs">
@@ -209,7 +217,7 @@ const result = wallet.utils.aesGcm.decrypt(
   </section>
 
   <!-- Supported Blockchains -->
-  <section class="homepage-section">
+  <section class="homepage-section page-section" id="blockchains">
     <div class="section-container">
       <h2 class="section-heading">Supported Blockchains</h2>
       <div class="chains-grid">
@@ -226,7 +234,7 @@ const result = wallet.utils.aesGcm.decrypt(
   </section>
 
   <!-- Adversarial Security Section -->
-  <section class="homepage-section" id="adversarial">
+  <section class="homepage-section page-section" id="adversarial">
     <div class="section-container">
       <h2 class="section-heading">Adversarial Security</h2>
       <p class="section-subheading">Rational actors drain compromised keys. Undrained value proves key integrity.</p>
@@ -682,6 +690,28 @@ const result = wallet.utils.aesGcm.decrypt(
   </div>
 
   <script>
+    // Deeplinking on scroll: update URL hash and active nav link
+    (function() {
+      const sections = document.querySelectorAll('.page-section[id]');
+      const navLinks = document.querySelectorAll('.nav-links .nav-link');
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            // Update hash without scrolling
+            history.replaceState(null, '', id === 'hero' ? '#' : '#' + id);
+            // Update active nav link
+            navLinks.forEach(link => {
+              link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+            });
+          }
+        });
+      }, { threshold: 0.3 });
+
+      sections.forEach(section => observer.observe(section));
+    })();
+
     document.querySelectorAll('.example-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const target = tab.dataset.example;
