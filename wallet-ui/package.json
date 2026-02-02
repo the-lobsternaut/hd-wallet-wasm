@@ -1,6 +1,6 @@
 {
   "name": "hd-wallet-ui",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "HD Wallet modal UI — login, keys, identity, trust map, and security bond. Attach to any button in your app.",
   "type": "module",
   "main": "src/app.js",
@@ -55,5 +55,13 @@
     "ethereum",
     "solana"
   ],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DigitalArsenal/hd-wallet-wasm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DigitalArsenal/hd-wallet-wasm/issues"
+  },
+  "homepage": "https://digitalarsenal.github.io/hd-wallet-wasm/"
 }
