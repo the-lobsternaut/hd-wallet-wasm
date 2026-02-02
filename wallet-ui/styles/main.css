@@ -4628,6 +4628,24 @@ a.chain-card:hover {
   margin-top: 10px;
 }
 
+.encrypt-step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.encrypt-step-header .section-label {
+  margin: 0;
+}
+
+.encrypt-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .encrypt-output-section {
   margin-bottom: 24px;
   padding: 16px;
@@ -4662,6 +4680,18 @@ a.chain-card:hover {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+.encrypt-field .copy-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--white-30);
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+.encrypt-field .copy-btn:hover {
+  color: var(--white);
 }
 .encrypt-bundle-group {
   margin-top: 12px;

@@ -38,6 +38,7 @@ import {
   coinTypeToConfig,
   buildSigningPath,
   buildEncryptionPath,
+  PKI_STORAGE_KEY,
 } from './constants.js';
 
 import {
@@ -1630,7 +1631,7 @@ async function updateAdversarialSecurity() {
   // Update account header total value
   const accountTotalEl = $('account-total-value');
   if (accountTotalEl) {
-    accountTotalEl.textContent = 'Security Level: ' + formatCurrencyValue(totalConverted, currency);
+    accountTotalEl.textContent = 'Bond: ' + formatCurrencyValue(totalConverted, currency);
   }
 
   // Update account address dropdown values
@@ -3161,7 +3162,7 @@ function setupTrustHandlers() {
   }
 
   // Update encryption tab when it becomes active or HD controls change
-  $qa('.modal-tab[data-modal-tab="encryption-tab-content"]').forEach(tab => {
+  $qa('.modal-tab[data-modal-tab="encrypt-tab-content"]').forEach(tab => {
     tab.addEventListener('click', () => {
       if (state.hdRoot) updateEncryptionTab();
     });
@@ -3274,8 +3275,6 @@ function setupTrustHandlers() {
       $('encrypt-out-iv').textContent = toHexCompact(iv);
       $('encrypt-out-salt').textContent = toHexCompact(salt);
       $('encrypt-out-sender-pub').textContent = toHexCompact(senderPub);
-      $('encrypt-output-section').style.display = 'block';
-
       // Build EME (Encrypted Message Envelope) standard object
       currentEME = new EMET(
         Array.from(ciphertext),             // ENCRYPTED_BLOB
@@ -3293,8 +3292,9 @@ function setupTrustHandlers() {
 
       updateBundleDisplay();
 
-      // Clear any previous decrypt result
-      $('decrypt-result').style.display = 'none';
+      // Switch to result step
+      $('encrypt-step-compose').style.display = 'none';
+      $('encrypt-step-result').style.display = 'block';
     } catch (err) {
       console.error('Encryption failed:', err);
       alert('Encryption failed: ' + err.message);
@@ -3391,7 +3391,10 @@ function setupTrustHandlers() {
       const decStr = new TextDecoder().decode(decrypted);
 
       $('decrypt-result-value').textContent = decStr;
-      $('decrypt-result').style.display = 'block';
+
+      // Switch to result step
+      $('decrypt-step-input').style.display = 'none';
+      $('decrypt-step-result').style.display = 'block';
     } catch (err) {
       console.error('Decryption failed:', err);
       alert('Decryption failed: ' + err.message);
@@ -3404,15 +3407,16 @@ function setupTrustHandlers() {
     if (btn) btn.disabled = !$('decrypt-payload')?.value?.trim();
   });
 
-  // Clear button
-  $('encrypt-clear-btn')?.addEventListener('click', () => {
-    $('encrypt-plaintext').value = '';
-    $('encrypt-recipient-pubkey').value = '';
-    $('encrypt-output-section').style.display = 'none';
-    $('decrypt-payload').value = '';
-    $('decrypt-result').style.display = 'none';
-    $('encrypt-btn').disabled = !state.hdRoot;
-    $('decrypt-btn').disabled = true;
+  // Back button: encrypt result -> compose
+  $('encrypt-back-btn')?.addEventListener('click', () => {
+    $('encrypt-step-result').style.display = 'none';
+    $('encrypt-step-compose').style.display = 'block';
+  });
+
+  // Back button: decrypt result -> input
+  $('decrypt-back-btn')?.addEventListener('click', () => {
+    $('decrypt-step-result').style.display = 'none';
+    $('decrypt-step-input').style.display = 'block';
   });
 }
 
