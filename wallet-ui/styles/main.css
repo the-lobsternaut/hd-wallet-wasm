@@ -616,39 +616,42 @@ body:has(.modal.active) .nav-bar {
   display: block;
 }
 
-/* Modal Tabs (Account modal - Keys / vCard) */
+/* Modal Tabs (Account modal - Keys / vCard) - Bootstrap-style nav tabs */
 .modal-tabs {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 20px;
-  padding: 4px;
-  background: var(--white-05);
-  border-radius: var(--radius-sm);
+  gap: 0;
+  margin: 0;
+  padding: 0 24px;
+  background: transparent;
+  border-bottom: 2px solid var(--white-10, rgba(255,255,255,0.1));
 }
 
 .modal-tab {
-  flex: 1;
-  padding: 8px 4px;
+  padding: 10px 16px;
   background: transparent;
   border: none;
-  border-radius: 10px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
   color: var(--white-60);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, border-color 0.2s;
   text-align: center;
+  white-space: nowrap;
+}
+
+.modal-tab:hover {
+  color: var(--white, #fff);
+  border-bottom-color: var(--white-30, rgba(255,255,255,0.3));
 }
 
 .modal-tab.active {
-  background: var(--glass-hover);
-  color: var(--white);
+  color: var(--white, #fff);
+  border-bottom-color: var(--accent, #00dc82);
+  background: transparent;
 }
 
 .modal-tab-content {
@@ -3991,46 +3994,35 @@ body:has(.modal.active) .nav-bar {
   min-width: 0;
 }
 
-.modal-tabs {
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--glass-border);
-  margin: -24px -24px 0 -24px;
-  padding: 12px 24px;
-}
 
-.modal-tab-content {
+.modal-wide .modal-tab-content {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  
+
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-.modal-tab-content::-webkit-scrollbar {
+.modal-wide .modal-tab-content::-webkit-scrollbar {
   width: 3px;
 }
 
-.modal-tab-content::-webkit-scrollbar-track {
+.modal-wide .modal-tab-content::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.modal-tab-content::-webkit-scrollbar-thumb {
+.modal-wide .modal-tab-content::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 }
 
-.modal-tab-content::-webkit-scrollbar-thumb:hover {
+.modal-wide .modal-tab-content::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
 /* Ensure content doesn't get cut off */
-.modal-tab-content.active {
+.modal-wide .modal-tab-content.active {
   display: block;
 }
 
@@ -4142,6 +4134,7 @@ body:has(.modal.active) .nav-bar {
   padding: 80px 24px;
   position: relative;
   z-index: 1;
+  overflow: hidden;
 }
 
 .page-section {
@@ -4163,6 +4156,7 @@ html {
 .section-container {
   max-width: 1100px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .section-container.section-sm {
@@ -4237,6 +4231,8 @@ html {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 .code-block-header {
@@ -4277,6 +4273,8 @@ html {
   font-size: 0.8125rem;
   line-height: 1.7;
   color: var(--white-70);
+  width: 100%;
+  min-width: 0;
 }
 
 .chains-grid {

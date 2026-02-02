@@ -4,13 +4,13 @@ export function getModalHTML() {
   <div id="keys-modal" class="modal">
   <div class="modal-glass modal-wide">
       <div class="modal-header"><div class="account-header-info"><div class="account-header-top"><h3>Account</h3><h3 class="account-total-value" id="account-total-value"></h3></div><div class="account-address-row"><select id="account-address-select" class="glass-select compact account-address-select"><option value="xpub">xpub</option></select><code class="account-address-display" id="account-address-display"></code><button class="account-address-copy" id="account-address-copy" title="Copy address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><span class="account-address-value" id="account-address-value"></span></div></div><button class="modal-close">&times;</button></div>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-modal-tab="vcard-tab-content">Identity</button>
+        <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
+        <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
+        <button class="modal-tab" data-modal-tab="bond-tab-content">Security Bond</button>
+      </div>
       <div class="modal-body">
-        <div class="modal-tabs">
-          <button class="modal-tab active" data-modal-tab="vcard-tab-content">Identity</button>
-          <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
-          <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
-          <button class="modal-tab" data-modal-tab="bond-tab-content">Security Bond</button>
-        </div>
         <div id="keys-tab-content" class="modal-tab-content">
           <div id="memory-info-box" class="memory-info-box" style="display:none"><div class="memory-info-content"><p><strong>Your keys never leave your device.</strong></p></div><button class="wallet-info-close" id="memory-info-close" title="Close">&times;</button></div>
           <div class="xpub-section">
