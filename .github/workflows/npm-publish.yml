@@ -122,7 +122,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Remove authToken from .npmrc for OIDC
-        run: sed -i '/_authToken/d' ~/.npmrc
+        run: sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
 
       - name: Extract version from tag
         if: startsWith(github.ref, 'refs/tags/v')
