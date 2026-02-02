@@ -4519,3 +4519,19 @@ html {
 .example-code.active {
   display: block;
 }
+
+@media (max-width: 600px) {
+  .code-block pre {
+    padding: 14px;
+    font-size: 0.7rem;
+    line-height: 1.6;
+  }
+  .example-tab {
+    padding: 8px 8px;
+    font-size: 0.75rem;
+  }
+  .section-sm {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
