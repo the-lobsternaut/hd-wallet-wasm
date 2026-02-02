@@ -140,7 +140,7 @@ std::vector<uint8_t> base58Decode(const std::string& str) {
     size_t length = 0;
     for (size_t i = leading_ones; i < str.size(); ++i) {
         uint8_t ch = static_cast<uint8_t>(str[i]);
-        int8_t digit = (ch < sizeof(BASE58_MAP)) ? BASE58_MAP[ch] : -1;
+        int8_t digit = BASE58_MAP[ch];
 
         if (digit < 0) {
             // Invalid character

@@ -2053,15 +2053,12 @@ function setupLoginHandlers() {
       if (passkeySection) passkeySection.style.display = 'block';
     }
 
-    // Auto-switch to stored tab and open modal
+    // Pre-select stored tab (but don't open modal automatically)
     $qa('.method-tab').forEach(t => t.classList.remove('active'));
     $qa('.method-content').forEach(c => c.classList.remove('active'));
     if (storedTab) storedTab.classList.add('active');
     const storedMethod = $('stored-method');
     if (storedMethod) storedMethod.classList.add('active');
-
-    const loginModal = $('login-modal');
-    if (loginModal) loginModal.classList.add('active');
   }
 
   // Hide passkey buttons if not supported
@@ -3165,7 +3162,9 @@ function setupHomepageHandlers() {
 // Initialization
 // =============================================================================
 
-export async function init(rootElement) {
+export async function init(rootElement, options = {}) {
+  const { autoOpenWallet = false } = typeof rootElement === 'object' && !(rootElement instanceof Node)
+    ? (options = rootElement, {}) : options;
   if (rootElement && rootElement instanceof Node) _root = rootElement;
   const status = $('status');
   const loadingOverlay = $('loading-overlay');
@@ -3227,8 +3226,8 @@ export async function init(rootElement) {
     const storageMetadata = WalletStorage.getStorageMetadata();
     const hasStoredWallet = storageMetadata?.method && storageMetadata.method !== StorageMethod.NONE;
 
-    // Auto-open login modal if stored wallet found
-    if (hasStoredWallet) {
+    // Auto-open login modal if stored wallet found (opt-in for integrators)
+    if (hasStoredWallet && autoOpenWallet) {
       const loginModal = $('login-modal');
       if (loginModal) {
         loginModal.classList.add('active');

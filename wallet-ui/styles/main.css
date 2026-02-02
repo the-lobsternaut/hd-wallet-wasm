@@ -3877,33 +3877,40 @@ body:has(.modal.active) .nav-bar {
   margin: 0 0 16px 0;
 }
 
-/* Actions footer - fixed at bottom of tab */
-.vcard-actions-footer {
-  flex-shrink: 0;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 0;
-  margin-top: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Make vcard tab a flex column so footer stays fixed */
+/* Make vcard tab a flex column so footer stays at bottom */
 #vcard-tab-content.active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   overflow: hidden;
 }
 
 #vcard-tab-content #vcard-form-view,
 #vcard-tab-content #vcard-result-view {
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* Actions footer - fixed height bar at bottom of tab */
+.vcard-actions-footer {
+  flex: 0 0 48px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 0 -24px;
+  padding-top: 25px;
+  width: calc(100% + 48px);
+}
+
+.vcard-export-btn,
+.vcard-import-btn {
+  padding: 10px 28px;
+  font-size: 0.9375rem;
 }
 
 .vcard-export-btn {
@@ -4000,7 +4007,7 @@ body:has(.modal.active) .nav-bar {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 0;
+  
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
@@ -4441,4 +4448,58 @@ body:has(.modal.active) .nav-bar {
     text-align: center;
   }
   .hero-section { padding: 120px 24px 60px; }
+}
+
+/* Example Tabs (Quick Start section) */
+.example-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--white-10);
+  border-bottom: none;
+}
+
+.example-tab {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  background: var(--white-05);
+  color: var(--white-50);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.example-tab + .example-tab {
+  border-left: 1px solid var(--white-10);
+}
+
+.example-tab.active {
+  background: var(--white-10);
+  color: var(--white-90);
+}
+
+.example-tab:hover:not(.active) {
+  background: var(--white-08);
+  color: var(--white-70);
+}
+
+.example-tabs + .code-block {
+  border-radius: 0 0 12px 12px;
+}
+
+.example-tabs + .code-block .code-block-header {
+  border-radius: 0;
+}
+
+.example-code {
+  display: none;
+}
+
+.example-code.active {
+  display: block;
 }

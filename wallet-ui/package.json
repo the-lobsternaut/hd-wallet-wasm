@@ -9,9 +9,10 @@
     "./lib": "./src/lib.js"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:docs": "vite build --outDir ../docs --emptyOutDir",
+    "build:wasm": "emcmake cmake -B ../build-wasm -S .. -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON && cmake --build ../build-wasm --target hd_wallet_wasm_npm -j8",
+    "dev": "npm run build:wasm && vite",
+    "build": "npm run build:wasm && vite build",
+    "build:docs": "npm run build:wasm && vite build --outDir ../docs --emptyOutDir",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

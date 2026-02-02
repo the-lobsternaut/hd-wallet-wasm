@@ -762,6 +762,20 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     )
 
     # =========================================================================
+    # wasm-opt post-build optimization
+    # =========================================================================
+    find_program(WASM_OPT wasm-opt
+      HINTS "${EMSCRIPTEN_ROOT_PATH}/../../bin"
+            "${EMSCRIPTEN_ROOT_PATH}/../bin"
+            "$ENV{EMSDK}/upstream/bin"
+    )
+    if(WASM_OPT)
+      message(STATUS "Found wasm-opt: ${WASM_OPT}")
+    else()
+      message(WARNING "wasm-opt not found — WASM binaries will not be stripped/optimized")
+    endif()
+
+    # =========================================================================
     # Target: NPM package
     # =========================================================================
     add_custom_target(hd_wallet_wasm_npm ALL
@@ -777,6 +791,21 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
         "${WASM_NPM_DIR}/index.d.ts"
       COMMENT "NPM package created in ${WASM_NPM_DIR}"
     )
+
+    # Run wasm-opt on Release builds to strip debug info and shrink the standalone .wasm
+    if(WASM_OPT)
+      add_custom_command(TARGET hd_wallet_wasm_npm POST_BUILD
+        COMMAND "$<$<CONFIG:Release>:${WASM_OPT}>"
+                $<$<CONFIG:Release>:-O3>
+                $<$<CONFIG:Release>:--strip-debug>
+                $<$<CONFIG:Release>:--strip-producers>
+                $<$<CONFIG:Release>:--all-features>
+                $<$<CONFIG:Release>:-o>
+                $<$<CONFIG:Release>:${WASM_NPM_DIR}/hd-wallet.wasm>
+                $<$<CONFIG:Release>:${WASM_NPM_DIR}/hd-wallet.wasm>
+        COMMENT "Optimizing WASM binary with wasm-opt -O3"
+      )
+    endif()
 
     message(STATUS "WASM targets configured:")
     message(STATUS "  hd_wallet_wasm        - WASI standalone module (.wasm)")
