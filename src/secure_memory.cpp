@@ -784,12 +784,16 @@ void MaskedKey<N>::initializeMask() {
         std::memset(mask_.data(), 0, N);
         std::memset(masked_.data(), 0, N);
         initialized_ = false;
+        maskReady_ = false;  // SECURITY FIX [CRIT-03]: Mark mask as NOT ready
 #else
         throw std::runtime_error(
             "MaskedKey: entropy unavailable. Call hd_inject_entropy() before "
             "using secure key storage, or ensure WASI random_get is available."
         );
 #endif
+    } else {
+        // Entropy was successfully obtained - mask is ready for use
+        maskReady_ = true;
     }
 }
 

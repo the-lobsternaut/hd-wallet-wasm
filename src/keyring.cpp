@@ -75,6 +75,40 @@ int64_t getCurrentTimestamp() {
 } // anonymous namespace
 
 // =============================================================================
+// Key Cache with TTL
+// =============================================================================
+
+/**
+ * SECURITY FIX [P2-01]: Key cache TTL configuration
+ * Keys expire after this many seconds to limit exposure window.
+ * Default: 300 seconds (5 minutes)
+ */
+static constexpr int64_t KEY_CACHE_TTL_SECONDS = 300;
+
+/**
+ * Cached key entry with timestamp for TTL expiry
+ */
+struct CachedKey {
+  bip32::ExtendedKey key;
+  int64_t cached_at;
+
+  CachedKey() : cached_at(0) {}
+  CachedKey(bip32::ExtendedKey k, int64_t timestamp)
+    : key(std::move(k)), cached_at(timestamp) {}
+
+  bool isExpired(int64_t now) const {
+    // If we can't get time (WASI), never expire
+    if (now <= 0 || cached_at <= 0) return false;
+    return (now - cached_at) > KEY_CACHE_TTL_SECONDS;
+  }
+
+  void wipe() {
+    key.wipe();
+    cached_at = 0;
+  }
+};
+
+// =============================================================================
 // Wallet Entry (Internal)
 // =============================================================================
 
@@ -90,8 +124,8 @@ struct WalletEntry {
   bool locked;
   std::string lock_passphrase_hash;  // For unlock verification
 
-  // Derived key cache (path -> ExtendedKey)
-  std::unordered_map<std::string, bip32::ExtendedKey> key_cache;
+  // SECURITY FIX [P2-01]: Derived key cache with TTL (path -> CachedKey)
+  std::unordered_map<std::string, CachedKey> key_cache;
 
   WalletEntry() : id(0), created_at(0), locked(false) {}
 
@@ -102,11 +136,28 @@ struct WalletEntry {
   void wipe() {
     secureWipe(seed);
     master_key.wipe();
-    for (auto& [path, key] : key_cache) {
-      key.wipe();
+    for (auto& [path, cached] : key_cache) {
+      cached.wipe();
     }
     key_cache.clear();
     lock_passphrase_hash.clear();
+  }
+
+  /**
+   * Clear expired entries from the key cache
+   */
+  void clearExpiredKeys() {
+    int64_t now = getCurrentTimestamp();
+    if (now <= 0) return;  // Can't check TTL without time
+
+    for (auto it = key_cache.begin(); it != key_cache.end();) {
+      if (it->second.isExpired(now)) {
+        it->second.wipe();
+        it = key_cache.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 
   WalletEntry(WalletEntry&& other) noexcept
@@ -446,8 +497,8 @@ public:
 
     auto it = wallets_.find(wallet_id);
     if (it != wallets_.end()) {
-      for (auto& [path, key] : it->second.key_cache) {
-        key.wipe();
+      for (auto& [path, cached] : it->second.key_cache) {
+        cached.wipe();
       }
       it->second.key_cache.clear();
     }
@@ -457,8 +508,8 @@ public:
     std::lock_guard<std::mutex> lock(mutex_);
 
     for (auto& [id, entry] : wallets_) {
-      for (auto& [path, key] : entry.key_cache) {
-        key.wipe();
+      for (auto& [path, cached] : entry.key_cache) {
+        cached.wipe();
       }
       entry.key_cache.clear();
     }
@@ -501,16 +552,27 @@ private:
   uint32_t next_id_;
 
   /**
-   * Internal key derivation with caching
+   * Internal key derivation with caching and TTL support
+   * SECURITY FIX [P2-01]: Keys expire after KEY_CACHE_TTL_SECONDS
    */
   Result<bip32::ExtendedKey> deriveKeyInternal(
     WalletEntry& entry,
     const std::string& path
   ) const {
+    int64_t now = getCurrentTimestamp();
+
     // Check cache first
     auto cache_it = entry.key_cache.find(path);
     if (cache_it != entry.key_cache.end()) {
-      return Result<bip32::ExtendedKey>::success(cache_it->second.clone());
+      // Check if expired
+      if (cache_it->second.isExpired(now)) {
+        // Wipe and remove expired entry
+        cache_it->second.wipe();
+        entry.key_cache.erase(cache_it);
+      } else {
+        // Return cached key (clone to prevent external modification)
+        return Result<bip32::ExtendedKey>::success(cache_it->second.key.clone());
+      }
     }
 
     // Derive from master key
@@ -519,10 +581,19 @@ private:
       return result;
     }
 
-    // Cache the result
-    entry.key_cache[path] = result.value.clone();
+    // Cache the result with current timestamp
+    entry.key_cache[path] = CachedKey(result.value.clone(), now);
 
     return result;
+  }
+
+  /**
+   * Clear expired keys from all wallet caches
+   */
+  void clearAllExpiredKeys() {
+    for (auto& [id, entry] : wallets_) {
+      entry.clearExpiredKeys();
+    }
   }
 };
 

@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -379,8 +380,9 @@ public:
         std::array<uint8_t, N> data_;
     };
 
-    MaskedKey() : masked_{}, mask_{}, initialized_(false) {
+    MaskedKey() : masked_{}, mask_{}, initialized_(false), maskReady_(false) {
         // Initialize mask with random bytes
+        // maskReady_ will be set by initializeMask() based on entropy availability
         initializeMask();
     }
 
@@ -395,10 +397,12 @@ public:
 
     // Movable
     MaskedKey(MaskedKey&& other) noexcept
-        : masked_(other.masked_), mask_(other.mask_), initialized_(other.initialized_) {
+        : masked_(other.masked_), mask_(other.mask_),
+          initialized_(other.initialized_), maskReady_(other.maskReady_) {
         secureWipe(other.masked_.data(), N);
         secureWipe(other.mask_.data(), N);
         other.initialized_ = false;
+        other.maskReady_ = false;
     }
 
     MaskedKey& operator=(MaskedKey&& other) noexcept {
@@ -408,18 +412,44 @@ public:
             masked_ = other.masked_;
             mask_ = other.mask_;
             initialized_ = other.initialized_;
+            maskReady_ = other.maskReady_;
             secureWipe(other.masked_.data(), N);
             secureWipe(other.mask_.data(), N);
             other.initialized_ = false;
+            other.maskReady_ = false;
         }
         return *this;
     }
 
     /**
+     * Check if the mask was properly initialized with entropy
+     * @return true if mask is ready, false if entropy was unavailable
+     */
+    bool isMaskReady() const { return maskReady_; }
+
+    /**
      * Store a key (masks it immediately)
+     *
+     * SECURITY: This will abort/throw if the mask was not properly initialized
+     * with entropy. This prevents storing keys XOR'd with a zero or weak mask.
+     *
      * @param key Raw key bytes to store
      */
     void store(const uint8_t* key) {
+        // SECURITY FIX [CRIT-03]: Fail if mask not properly initialized
+        // A zero or weak mask means key XOR mask ≈ plaintext key
+        if (!maskReady_) {
+#if defined(__wasi__) || defined(HD_WALLET_NO_EXCEPTIONS)
+            // In WASI, abort rather than store unprotected key
+            std::abort();
+#else
+            throw std::runtime_error(
+                "MaskedKey::store() called without initialized mask. "
+                "Ensure entropy is available (call hd_inject_entropy or "
+                "ensure WASI random_get is available) before storing keys."
+            );
+#endif
+        }
         if (!key) return;
         for (size_t i = 0; i < N; ++i) {
             masked_[i] = key[i] ^ mask_[i];
@@ -460,6 +490,7 @@ public:
         secureWipe(masked_.data(), N);
         initialized_ = false;
         // Re-randomize mask for next use
+        // Note: initializeMask() will update maskReady_ based on entropy availability
         initializeMask();
     }
 
@@ -486,6 +517,7 @@ private:
     std::array<uint8_t, N> masked_;
     std::array<uint8_t, N> mask_;
     bool initialized_;
+    bool maskReady_;  // SECURITY: true only if mask was initialized with real entropy
 };
 
 /// Masked 32-byte key (for private keys)

@@ -66,10 +66,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(HD_WALLET_USE_CRYPTOPP)
   include(FetchContent)
+  # SECURITY FIX [CRIT-04]: Pin to specific commit SHA instead of tag
+  # Tags can be force-pushed with malicious code; commit SHAs are immutable.
+  # This is the commit for CRYPTOPP_8_9_0 tag, verified 2026-02-03
   FetchContent_Declare(
     cryptopp-cmake
     GIT_REPOSITORY https://github.com/abdes/cryptopp-cmake.git
-    GIT_TAG        CRYPTOPP_8_9_0
+    GIT_TAG        604d3df147e7b16fb7caa70e22c54c9a40ac1bd5  # CRYPTOPP_8_9_0
+    GIT_SHALLOW    TRUE
   )
   set(CRYPTOPP_BUILD_TESTING OFF CACHE BOOL "" FORCE)
   set(CRYPTOPP_INSTALL OFF CACHE BOOL "" FORCE)

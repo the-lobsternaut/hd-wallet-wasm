@@ -637,6 +637,56 @@ try {
 // =============================================================================
 
 /**
+ * SECURITY FIX [HIGH-05]: WASM Module Integrity Verification
+ *
+ * Verify the integrity of a WASM module before loading.
+ * This helps prevent supply chain attacks where the WASM binary is tampered with.
+ *
+ * @param {ArrayBuffer|Uint8Array} wasmBytes - The WASM binary
+ * @param {string} expectedHash - Expected SHA-256 hash in hex format
+ * @returns {Promise<boolean>} True if hash matches
+ * @throws {Error} If hash doesn't match
+ */
+export async function verifyWasmIntegrity(wasmBytes, expectedHash) {
+  if (!expectedHash) {
+    console.warn('[HD Wallet] No expected hash provided, skipping integrity check');
+    return true;
+  }
+
+  const bytes = wasmBytes instanceof Uint8Array ? wasmBytes : new Uint8Array(wasmBytes);
+
+  // Use SubtleCrypto for hash computation
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (hashHex.toLowerCase() !== expectedHash.toLowerCase()) {
+    throw new Error(
+      `WASM module integrity check failed!\n` +
+      `Expected: ${expectedHash}\n` +
+      `Got: ${hashHex}\n` +
+      `The WASM module may have been tampered with.`
+    );
+  }
+
+  return true;
+}
+
+/**
+ * Compute SHA-256 hash of WASM module
+ * Use this during build to get the hash for integrity verification.
+ *
+ * @param {ArrayBuffer|Uint8Array} wasmBytes - The WASM binary
+ * @returns {Promise<string>} SHA-256 hash in hex format
+ */
+export async function computeWasmHash(wasmBytes) {
+  const bytes = wasmBytes instanceof Uint8Array ? wasmBytes : new Uint8Array(wasmBytes);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * WASM module loader (single-file, isomorphic)
  * @returns {Promise<Object>} Initialized WASM module
  */
@@ -742,6 +792,7 @@ function createModule(wasm) {
      */
     toEntropy(mnemonicStr, language = Language.ENGLISH) {
       const mnemonicPtr = allocString(wasm, mnemonicStr);
+      const mnemonicLen = wasm.lengthBytesUTF8(mnemonicStr) + 1;
       const entropyPtr = wasm._hd_alloc(33);
       const sizePtr = wasm._hd_alloc(4);
       try {
@@ -751,7 +802,11 @@ function createModule(wasm) {
         const size = wasm.getValue(sizePtr, 'i32');
         return readBytes(wasm, entropyPtr, size);
       } finally {
+        // SECURITY FIX [HIGH-04]: Wipe mnemonic from memory before deallocation
+        wasm._hd_secure_wipe(mnemonicPtr, mnemonicLen);
         wasm._hd_dealloc(mnemonicPtr);
+        // Also wipe entropy since it's sensitive
+        wasm._hd_secure_wipe(entropyPtr, 33);
         wasm._hd_dealloc(entropyPtr);
         wasm._hd_dealloc(sizePtr);
       }
@@ -771,7 +826,11 @@ function createModule(wasm) {
         checkResult(result);
         return readString(wasm, outputPtr);
       } finally {
+        // SECURITY FIX [HIGH-04]: Wipe sensitive data before deallocation
+        wasm._hd_secure_wipe(entropyPtr, entropy.length);
         wasm._hd_dealloc(entropyPtr);
+        // Wipe mnemonic output buffer
+        wasm._hd_secure_wipe(outputPtr, 1024);
         wasm._hd_dealloc(outputPtr);
       }
     },

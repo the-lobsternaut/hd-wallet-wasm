@@ -219,20 +219,26 @@ static int compareBytes(const uint8_t* a, const uint8_t* b, size_t size) {
 /**
  * Check if a 32-byte value is a valid secp256k1 private key
  * Must be: 0 < key < n (curve order)
+ *
+ * SECURITY FIX [HIGH-03]: This function is now constant-time.
+ * Previous implementation used early-return which leaked timing information
+ * about the position of the first non-zero byte.
  */
 static bool isValidPrivateKey(const Bytes32& key) {
-    // Check not zero
-    bool allZero = true;
+    // SECURITY FIX: Constant-time zero check using accumulator
+    // Process all bytes regardless of value to prevent timing attacks
+    volatile uint8_t accumulator = 0;
     for (size_t i = 0; i < 32; ++i) {
-        if (key[i] != 0) {
-            allZero = false;
-            break;
-        }
+        accumulator |= key[i];
     }
-    if (allZero) return false;
+    // If accumulator is 0, all bytes were zero
+    bool allZero = (accumulator == 0);
 
-    // Check < curve order
-    return compareBytes(key.data(), SECP256K1_ORDER, 32) < 0;
+    // Check < curve order (compareBytes is already constant-time)
+    bool lessThanOrder = compareBytes(key.data(), SECP256K1_ORDER, 32) < 0;
+
+    // Both conditions must be met: not zero AND less than order
+    return !allZero && lessThanOrder;
 }
 
 /**

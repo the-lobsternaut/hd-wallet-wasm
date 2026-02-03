@@ -148,6 +148,7 @@ size_t buildPath(uint32_t purpose, uint32_t coin_type, uint32_t account,
     // Format: m/purpose'/coin_type'/account'/change/index
     // All levels except change and index are hardened
 
+    // First, calculate required length
     char buffer[128];
     int written = std::snprintf(buffer, sizeof(buffer),
         "m/%u'/%u'/%u'/%u/%u",
@@ -158,8 +159,9 @@ size_t buildPath(uint32_t purpose, uint32_t coin_type, uint32_t account,
     }
 
     size_t len = static_cast<size_t>(written);
-    if (output != nullptr && output_size > len) {
-        std::strcpy(output, buffer);
+    if (output != nullptr && output_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf directly to output buffer
+        std::snprintf(output, output_size, "%s", buffer);
     }
 
     return len;
@@ -416,8 +418,9 @@ size_t buildAccountPath(uint32_t purpose, uint32_t coin_type, uint32_t account,
     }
 
     size_t len = static_cast<size_t>(written);
-    if (output != nullptr && output_size > len) {
-        std::strcpy(output, buffer);
+    if (output != nullptr && output_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy
+        std::snprintf(output, output_size, "%s", buffer);
     }
 
     return len;
@@ -464,8 +467,9 @@ size_t buildEth2WithdrawalPath(uint32_t account, char* output, size_t output_siz
     }
 
     size_t len = static_cast<size_t>(written);
-    if (output != nullptr && output_size > len) {
-        std::strcpy(output, buffer);
+    if (output != nullptr && output_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy
+        std::snprintf(output, output_size, "%s", buffer);
     }
 
     return len;
@@ -486,8 +490,9 @@ size_t buildEth2SigningPath(uint32_t account, char* output, size_t output_size) 
     }
 
     size_t len = static_cast<size_t>(written);
-    if (output != nullptr && output_size > len) {
-        std::strcpy(output, buffer);
+    if (output != nullptr && output_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy
+        std::snprintf(output, output_size, "%s", buffer);
     }
 
     return len;
@@ -509,8 +514,9 @@ size_t buildSolanaPath(uint32_t account, uint32_t change, char* output, size_t o
     }
 
     size_t len = static_cast<size_t>(written);
-    if (output != nullptr && output_size > len) {
-        std::strcpy(output, buffer);
+    if (output != nullptr && output_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy
+        std::snprintf(output, output_size, "%s", buffer);
     }
 
     return len;
@@ -532,8 +538,9 @@ size_t buildPolkadotPath(uint32_t account, char* output, size_t output_size) {
     }
 
     size_t len = static_cast<size_t>(written);
-    if (output != nullptr && output_size > len) {
-        std::strcpy(output, buffer);
+    if (output != nullptr && output_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy
+        std::snprintf(output, output_size, "%s", buffer);
     }
 
     return len;

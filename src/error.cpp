@@ -10,6 +10,7 @@
 #include "hd_wallet/config.h"
 #include "hd_wallet/bip39.h"
 
+#include <cstdio>
 #include <cstring>
 
 namespace hd_wallet {
@@ -317,8 +318,9 @@ size_t formatError(Error error, const char* context,
     if (context == nullptr || context[0] == '\0') {
         // No context, just copy error string
         size_t len = std::strlen(error_str);
-        if (buffer != nullptr && buffer_size > len) {
-            std::strcpy(buffer, error_str);
+        if (buffer != nullptr && buffer_size > 0) {
+            // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy
+            std::snprintf(buffer, buffer_size, "%s", error_str);
         }
         return len;
     }
@@ -328,10 +330,9 @@ size_t formatError(Error error, const char* context,
     size_t error_len = std::strlen(error_str);
     size_t total_len = context_len + 2 + error_len;  // +2 for ": "
 
-    if (buffer != nullptr && buffer_size > total_len) {
-        std::strcpy(buffer, context);
-        std::strcat(buffer, ": ");
-        std::strcat(buffer, error_str);
+    if (buffer != nullptr && buffer_size > 0) {
+        // SECURITY FIX [HIGH-01]: Use snprintf instead of strcpy/strcat
+        std::snprintf(buffer, buffer_size, "%s: %s", context, error_str);
     }
 
     return total_len;
