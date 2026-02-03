@@ -2586,6 +2586,7 @@ function setupMainAppHandlers() {
         if (video) {
           video.srcObject = cameraStream;
           video.style.display = '';
+          await video.play();
         }
         const preview = $('vcard-photo-preview');
         if (preview) {

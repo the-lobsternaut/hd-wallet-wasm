@@ -142,6 +142,10 @@ body {
   border-bottom: 1px solid var(--glass-border);
 }
 
+body:has(.modal.active) {
+  overflow: hidden;
+}
+
 body:has(.modal.active) .nav-bar {
   z-index: 1;
 }
