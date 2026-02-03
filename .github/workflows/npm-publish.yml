@@ -35,14 +35,37 @@ jobs:
       - name: Verify Emscripten
         run: emcc --version
 
-      - name: Cache Crypto++ (WASM)
+      - name: Cache OpenSSL FIPS build
+        id: cache-openssl
         uses: actions/cache@v4
         with:
-          path: build/_deps/cryptopp*
-          key: cryptopp-wasm-${{ runner.os }}-8.9.0-emsdk-3.1.51
+          path: openssl-fips/dist
+          key: openssl-fips-wasm-${{ runner.os }}-3.0.9-emsdk-3.1.51
+
+      - name: Build OpenSSL FIPS
+        if: steps.cache-openssl.outputs.cache-hit != 'true'
+        run: |
+          cd openssl-fips
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Verify OpenSSL FIPS
+        run: |
+          echo "Checking OpenSSL FIPS build..."
+          ls -la openssl-fips/dist/lib/ || echo "OpenSSL dist not found"
+          test -f openssl-fips/dist/lib/libcrypto.a && echo "✓ libcrypto.a found" || echo "✗ libcrypto.a missing"
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/_deps/cryptopp*
+            build/CMakeCache.txt
+            build/CMakeFiles
+          key: cmake-wasm-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}-emsdk-3.1.51
 
       - name: Configure CMake with Emscripten
-        run: emcmake cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON
+        run: emcmake cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON -DHD_WALLET_USE_OPENSSL=ON
 
       - name: Build WASM targets
         run: cmake --build build --parallel $(nproc) --target hd_wallet_wasm_npm
