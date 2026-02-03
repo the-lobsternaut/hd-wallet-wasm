@@ -332,17 +332,71 @@ cmake --build build-wasm --parallel
 # Output in build-wasm/wasm/ and wasm/dist/
 ```
 
-### FIPS-Compliant Build (OpenSSL)
+## FIPS 140-3 Compliance
 
-For FIPS 140-3 compliance, the library can be built with OpenSSL 3.0.9 FIPS Provider:
+HD Wallet WASM supports FIPS 140-3 compliance through an optional OpenSSL 3.0.9 backend with the FIPS Provider. This is essential for applications requiring government-grade cryptographic compliance (financial institutions, healthcare, defense contractors, etc.).
+
+### Overview
+
+The library provides two cryptographic backends:
+
+| Backend | Use Case | Certification |
+|---------|----------|---------------|
+| **Crypto++** (default) | General purpose, all curves | Not FIPS certified |
+| **OpenSSL FIPS** | Compliance-critical operations | FIPS 140-3 Certificate #4282 |
+
+When OpenSSL is enabled, FIPS-approved algorithms automatically route through OpenSSL while non-approved algorithms (secp256k1, Ed25519, Keccak) continue using Crypto++.
+
+### Algorithm Routing
+
+| Algorithm | OpenSSL FIPS Mode | Default (Crypto++) |
+|-----------|-------------------|-------------------|
+| **Hash Functions** | | |
+| SHA-256/384/512 | ✅ OpenSSL FIPS | Crypto++ |
+| SHA3-256/384/512 | ✅ OpenSSL FIPS | Crypto++ |
+| HMAC-SHA256/512 | ✅ OpenSSL FIPS | Crypto++ |
+| Keccak-256 | ❌ Crypto++ | Crypto++ |
+| RIPEMD-160 | ❌ Crypto++ | Crypto++ |
+| BLAKE2b/s | ❌ Crypto++ | Crypto++ |
+| **Key Derivation** | | |
+| HKDF-SHA256/384/512 | ✅ OpenSSL FIPS | Crypto++ |
+| PBKDF2-SHA256/512 | ✅ OpenSSL FIPS | Crypto++ |
+| scrypt | ❌ Crypto++ | Crypto++ |
+| **Symmetric Encryption** | | |
+| AES-128/192/256-GCM | ✅ OpenSSL FIPS | Crypto++ |
+| AES-128/192/256-CTR | ✅ OpenSSL FIPS | Crypto++ |
+| ChaCha20-Poly1305 | ❌ Crypto++ | Crypto++ |
+| **Elliptic Curves** | | |
+| NIST P-256 (secp256r1) | ✅ OpenSSL FIPS | Crypto++ |
+| NIST P-384 (secp384r1) | ✅ OpenSSL FIPS | Crypto++ |
+| NIST P-521 (secp521r1) | ✅ OpenSSL FIPS | Crypto++ |
+| secp256k1 | ❌ Crypto++ | Crypto++ |
+| Ed25519 | ❌ Crypto++ | Crypto++ |
+| X25519 | ❌ Crypto++ | Crypto++ |
+| **Random Generation** | | |
+| DRBG (CTR_DRBG) | ✅ OpenSSL FIPS | Crypto++ AutoSeededRNG |
+
+**Legend:** ✅ = FIPS-approved and uses OpenSSL FIPS provider | ❌ = Not FIPS-approved, uses Crypto++
+
+### Building with FIPS Support
+
+#### Step 1: Build OpenSSL for WebAssembly
 
 ```bash
-# Step 1: Build OpenSSL for WASM (first time only)
+# First time only - builds OpenSSL 3.0.9 with FIPS provider for WASM
 cd openssl-fips
 ./build.sh
 cd ..
 
-# Step 2: Build with OpenSSL backend
+# This creates:
+#   openssl-fips/dist/lib/libcrypto.a   - OpenSSL crypto library (WASM)
+#   openssl-fips/dist/lib/fips.a        - FIPS provider module
+#   openssl-fips/dist/include/          - OpenSSL headers
+```
+
+#### Step 2: Build HD Wallet with OpenSSL
+
+```bash
 emcmake cmake -B build-wasm -S . \
   -DHD_WALLET_BUILD_WASM=ON \
   -DHD_WALLET_USE_OPENSSL=ON \
@@ -351,37 +405,143 @@ emcmake cmake -B build-wasm -S . \
 cmake --build build-wasm --parallel
 ```
 
-**Algorithm Routing with OpenSSL:**
+#### CI/CD Build
 
-| Algorithm | OpenSSL Mode | Default Mode |
-|-----------|--------------|--------------|
-| SHA-256/384/512 | OpenSSL FIPS | Crypto++ |
-| HMAC-SHA256/512 | OpenSSL FIPS | Crypto++ |
-| HKDF-SHA256/384 | OpenSSL FIPS | Crypto++ |
-| PBKDF2-SHA512 | OpenSSL FIPS | Crypto++ |
-| AES-256-GCM | OpenSSL FIPS | Crypto++ |
-| ECDSA P-256/P-384 | OpenSSL FIPS | Crypto++ |
-| ECDH P-256/P-384 | OpenSSL FIPS | Crypto++ |
-| secp256k1 | Crypto++ | Crypto++ |
-| Ed25519/X25519 | Crypto++ | Crypto++ |
-| Keccak-256 | Crypto++ | Crypto++ |
-| BLAKE2b/s | Crypto++ | Crypto++ |
+The published NPM package includes OpenSSL FIPS support. The GitHub Actions workflow automatically:
+1. Caches the OpenSSL FIPS build
+2. Links against `openssl-fips/dist/lib/libcrypto.a`
+3. Exports FIPS initialization functions
 
-**Initializing FIPS mode at runtime:**
+### Runtime API
+
+#### Initializing FIPS Mode
+
+```javascript
+import HDWalletWasm from 'hd-wallet-wasm';
+
+const wallet = await HDWalletWasm();
+
+// Check if OpenSSL backend is compiled in
+console.log('OpenSSL available:', wallet.isOpenSSL());
+
+// Initialize FIPS mode
+const fipsEnabled = wallet.initFips();
+
+if (fipsEnabled) {
+  console.log('✅ FIPS 140-3 mode activated');
+  console.log('   Using OpenSSL FIPS provider for approved algorithms');
+} else {
+  console.log('⚠️ FIPS mode not available');
+  console.log('   Using default Crypto++ backend');
+}
+
+// Verify FIPS status
+console.log('FIPS active:', wallet.isOpenSSLFips());
+```
+
+#### API Reference
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `wallet.isOpenSSL()` | `boolean` | Check if OpenSSL backend is compiled in |
+| `wallet.initFips()` | `boolean` | Initialize FIPS mode; returns true if successful |
+| `wallet.isOpenSSLFips()` | `boolean` | Check if FIPS provider is currently active |
+| `wallet.isFipsMode()` | `boolean` | Check if library was compiled with FIPS mode enabled |
+
+#### Conditional Code Paths
 
 ```javascript
 const wallet = await HDWalletWasm();
 
-// Initialize FIPS mode (if compiled with OpenSSL)
-const fipsEnabled = wallet.initFips();
-console.log('FIPS mode:', fipsEnabled);
+// Initialize appropriate mode
+if (wallet.isOpenSSL()) {
+  const fips = wallet.initFips();
+  if (!fips) {
+    console.warn('FIPS unavailable, falling back to default OpenSSL');
+  }
+}
 
-// Check if OpenSSL backend is active
-console.log('OpenSSL:', wallet.isOpenSSL());
-console.log('FIPS active:', wallet.isOpenSSLFips());
+// Use FIPS-approved algorithms when compliance required
+if (wallet.isOpenSSLFips()) {
+  // Use P-256/P-384 for ECDSA (FIPS-approved)
+  const p256Key = wallet.hdkey.fromSeed(seed, Curve.P256);
+  const signature = wallet.curves.p256.sign(hash, privateKey);
+} else {
+  // Standard secp256k1 for Ethereum/Bitcoin
+  const btcKey = wallet.hdkey.fromSeed(seed, Curve.SECP256K1);
+  const signature = wallet.curves.secp256k1.sign(hash, privateKey);
+}
 ```
 
-**Note:** secp256k1 (Bitcoin/Ethereum) and Ed25519 (Solana) are not FIPS-approved and always use Crypto++.
+### Compliance Considerations
+
+#### What FIPS Mode Provides
+
+- ✅ **Certified Algorithms**: SHA-2, AES-GCM, ECDSA P-256/P-384, ECDH, HKDF, PBKDF2
+- ✅ **Validated Implementation**: OpenSSL 3.0.9 FIPS Provider (Certificate #4282)
+- ✅ **Approved DRBG**: NIST SP 800-90A compliant random generation
+- ✅ **Key Zeroization**: FIPS-compliant key destruction
+
+#### What FIPS Mode Does NOT Cover
+
+- ❌ **secp256k1**: Required for Bitcoin/Ethereum but not FIPS-approved
+- ❌ **Ed25519**: Required for Solana but not FIPS-approved
+- ❌ **Keccak-256**: Required for Ethereum addresses but not FIPS-approved
+- ❌ **BLAKE2**: Not FIPS-approved (use SHA-3 instead)
+- ❌ **BIP-39 PBKDF2**: Uses 2048 iterations (FIPS minimum is 1000, but higher recommended)
+
+#### Hybrid Mode (Recommended)
+
+For blockchain applications requiring both compliance and cryptocurrency support:
+
+```javascript
+const wallet = await HDWalletWasm();
+
+// Enable FIPS for approved operations
+wallet.initFips();
+
+// FIPS-compliant operations (use OpenSSL FIPS)
+const aesKey = wallet.utils.generateAesKey(256);        // AES-256 key via FIPS DRBG
+const encrypted = wallet.utils.aesGcm.encrypt(          // AES-GCM via FIPS
+  aesKey, plaintext, iv
+);
+const p256Sig = wallet.curves.p256.sign(hash, p256Key); // ECDSA P-256 via FIPS
+
+// Non-FIPS operations (use Crypto++)
+const ethKey = masterKey.derivePath("m/44'/60'/0'/0/0"); // secp256k1 (Crypto++)
+const ethSig = wallet.curves.secp256k1.sign(hash, ethKey.privateKey());
+const keccakHash = wallet.utils.keccak256(data);         // Keccak (Crypto++)
+```
+
+### Security Best Practices
+
+1. **Always call `initFips()` at startup** if compliance is required
+2. **Check `isOpenSSLFips()`** before performing compliance-critical operations
+3. **Use P-256/P-384** instead of secp256k1 when FIPS compliance trumps blockchain compatibility
+4. **Use SHA-256/SHA-512** instead of Keccak-256 for hashing when possible
+5. **Log FIPS status** at application startup for audit trails
+
+```javascript
+// Startup audit logging
+const wallet = await HDWalletWasm();
+const fipsStatus = {
+  openssl_compiled: wallet.isOpenSSL(),
+  fips_initialized: wallet.initFips(),
+  fips_active: wallet.isOpenSSLFips(),
+  timestamp: new Date().toISOString()
+};
+console.log('Cryptographic status:', JSON.stringify(fipsStatus));
+// { openssl_compiled: true, fips_initialized: true, fips_active: true, timestamp: "..." }
+```
+
+### Troubleshooting
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `isOpenSSL()` returns `false` | Not compiled with OpenSSL | Rebuild with `-DHD_WALLET_USE_OPENSSL=ON` |
+| `initFips()` returns `false` | FIPS provider not available | Ensure `openssl-fips/build.sh` ran successfully |
+| FIPS operations fail | Provider initialization failed | Check console for OpenSSL error messages |
+| Performance degradation | FIPS provider overhead | Expected; FIPS validation adds overhead |
 
 ## Testing
 

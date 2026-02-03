@@ -293,11 +293,51 @@ const wallet = await init();
 - Consider using hardware wallets for high-value operations
 - The library enforces key separation: external chain (0) for signing, internal chain (1) for encryption
 
-## FIPS Mode
+## FIPS 140-3 Mode
 
-When built with FIPS mode enabled, only FIPS-approved algorithms are available:
-- P-256 and P-384 ECDSA (not secp256k1 or Ed25519)
-- FIPS-approved random number generation
+The published NPM package includes OpenSSL 3.0.9 FIPS Provider support for compliance-critical applications.
+
+### Enabling FIPS Mode
+
+```javascript
+import init from 'hd-wallet-wasm';
+
+const wallet = await init();
+
+// Check if OpenSSL is available
+console.log('OpenSSL compiled:', wallet.isOpenSSL());
+
+// Initialize FIPS mode
+const fipsEnabled = wallet.initFips();
+console.log('FIPS active:', wallet.isOpenSSLFips());
+```
+
+### Algorithm Routing
+
+When FIPS mode is active, approved algorithms use OpenSSL FIPS provider:
+
+| Algorithm | FIPS Mode | Default |
+|-----------|-----------|---------|
+| SHA-256/384/512 | OpenSSL FIPS | Crypto++ |
+| AES-256-GCM | OpenSSL FIPS | Crypto++ |
+| ECDSA P-256/P-384 | OpenSSL FIPS | Crypto++ |
+| HKDF/PBKDF2 | OpenSSL FIPS | Crypto++ |
+| secp256k1 | Crypto++ | Crypto++ |
+| Ed25519 | Crypto++ | Crypto++ |
+| Keccak-256 | Crypto++ | Crypto++ |
+
+**Note:** secp256k1 (Bitcoin/Ethereum) and Ed25519 (Solana) are not FIPS-approved and always use Crypto++.
+
+### API Reference
+
+| Method | Description |
+|--------|-------------|
+| `wallet.isOpenSSL()` | Check if OpenSSL backend is compiled in |
+| `wallet.initFips()` | Initialize FIPS mode; returns true if successful |
+| `wallet.isOpenSSLFips()` | Check if FIPS provider is currently active |
+| `wallet.isFipsMode()` | Check if compiled with FIPS mode enabled |
+
+See the [main README](https://github.com/DigitalArsenal/hd-wallet-wasm#fips-140-3-compliance) for comprehensive FIPS documentation.
 
 ## License
 
