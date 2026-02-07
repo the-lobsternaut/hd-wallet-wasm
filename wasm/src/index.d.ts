@@ -74,6 +74,12 @@ export interface HDWalletModule {
   // Utilities
   utils: UtilsAPI;
 
+  // Key derivation helpers
+  buildSigningPath: typeof buildSigningPath;
+  buildEncryptionPath: typeof buildEncryptionPath;
+  getSigningKey: typeof getSigningKey;
+  getEncryptionKey: typeof getEncryptionKey;
+
   // Aligned binary API for efficient batch operations
   aligned: AlignedAPI;
 }
@@ -617,6 +623,37 @@ export interface UtilsAPI {
 
   // Memory
   secureWipe(data: Uint8Array): void;
+}
+
+// =============================================================================
+// Key Derivation Path Helpers
+// =============================================================================
+
+/** Keypair result from getSigningKey / getEncryptionKey */
+export interface DerivedKeypair {
+  privateKey: Uint8Array;
+  publicKey: Uint8Array;
+  path: string;
+}
+
+/** Build a BIP-44 signing key path: m/44'/coinType'/account'/0/index */
+export function buildSigningPath(coinType: string | number, account?: string | number, index?: string | number): string;
+
+/** Build a BIP-44 encryption key path: m/44'/coinType'/account'/1/index */
+export function buildEncryptionPath(coinType: string | number, account?: string | number, index?: string | number): string;
+
+/** Derive signing keypair at m/44'/coinType'/account'/0/index */
+export function getSigningKey(hdRoot: HDKey, coinType: string | number, account?: string | number, index?: string | number): DerivedKeypair;
+
+/** Derive encryption keypair at m/44'/coinType'/account'/1/index */
+export function getEncryptionKey(hdRoot: HDKey, coinType: string | number, account?: string | number, index?: string | number): DerivedKeypair;
+
+/** Well-known coin types */
+export enum WellKnownCoinType {
+  ORBPRO_MARKETPLACE = 9999,
+  BITCOIN = 0,
+  ETHEREUM = 60,
+  SOLANA = 501,
 }
 
 // =============================================================================

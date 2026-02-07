@@ -9,7 +9,7 @@
 // External Imports
 // =============================================================================
 
-import initHDWallet, { Curve } from 'hd-wallet-wasm';
+import initHDWallet, { Curve, getSigningKey, getEncryptionKey, buildSigningPath, buildEncryptionPath, WellKnownCoinType } from 'hd-wallet-wasm';
 import { x25519, ed25519 } from '@noble/curves/ed25519';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { p256 } from '@noble/curves/p256';
@@ -36,8 +36,6 @@ import WalletStorage, { StorageMethod } from './wallet-storage.js';
 import {
   cryptoConfig,
   coinTypeToConfig,
-  buildSigningPath,
-  buildEncryptionPath,
   PKI_STORAGE_KEY,
 } from './constants.js';
 
@@ -366,19 +364,16 @@ async function deriveKeysFromSeed(seedPhrase) {
  * This ensures addresses match what the HD derivation grid produces.
  */
 function deriveKeysFromHDRoot(hdRoot) {
-  // BTC signing path m/44'/0'/0'/0/0 — secp256k1
-  const btcKey = hdRoot.derivePath(buildSigningPath(0, 0, 0));
-  const secp256k1PrivKey = btcKey.privateKey();
-  const secp256k1PubKey = btcKey.publicKey();
+  // BTC signing key m/44'/0'/0'/0/0 — secp256k1
+  const btcSigning = getSigningKey(hdRoot, 0, 0, 0);
 
-  // SOL signing path m/44'/501'/0'/0/0 — ed25519
-  const solKey = hdRoot.derivePath(buildSigningPath(501, 0, 0));
-  const ed25519PrivKey = solKey.privateKey();
-  const ed25519PubKey = ed25519.getPublicKey(ed25519PrivKey);
+  // SOL signing key m/44'/501'/0'/0/0 — ed25519
+  const solSigning = getSigningKey(hdRoot, 501, 0, 0);
+  const ed25519PubKey = ed25519.getPublicKey(solSigning.privateKey);
 
   return {
-    secp256k1: { privateKey: secp256k1PrivKey, publicKey: secp256k1PubKey },
-    ed25519: { privateKey: ed25519PrivKey, publicKey: ed25519PubKey },
+    secp256k1: { privateKey: btcSigning.privateKey, publicKey: btcSigning.publicKey },
+    ed25519: { privateKey: solSigning.privateKey, publicKey: ed25519PubKey },
   };
 }
 

@@ -2746,6 +2746,12 @@ function createModule(wasm) {
     keyring,
     utils,
 
+    // Key derivation helpers (convenience wrappers)
+    buildSigningPath,
+    buildEncryptionPath,
+    getSigningKey,
+    getEncryptionKey,
+
     // Aligned binary API for efficient batch operations
     get aligned() {
       if (!this._aligned) {
@@ -2760,6 +2766,133 @@ function createModule(wasm) {
     }
   };
 }
+
+// =============================================================================
+// BIP-44 Derivation Path Helpers
+// =============================================================================
+
+/**
+ * Build a BIP-44 signing key path: m/44'/coinType'/account'/0/index
+ *
+ * Uses change=0 (external chain) for signing keys per BIP-44 convention.
+ *
+ * @param {string|number} coinType - SLIP-44 coin type number
+ * @param {string|number} [account='0'] - Account index
+ * @param {string|number} [index='0'] - Address/key index
+ * @returns {string} BIP-44 derivation path
+ *
+ * @example
+ * buildSigningPath(60);          // "m/44'/60'/0'/0/0" (Ethereum)
+ * buildSigningPath(0, '0', '1'); // "m/44'/0'/0'/0/1"  (Bitcoin, 2nd key)
+ * buildSigningPath(9999);        // "m/44'/9999'/0'/0/0" (OrbPro marketplace)
+ */
+export function buildSigningPath(coinType, account = '0', index = '0') {
+  return `m/44'/${coinType}'/${account}'/0/${index}`;
+}
+
+/**
+ * Build a BIP-44 encryption key path: m/44'/coinType'/account'/1/index
+ *
+ * Uses change=1 (internal chain) to derive encryption keys separate from
+ * signing keys. This separation ensures that compromising an encryption key
+ * does not compromise signing capability.
+ *
+ * @param {string|number} coinType - SLIP-44 coin type number
+ * @param {string|number} [account='0'] - Account index
+ * @param {string|number} [index='0'] - Address/key index
+ * @returns {string} Derivation path for encryption keys
+ *
+ * @example
+ * buildEncryptionPath(60);          // "m/44'/60'/0'/1/0" (Ethereum)
+ * buildEncryptionPath(9999, '0', '3'); // "m/44'/9999'/0'/1/3" (OrbPro, 4th plugin key)
+ */
+export function buildEncryptionPath(coinType, account = '0', index = '0') {
+  return `m/44'/${coinType}'/${account}'/1/${index}`;
+}
+
+/**
+ * Get the signing keypair for a wallet at a given BIP-44 path.
+ *
+ * Derives the key at m/44'/coinType'/account'/0/index and returns
+ * both private and public key bytes.
+ *
+ * @param {HDKey} hdRoot - Master HD key (from hdkey.fromSeed())
+ * @param {string|number} coinType - SLIP-44 coin type number
+ * @param {string|number} [account='0'] - Account index
+ * @param {string|number} [index='0'] - Address/key index
+ * @returns {{ privateKey: Uint8Array, publicKey: Uint8Array, path: string }} Signing keypair
+ *
+ * @example
+ * const wallet = await createHDWallet();
+ * const seed = wallet.mnemonic.toSeed(mnemonic);
+ * const root = wallet.hdkey.fromSeed(seed);
+ * const { privateKey, publicKey, path } = getSigningKey(root, 60);
+ * const sig = wallet.curves.secp256k1.sign(messageHash, privateKey);
+ */
+export function getSigningKey(hdRoot, coinType, account = '0', index = '0') {
+  const path = buildSigningPath(coinType, account, index);
+  const derived = hdRoot.derivePath(path);
+  try {
+    return {
+      privateKey: derived.privateKey(),
+      publicKey: derived.publicKey(),
+      path,
+    };
+  } finally {
+    derived.destroy();
+  }
+}
+
+/**
+ * Get the encryption keypair for a wallet at a given BIP-44 path.
+ *
+ * Derives the key at m/44'/coinType'/account'/1/index and returns
+ * both private and public key bytes. Use this for ECDH key agreement,
+ * ECIES encryption, or any asymmetric encryption operation.
+ *
+ * @param {HDKey} hdRoot - Master HD key (from hdkey.fromSeed())
+ * @param {string|number} coinType - SLIP-44 coin type number
+ * @param {string|number} [account='0'] - Account index
+ * @param {string|number} [index='0'] - Address/key index
+ * @returns {{ privateKey: Uint8Array, publicKey: Uint8Array, path: string }} Encryption keypair
+ *
+ * @example
+ * const wallet = await createHDWallet();
+ * const seed = wallet.mnemonic.toSeed(mnemonic);
+ * const root = wallet.hdkey.fromSeed(seed);
+ * const { privateKey, publicKey } = getEncryptionKey(root, 9999, '0', '0');
+ * // Use publicKey for ECIES encryption, privateKey for decryption
+ * const shared = wallet.curves.secp256k1.ecdh(privateKey, otherPublicKey);
+ */
+export function getEncryptionKey(hdRoot, coinType, account = '0', index = '0') {
+  const path = buildEncryptionPath(coinType, account, index);
+  const derived = hdRoot.derivePath(path);
+  try {
+    return {
+      privateKey: derived.privateKey(),
+      publicKey: derived.publicKey(),
+      path,
+    };
+  } finally {
+    derived.destroy();
+  }
+}
+
+/**
+ * Well-known coin types for common use cases
+ * @readonly
+ * @enum {number}
+ */
+export const WellKnownCoinType = Object.freeze({
+  /** OrbPro marketplace plugin encryption (unofficial) */
+  ORBPRO_MARKETPLACE: 9999,
+  /** Bitcoin */
+  BITCOIN: 0,
+  /** Ethereum */
+  ETHEREUM: 60,
+  /** Solana */
+  SOLANA: 501,
+});
 
 // =============================================================================
 // Module Export

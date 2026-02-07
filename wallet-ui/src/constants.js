@@ -51,31 +51,10 @@ export const coinTypeToConfig = Object.fromEntries(
 );
 
 // =============================================================================
-// Derivation Path Helpers
+// Derivation Path Helpers (re-exported from hd-wallet-wasm)
 // =============================================================================
 
-/**
- * Build a BIP44 signing path: m/44'/coinType'/account'/0/index
- * @param {string|number} coinType - Coin type number
- * @param {string|number} account - Account index
- * @param {string|number} index - Address index
- * @returns {string} BIP44 derivation path
- */
-export function buildSigningPath(coinType, account = '0', index = '0') {
-  return `m/44'/${coinType}'/${account}'/0/${index}`;
-}
-
-/**
- * Build an encryption key path: m/44'/coinType'/account'/1/index
- * Uses change=1 to separate encryption keys from signing keys
- * @param {string|number} coinType - Coin type number
- * @param {string|number} account - Account index
- * @param {string|number} index - Address index
- * @returns {string} Derivation path for encryption keys
- */
-export function buildEncryptionPath(coinType, account = '0', index = '0') {
-  return `m/44'/${coinType}'/${account}'/1/${index}`;
-}
+export { buildSigningPath, buildEncryptionPath, getSigningKey, getEncryptionKey, WellKnownCoinType } from 'hd-wallet-wasm';
 
 // =============================================================================
 // PKI Storage Key

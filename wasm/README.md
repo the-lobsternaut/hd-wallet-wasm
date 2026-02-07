@@ -112,6 +112,50 @@ const xpub = master.toXpub();
 const pubOnly = master.neutered();
 ```
 
+### Signing & Encryption Keys (BIP-44)
+
+The library provides dedicated helpers for deriving separate signing and encryption
+keypairs from a single HD root. Signing keys use BIP-44 change=0 (external chain);
+encryption keys use change=1 (internal chain).
+
+```javascript
+import { getSigningKey, getEncryptionKey, buildSigningPath, buildEncryptionPath, WellKnownCoinType } from 'hd-wallet-wasm';
+
+const master = wallet.hdkey.fromSeed(seed);
+
+// Get signing keypair for Ethereum (m/44'/60'/0'/0/0)
+const signing = getSigningKey(master, 60);
+console.log('Signing pubkey:', wallet.utils.encodeHex(signing.publicKey));
+console.log('Path:', signing.path); // "m/44'/60'/0'/0/0"
+
+// Get encryption keypair for OrbPro marketplace (m/44'/9999'/0'/1/0)
+const encryption = getEncryptionKey(master, WellKnownCoinType.ORBPRO_MARKETPLACE);
+console.log('Encryption pubkey:', wallet.utils.encodeHex(encryption.publicKey));
+
+// Use encryption key for ECDH key agreement
+const shared = wallet.curves.secp256k1.ecdh(encryption.privateKey, otherPublicKey);
+
+// Multiple keys per account (e.g., one per plugin)
+const plugin0Key = getEncryptionKey(master, 9999, '0', '0');
+const plugin1Key = getEncryptionKey(master, 9999, '0', '1');
+
+// Path helpers are also available directly
+const sigPath = buildSigningPath(60);        // "m/44'/60'/0'/0/0"
+const encPath = buildEncryptionPath(9999);   // "m/44'/9999'/0'/1/0"
+
+// Clean up
+wallet.utils.secureWipe(signing.privateKey);
+wallet.utils.secureWipe(encryption.privateKey);
+master.wipe();
+```
+
+Also available as instance methods on the wallet module:
+
+```javascript
+const signing = wallet.getSigningKey(master, 60);
+const encryption = wallet.getEncryptionKey(master, 9999);
+```
+
 ### Multi-Curve Cryptography
 
 ```javascript
