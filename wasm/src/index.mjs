@@ -2839,7 +2839,7 @@ export function getSigningKey(hdRoot, coinType, account = '0', index = '0') {
       path,
     };
   } finally {
-    derived.destroy();
+    derived.wipe();
   }
 }
 
@@ -2874,7 +2874,7 @@ export function getEncryptionKey(hdRoot, coinType, account = '0', index = '0') {
       path,
     };
   } finally {
-    derived.destroy();
+    derived.wipe();
   }
 }
 
