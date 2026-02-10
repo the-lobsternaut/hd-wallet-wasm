@@ -3901,6 +3901,109 @@ body:has(.modal.active) .nav-bar {
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
+#vcard-result-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 16px;
+}
+
+#vcard-result-view .qr-container {
+  display: flex;
+  justify-content: center;
+}
+
+#vcard-result-view .vcard-result-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  width: 100%;
+  max-width: 320px;
+}
+
+#vcard-result-view .vcard-result-actions .glass-btn {
+  flex: 1;
+}
+
+#vcard-result-view .vcard-back-btn {
+  margin-top: 4px;
+}
+
+.vcard-view-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--white-10);
+}
+
+.vcard-toggle-btn {
+  padding: 6px 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: transparent;
+  color: var(--white-50);
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.vcard-toggle-btn.active {
+  background: var(--white-10);
+  color: var(--white-90);
+}
+
+.vcard-toggle-btn:hover:not(.active) {
+  background: var(--white-05);
+}
+
+.vcard-raw-view {
+  width: 100%;
+  max-width: 400px;
+  max-height: 300px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--white-10);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--white-70);
+  white-space: pre-wrap;
+  word-break: break-all;
+  scrollbar-width: thin;
+}
+
+/* Signature badges */
+.vcard-sig-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.vcard-sig-badge.sig-verified {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #22c55e;
+}
+
+.vcard-sig-badge.sig-unsigned {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--white-50);
+}
+
+.vcard-sig-badge.sig-invalid {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
 /* Actions footer - fixed height bar at bottom of tab */
 .vcard-actions-footer {
   flex: 0 0 48px;
@@ -3914,32 +4017,44 @@ body:has(.modal.active) .nav-bar {
   width: calc(100% + 48px);
 }
 
-.vcard-export-btn,
-.vcard-import-btn {
-  padding: 10px 28px;
-  font-size: 0.9375rem;
+/* Split button group (Export / Import vCard) */
+.vcard-split-btn-group {
+  display: inline-flex;
+  border-radius: var(--radius-sm, 14px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-.vcard-export-btn {
-  background: rgba(255, 255, 255, 0.95) !important;
-  color: #111 !important;
+.vcard-split-btn {
+  padding: 10px 24px !important;
+  font-size: 0.9375rem !important;
+  border-radius: 0 !important;
   border: none !important;
   font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.vcard-export-btn:hover {
+.vcard-split-export {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #111 !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+.vcard-split-export:hover {
   background: #fff !important;
 }
 
-.vcard-import-btn {
+.vcard-split-import {
   background: rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.7) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   cursor: pointer;
 }
 
-.vcard-import-btn:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
+.vcard-split-import:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
@@ -4035,7 +4150,313 @@ body:has(.modal.active) .nav-bar {
    Fix Photo Upload Section
    ============================================================================= */
 
-/* Override photo section - ensure left alignment */
+/* Identity card - driver's license layout */
+.identity-card {
+  display: grid;
+  grid-template-columns: 40% minmax(0, 1fr);
+  grid-template-areas: "photo info";
+  column-gap: 20px;
+  align-items: center;
+  padding: 20px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm, 14px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.identity-card-photo {
+  grid-area: photo;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: center;
+  width: 100%;
+}
+
+.identity-card-photo .photo-preview {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.identity-card-photo .photo-preview img,
+.identity-card-photo .photo-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.identity-card-photo .photo-actions {
+  display: none;
+  position: absolute;
+  inset: 0;
+  margin-top: 0;
+  width: 100%;
+  height: 100%;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2;
+  padding: 10px;
+}
+
+.identity-card-photo .photo-actions.visible {
+  display: flex;
+}
+
+.identity-card-photo .photo-actions .glass-btn {
+  width: auto;
+  min-width: 92px;
+  max-width: none;
+  justify-content: center;
+}
+
+.photo-placeholder-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--white-30);
+}
+
+.photo-edit-overlay {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white-70);
+  cursor: pointer;
+  transition: background 0.2s;
+  z-index: 3;
+  padding: 0;
+}
+
+.photo-preview:hover .photo-edit-overlay {
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--white-90);
+}
+
+.photo-edit-overlay .photo-close-icon {
+  display: none;
+}
+
+.photo-edit-overlay.is-open .photo-edit-icon {
+  display: none;
+}
+
+.photo-edit-overlay.is-open .photo-close-icon {
+  display: block;
+}
+
+.identity-card-info {
+  grid-area: info;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  align-self: center;
+  padding-right: 40px;
+  min-width: 0;
+}
+
+.identity-card-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--white-90);
+  letter-spacing: -0.01em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+}
+
+.identity-card-name .nickname {
+  font-weight: 400;
+  color: var(--white-50);
+}
+
+.identity-card-detail {
+  font-size: 0.85rem;
+  color: var(--white-60);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity-card-detail:empty {
+  display: none;
+}
+
+/* Identity edit button (pencil icon in card) */
+.identity-edit-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--white-50);
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.identity-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--white-90);
+}
+
+/* Identity edit view — flex column with scrollable body + fixed footer */
+.identity-edit-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: calc(100vh - 240px);
+}
+
+.identity-edit-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+}
+
+.identity-edit-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.identity-edit-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.identity-edit-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Header xpub label */
+.account-address-label {
+  font-size: 11px;
+  color: var(--white-40);
+  font-family: var(--font-mono, 'SF Mono', monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* Messaging sub-tabs */
+.messaging-sub-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.messaging-sub-tab {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--white-50);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.messaging-sub-tab:hover {
+  color: var(--white-80);
+}
+
+.messaging-sub-tab.active {
+  color: var(--white);
+  border-bottom-color: var(--white-60);
+}
+
+.messaging-sub-content {
+  display: none;
+}
+
+.messaging-sub-content.active {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .identity-card {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "photo"
+      "info";
+    row-gap: 14px;
+    padding: 14px;
+    text-align: center;
+  }
+
+  .identity-card-photo {
+    align-items: center;
+    max-width: 160px;
+    margin: 0 auto;
+  }
+
+  .identity-card-photo .photo-preview {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+  }
+
+  .identity-card-photo .photo-actions {
+    width: 100%;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .identity-card-photo .photo-actions .glass-btn {
+    min-width: 82px;
+  }
+
+  .identity-card-info {
+    align-items: center;
+    padding-right: 0;
+  }
+
+  .identity-card-name {
+    font-size: 1rem;
+  }
+
+  .identity-card-detail {
+    font-size: 0.8rem;
+  }
+}
+
+/* Legacy photo section (kept for compatibility) */
 .photo-upload-section {
   display: flex;
   flex-direction: column;
@@ -4045,25 +4466,6 @@ body:has(.modal.active) .nav-bar {
   margin-bottom: 24px;
   padding-bottom: 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.photo-preview {
-  width: 96px;
-  height: 96px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.photo-placeholder-icon {
-  width: 32px;
-  height: 32px;
-  color: var(--white-30);
 }
 
 .photo-actions {

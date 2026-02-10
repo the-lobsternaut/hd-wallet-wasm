@@ -3,14 +3,13 @@ export function getModalHTML() {
   <!-- Keys Modal -->
   <div id="keys-modal" class="modal">
   <div class="modal-glass modal-wide">
-      <div class="modal-header"><div class="account-header-info"><div class="account-header-top"><h3>Account</h3><h3 class="account-total-value" id="account-total-value"></h3></div><div class="account-address-row"><select id="account-address-select" class="glass-select compact account-address-select"><option value="xpub">xpub</option></select><code class="account-address-display" id="account-address-display"></code><button class="account-address-copy" id="account-address-copy" title="Copy address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><span class="account-address-value" id="account-address-value"></span></div></div><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><div class="account-header-info"><div class="account-header-top"><h3>Account</h3><h3 class="account-total-value" id="account-total-value"></h3></div><div class="account-address-row"><span class="account-address-label">xpub</span><code class="account-address-display" id="account-address-display"></code><button class="account-address-copy" id="account-address-copy" title="Copy xpub"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div><button class="modal-close">&times;</button></div>
       <div class="modal-tabs">
         <button class="modal-tab active" data-modal-tab="vcard-tab-content">Identity</button>
         <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
         <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
         <button class="modal-tab" data-modal-tab="bond-tab-content">Bond</button>
-        <button class="modal-tab" data-modal-tab="encrypt-tab-content">Encrypt</button>
-        <button class="modal-tab" data-modal-tab="decrypt-tab-content">Decrypt</button>
+        <button class="modal-tab" data-modal-tab="messaging-tab-content">Messaging</button>
       </div>
       <div class="modal-body">
         <div id="keys-tab-content" class="modal-tab-content">
@@ -69,23 +68,59 @@ export function getModalHTML() {
         </div>
         <div id="vcard-tab-content" class="modal-tab-content active">
           <div id="vcard-form-view">
-            <div class="photo-upload-section">
-              <div class="photo-preview" id="vcard-photo-preview">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="photo-placeholder-icon">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-                <video id="vcard-camera-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:cover;"></video>
-              </div>
-              <div class="photo-actions">
-                <label class="glass-btn small" for="vcard-photo-input">Upload</label>
+            <div class="identity-card">
+              <div class="identity-card-photo">
+                <div class="photo-preview" id="vcard-photo-preview">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="photo-placeholder-icon">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  <video id="vcard-camera-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:contain;"></video>
+                  <div id="vcard-photo-actions" class="photo-actions">
+                    <label class="glass-btn small" for="vcard-photo-input">Upload</label>
+                    <button id="vcard-camera-btn" class="glass-btn small" style="display:none;">Take Photo</button>
+                    <button id="vcard-camera-capture" class="glass-btn small primary" style="display:none;">Capture</button>
+                    <button id="vcard-camera-cancel" class="glass-btn small" style="display:none;">Cancel</button>
+                    <button id="vcard-photo-remove" class="glass-btn small" style="display:none;">Remove</button>
+                  </div>
+                  <button type="button" id="vcard-photo-edit-btn" class="photo-edit-overlay" title="Edit Photo">
+                    <svg class="photo-edit-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    <svg class="photo-close-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </div>
                 <input type="file" id="vcard-photo-input" accept="image/*" hidden>
-                <button id="vcard-camera-btn" class="glass-btn small" style="display:none;">Take Photo</button>
-                <button id="vcard-camera-capture" class="glass-btn small primary" style="display:none;">Capture</button>
-                <button id="vcard-camera-cancel" class="glass-btn small" style="display:none;">Cancel</button>
-                <button id="vcard-photo-remove" class="glass-btn small" style="display:none;">Remove</button>
+              </div>
+              <div class="identity-card-info" id="identity-card-info">
+                <button class="identity-edit-btn" id="identity-edit-btn" title="Edit Identity">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <div class="identity-card-name" id="identity-card-name">--</div>
+                <div class="identity-card-detail" id="identity-card-title"></div>
+                <div class="identity-card-detail" id="identity-card-org"></div>
+                <div class="identity-card-detail" id="identity-card-email"></div>
+                <div class="identity-card-detail" id="identity-card-phone"></div>
               </div>
             </div>
 
+            <div class="vcard-actions-footer">
+              <div class="vcard-split-btn-group">
+                <button id="generate-vcard" class="glass-btn vcard-split-btn vcard-split-export">Export vCard</button>
+                <label class="glass-btn vcard-split-btn vcard-split-import" for="vcf-import-input">Import vCard</label>
+                <input type="file" id="vcf-import-input" accept=".vcf,text/vcard" hidden>
+              </div>
+            </div>
+
+            <div id="vcf-import-result" class="vcf-import-result" style="display: none;">
+              <h4 class="section-label">Imported Contact</h4>
+              <div class="vcf-import-card">
+                <div class="vcf-import-photo" id="vcf-import-photo"></div>
+                <div class="vcf-import-fields" id="vcf-import-fields"></div>
+              </div>
+              <div id="vcf-import-sig-status" class="vcard-sig-badge" style="display:none;"></div>
+            </div>
+          </div>
+
+          <div id="vcard-edit-view" class="identity-edit-view" style="display: none;">
+            <div class="identity-edit-scroll">
             <div class="identity-form">
               <div class="vcard-form-stack">
                 <div class="vcard-form-row name-row">
@@ -111,6 +146,10 @@ export function getModalHTML() {
                     <label>Suffix</label>
                     <input type="text" id="vcard-suffix" class="vcard-input" placeholder="Jr.">
                   </div>
+                </div>
+                <div class="vcard-input-group">
+                  <label>Nickname</label>
+                  <input type="text" id="vcard-nickname" class="vcard-input" placeholder="e.g., Johnny, Ace">
                 </div>
                 <div class="vcard-form-row">
                   <div class="vcard-input-group">
@@ -156,45 +195,33 @@ export function getModalHTML() {
                 </div>
               </div>
             </div>
-
-            <div class="keys-display-section">
-              <h4 class="section-label">Cryptographic Keys <span class="readonly-badge">Read Only</span></h4>
-              <p class="keys-display-info">These keys are derived from your HD wallet master seed and cannot be edited.</p>
-
-              <div class="keys-display-grid" id="vcard-keys-display">
-                <!-- Keys will be populated here -->
-              </div>
             </div>
-
-            <div id="vcf-import-result" class="vcf-import-result" style="display: none;">
-              <h4 class="section-label">Imported Contact</h4>
-              <div class="vcf-import-card">
-                <div class="vcf-import-photo" id="vcf-import-photo"></div>
-                <div class="vcf-import-fields" id="vcf-import-fields"></div>
-              </div>
+            <div class="identity-edit-actions">
+              <button id="identity-save-btn" class="glass-btn primary">Save</button>
+              <button id="identity-back-btn" class="glass-btn">Back</button>
             </div>
           </div>
 
           <div id="vcard-result-view" style="display: none;">
+            <div class="vcard-view-toggle">
+              <button id="vcard-toggle-qr" class="vcard-toggle-btn active">QR</button>
+              <button id="vcard-toggle-raw" class="vcard-toggle-btn">Raw</button>
+            </div>
             <div class="qr-container"><canvas id="qr-code"></canvas></div>
+            <pre id="vcard-raw-view" class="vcard-raw-view" style="display:none;"></pre>
+            <div id="vcard-sig-badge" class="vcard-sig-badge sig-verified" style="display:none;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Signed with Ed25519
+            </div>
             <div class="vcard-result-actions">
               <button id="download-vcard" class="glass-btn primary">Download .vcf</button>
               <button id="copy-vcard" class="glass-btn">Copy</button>
             </div>
-            <details class="vcard-details">
-              <summary>View Raw vCard</summary>
-              <pre id="vcard-preview"></pre>
-            </details>
             <button id="vcard-back-btn" class="glass-btn vcard-back-btn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
               </svg> Back to Editor
             </button>
-          </div>
-          <div class="vcard-actions-footer">
-            <button id="generate-vcard" class="glass-btn vcard-export-btn">Export vCard</button>
-            <label class="glass-btn vcard-import-btn" for="vcf-import-input">Import vCard</label>
-            <input type="file" id="vcf-import-input" accept=".vcf,text/vcard" hidden>
           </div>
         </div>
         <!-- Trust Map Tab -->
@@ -273,111 +300,111 @@ export function getModalHTML() {
           </div>
         </div>
 
-        <!-- Encrypt Tab -->
-        <div id="encrypt-tab-content" class="modal-tab-content">
-          <!-- Step 1: Compose -->
-          <div id="encrypt-step-compose" class="encrypt-step">
-            <div class="encrypt-tab-intro">
-              <h4 class="section-label">Encrypt a Message</h4>
-              <p>ECDH key agreement + HKDF + AES-256-GCM (ECIES)</p>
-            </div>
-
-            <div class="encrypt-keys-section">
-              <div class="encrypt-key-row">
-                <div class="encrypt-key-card glass-card">
-                  <div class="encrypt-key-header">
-                    <span class="encrypt-role-badge sender">Sender (You)</span>
+        <!-- Messaging Tab (Encrypt + Decrypt) -->
+        <div id="messaging-tab-content" class="modal-tab-content">
+          <div class="messaging-sub-tabs">
+            <button class="messaging-sub-tab active" data-messaging-sub="encrypt-sub">Encrypt</button>
+            <button class="messaging-sub-tab" data-messaging-sub="decrypt-sub">Decrypt</button>
+          </div>
+          <div id="encrypt-sub" class="messaging-sub-content active">
+            <!-- Encrypt Step 1: Compose -->
+            <div id="encrypt-step-compose" class="encrypt-step">
+              <div class="encrypt-tab-intro">
+                <h4 class="section-label">Encrypt a Message</h4>
+                <p>ECDH key agreement + HKDF + AES-256-GCM (ECIES)</p>
+              </div>
+              <div class="encrypt-keys-section">
+                <div class="encrypt-key-row">
+                  <div class="encrypt-key-card glass-card">
+                    <div class="encrypt-key-header">
+                      <span class="encrypt-role-badge sender">Sender (You)</span>
+                    </div>
+                    <div class="encrypt-key-detail">
+                      <label>Encryption Public Key</label>
+                      <code id="encrypt-sender-pubkey" class="truncate">--</code>
+                    </div>
+                    <div class="encrypt-key-detail">
+                      <label>Derivation Path</label>
+                      <code id="encrypt-sender-path">--</code>
+                    </div>
                   </div>
-                  <div class="encrypt-key-detail">
-                    <label>Encryption Public Key</label>
-                    <code id="encrypt-sender-pubkey" class="truncate">--</code>
-                  </div>
-                  <div class="encrypt-key-detail">
-                    <label>Derivation Path</label>
-                    <code id="encrypt-sender-path">--</code>
-                  </div>
-                </div>
-                <div class="encrypt-key-card glass-card">
-                  <div class="encrypt-key-header">
-                    <span class="encrypt-role-badge recipient">Recipient</span>
-                  </div>
-                  <div class="encrypt-key-detail">
-                    <label>Recipient Public Key (hex)</label>
-                    <div class="encrypt-recipient-input-row">
-                      <input type="text" id="encrypt-recipient-pubkey" class="glass-input compact" placeholder="Paste recipient's secp256k1 public key (hex)">
-                      <button id="encrypt-use-self" class="glass-btn small" title="Use your own key (for testing)">Self</button>
+                  <div class="encrypt-key-card glass-card">
+                    <div class="encrypt-key-header">
+                      <span class="encrypt-role-badge recipient">Recipient</span>
+                    </div>
+                    <div class="encrypt-key-detail">
+                      <label>Recipient Public Key (hex)</label>
+                      <div class="encrypt-recipient-input-row">
+                        <input type="text" id="encrypt-recipient-pubkey" class="glass-input compact" placeholder="Paste recipient's secp256k1 public key (hex)">
+                        <button id="encrypt-use-self" class="glass-btn small" title="Use your own key (for testing)">Self</button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div class="encrypt-message-section">
-              <div class="encrypt-input-group">
-                <label class="section-label">Message</label>
-                <textarea id="encrypt-plaintext" class="glass-input glass-textarea" rows="3" placeholder="Enter a message to encrypt..."></textarea>
-              </div>
-              <div class="encrypt-actions">
-                <button id="encrypt-btn" class="glass-btn primary" disabled>Encrypt</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 2: Result (replaces compose) -->
-          <div id="encrypt-step-result" class="encrypt-step" style="display:none;">
-            <div class="encrypt-step-header">
-              <button id="encrypt-back-btn" class="glass-btn small encrypt-back-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
-              <h4 class="section-label">Encrypted Payload</h4>
-            </div>
-            <div class="encrypt-output-fields">
-              <div class="encrypt-field"><label>Ciphertext</label><code id="encrypt-out-ciphertext" class="encrypt-out-value truncate"></code><button class="copy-btn" data-copy="encrypt-out-ciphertext" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div>
-              <div class="encrypt-field"><label>Auth Tag</label><code id="encrypt-out-tag" class="encrypt-out-value truncate"></code></div>
-              <div class="encrypt-field"><label>IV (nonce)</label><code id="encrypt-out-iv" class="encrypt-out-value truncate"></code></div>
-              <div class="encrypt-field"><label>HKDF Salt</label><code id="encrypt-out-salt" class="encrypt-out-value truncate"></code></div>
-              <div class="encrypt-field"><label>Sender Public Key</label><code id="encrypt-out-sender-pub" class="encrypt-out-value truncate"></code></div>
-            </div>
-            <div class="encrypt-bundle-group">
-              <div class="encrypt-format-toggle">
-                <label class="section-label">Payload Bundle</label>
-                <div class="encrypt-format-btns">
-                  <button class="glass-btn small encrypt-fmt-btn active" data-format="json">JSON</button>
-                  <button class="glass-btn small encrypt-fmt-btn" data-format="flatbuffer">FlatBuffer</button>
+              <div class="encrypt-message-section">
+                <div class="encrypt-input-group">
+                  <label class="section-label">Message</label>
+                  <textarea id="encrypt-plaintext" class="glass-input glass-textarea" rows="3" placeholder="Enter a message to encrypt..."></textarea>
+                </div>
+                <div class="encrypt-actions">
+                  <button id="encrypt-btn" class="glass-btn primary" disabled>Encrypt</button>
                 </div>
               </div>
-              <div class="encrypt-format-info">
-                <span id="encrypt-format-label" class="encrypt-format-label">EME (Encrypted Message Envelope) — SpaceDataStandards.org</span>
+            </div>
+            <!-- Encrypt Step 2: Result -->
+            <div id="encrypt-step-result" class="encrypt-step" style="display:none;">
+              <div class="encrypt-step-header">
+                <button id="encrypt-back-btn" class="glass-btn small encrypt-back-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+                <h4 class="section-label">Encrypted Payload</h4>
               </div>
-              <textarea id="encrypt-bundle" class="glass-input glass-textarea" rows="4" readonly></textarea>
-              <div class="encrypt-bundle-actions">
-                <button class="glass-btn small" id="encrypt-copy-bundle">Copy</button>
-                <button class="glass-btn small" id="encrypt-download-bundle">Download</button>
+              <div class="encrypt-output-fields">
+                <div class="encrypt-field"><label>Ciphertext</label><code id="encrypt-out-ciphertext" class="encrypt-out-value truncate"></code><button class="copy-btn" data-copy="encrypt-out-ciphertext" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div>
+                <div class="encrypt-field"><label>Auth Tag</label><code id="encrypt-out-tag" class="encrypt-out-value truncate"></code></div>
+                <div class="encrypt-field"><label>IV (nonce)</label><code id="encrypt-out-iv" class="encrypt-out-value truncate"></code></div>
+                <div class="encrypt-field"><label>HKDF Salt</label><code id="encrypt-out-salt" class="encrypt-out-value truncate"></code></div>
+                <div class="encrypt-field"><label>Sender Public Key</label><code id="encrypt-out-sender-pub" class="encrypt-out-value truncate"></code></div>
+              </div>
+              <div class="encrypt-bundle-group">
+                <div class="encrypt-format-toggle">
+                  <label class="section-label">Payload Bundle</label>
+                  <div class="encrypt-format-btns">
+                    <button class="glass-btn small encrypt-fmt-btn active" data-format="json">JSON</button>
+                    <button class="glass-btn small encrypt-fmt-btn" data-format="flatbuffer">FlatBuffer</button>
+                  </div>
+                </div>
+                <div class="encrypt-format-info">
+                  <span id="encrypt-format-label" class="encrypt-format-label">EME (Encrypted Message Envelope) — SpaceDataStandards.org</span>
+                </div>
+                <textarea id="encrypt-bundle" class="glass-input glass-textarea" rows="4" readonly></textarea>
+                <div class="encrypt-bundle-actions">
+                  <button class="glass-btn small" id="encrypt-copy-bundle">Copy</button>
+                  <button class="glass-btn small" id="encrypt-download-bundle">Download</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- Decrypt Tab -->
-        <div id="decrypt-tab-content" class="modal-tab-content">
-          <!-- Step 1: Input -->
-          <div id="decrypt-step-input" class="encrypt-step">
-            <div class="encrypt-tab-intro">
-              <h4 class="section-label">Decrypt a Message</h4>
-              <p>Paste an EME payload (JSON or base64 FlatBuffer) to decrypt with your key.</p>
+          <div id="decrypt-sub" class="messaging-sub-content">
+            <!-- Decrypt Step 1: Input -->
+            <div id="decrypt-step-input" class="encrypt-step">
+              <div class="encrypt-tab-intro">
+                <h4 class="section-label">Decrypt a Message</h4>
+                <p>Paste an EME payload (JSON or base64 FlatBuffer) to decrypt with your key.</p>
+              </div>
+              <textarea id="decrypt-payload" class="glass-input glass-textarea" rows="6" placeholder='Paste EME JSON or base64 FlatBuffer here...'></textarea>
+              <div class="encrypt-actions">
+                <button id="decrypt-btn" class="glass-btn primary" disabled>Decrypt</button>
+              </div>
             </div>
-            <textarea id="decrypt-payload" class="glass-input glass-textarea" rows="6" placeholder='Paste EME JSON or base64 FlatBuffer here...'></textarea>
-            <div class="encrypt-actions">
-              <button id="decrypt-btn" class="glass-btn primary" disabled>Decrypt</button>
-            </div>
-          </div>
-
-          <!-- Step 2: Result (replaces input) -->
-          <div id="decrypt-step-result" class="encrypt-step" style="display:none;">
-            <div class="encrypt-step-header">
-              <button id="decrypt-back-btn" class="glass-btn small encrypt-back-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
-              <h4 class="section-label">Decrypted Message</h4>
-            </div>
-            <div class="decrypt-result">
-              <div class="decrypt-result-value" id="decrypt-result-value"></div>
+            <!-- Decrypt Step 2: Result -->
+            <div id="decrypt-step-result" class="encrypt-step" style="display:none;">
+              <div class="encrypt-step-header">
+                <button id="decrypt-back-btn" class="glass-btn small encrypt-back-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+                <h4 class="section-label">Decrypted Message</h4>
+              </div>
+              <div class="decrypt-result">
+                <div class="decrypt-result-value" id="decrypt-result-value"></div>
+              </div>
             </div>
           </div>
         </div>

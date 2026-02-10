@@ -20,7 +20,7 @@ import { Buffer } from 'buffer';
 import { createV3 } from 'vcard-cryptoperson';
 
 // SpaceDataStandards EME (Encrypted Message Envelope)
-import { EME, EMET } from '@sds/lib/js/ts/EME/EME.js';
+import { EME, EMET } from '@sds/lib/js/EME/EME.js';
 import * as flatbuffers from 'flatbuffers';
 
 // Make Buffer available globally for various crypto libraries
@@ -908,9 +908,6 @@ function login(keys) {
   // Update wallet addresses and balances
   updateAdversarialSecurity();
 
-  // Populate vCard keys display
-  populateVCardKeysDisplay();
-
   // Open Account modal so user can see the wallet they just loaded
   $('keys-modal')?.classList.add('active');
   deriveAndDisplayAddress();
@@ -1000,7 +997,7 @@ async function exportWallet(format) {
       break;
 
     case 'xpub':
-      if (!state.hdRoot?.publicExtendedKey) {
+      if (!state.hdRoot?.toXpub) {
         alert('Extended public key not available.');
         return;
       }
@@ -1010,7 +1007,7 @@ async function exportWallet(format) {
       break;
 
     case 'xprv':
-      if (!state.hdRoot?.privateExtendedKey) {
+      if (!state.hdRoot?.toXprv) {
         alert('Extended private key not available.');
         return;
       }
@@ -1060,104 +1057,26 @@ function downloadData(data, filename, mimeType) {
 // Wallet Address Population & Balance Fetching
 // =============================================================================
 
-// Account address dropdown — populated once after login, updated when balances arrive
-let _accountAddressData = {}; // { xpub: { addr, value }, btc: { addr, value }, ... }
-
+// Account header — show xpub only
 function populateAccountAddressDropdown() {
-  const sel = $('account-address-select');
-  if (!sel) return;
+  const addrEl = $('account-address-display');
+  if (!addrEl) return;
 
   const xpubStr = state.hdRoot ? state.hdRoot.toXpub() : '';
-  const addrs = state.addresses || {};
-
-  const networks = [
-    { key: 'xpub', label: 'xpub', addr: xpubStr },
-    { key: 'btc',  label: 'Bitcoin',  addr: addrs.btc || '' },
-    { key: 'eth',  label: 'Ethereum', addr: addrs.eth || '' },
-    { key: 'sol',  label: 'Solana',   addr: addrs.sol || '' },
-    // { key: 'xrp',  label: 'Ripple',   addr: addrs.xrp || '' },
-  ];
-
-  // // Add SUI/Monad/ADA if we can derive them
-  // if (state.hdRoot) {
-  //   try {
-  //     const suiPath = buildSigningPath(784, 0, 0);
-  //     const suiDerived = state.hdRoot.derivePath(suiPath);
-  //     const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
-  //     networks.push({ key: 'sui', label: 'SUI', addr: deriveSuiAddress(suiPubKey, 'ed25519') });
-  //   } catch (_) {}
-  //   networks.push({ key: 'monad', label: 'Monad', addr: addrs.eth || '' });
-  //   try {
-  //     const adaPath = buildSigningPath(1815, 0, 0);
-  //     const adaDerived = state.hdRoot.derivePath(adaPath);
-  //     const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
-  //     networks.push({ key: 'ada', label: 'Cardano', addr: deriveCardanoAddress(adaPubKey) });
-  //   } catch (_) {}
-  // }
-
-  _accountAddressData = {};
-  sel.innerHTML = '';
-  for (const n of networks) {
-    if (!n.addr) continue;
-    _accountAddressData[n.key] = { addr: n.addr, value: '' };
-    const opt = document.createElement('option');
-    opt.value = n.key;
-    opt.textContent = n.label;
-    sel.appendChild(opt);
-  }
-
-  sel.removeEventListener('change', updateAccountAddressDisplay);
-  sel.addEventListener('change', updateAccountAddressDisplay);
+  addrEl.textContent = xpubStr;
+  addrEl.title = xpubStr;
 
   const copyBtn = $('account-address-copy');
   if (copyBtn) {
     copyBtn.onclick = () => {
-      const key = sel.value;
-      const data = _accountAddressData[key];
-      if (data?.addr) {
-        navigator.clipboard.writeText(data.addr).then(() => {
+      if (xpubStr) {
+        navigator.clipboard.writeText(xpubStr).then(() => {
           copyBtn.title = 'Copied!';
-          setTimeout(() => { copyBtn.title = 'Copy address'; }, 1500);
+          setTimeout(() => { copyBtn.title = 'Copy xpub'; }, 1500);
         });
       }
     };
   }
-
-  updateAccountAddressDisplay();
-}
-
-function updateAccountAddressDisplay() {
-  const sel = $('account-address-select');
-  const addrEl = $('account-address-display');
-  const valEl = $('account-address-value');
-  if (!sel || !addrEl) return;
-
-  const key = sel.value;
-  const data = _accountAddressData[key];
-  if (!data) return;
-
-  const addr = data.addr;
-  addrEl.textContent = addr;
-  addrEl.title = addr;
-  if (valEl) valEl.textContent = data.value || (key !== 'xpub' ? '$0.00' : '');
-}
-
-function updateAccountAddressValues(bondBalances, prices, currency) {
-  const symbol = CURRENCY_SYMBOLS[currency] || currency;
-  const keyToSymbol = { btc: 'BTC', eth: 'ETH', sol: 'SOL' };
-
-  for (const [key, data] of Object.entries(_accountAddressData)) {
-    if (key === 'xpub') {
-      data.value = '';
-      continue;
-    }
-    const sym = keyToSymbol[key];
-    const bal = parseFloat(bondBalances[key]) || 0;
-    const price = (prices && sym) ? (prices[sym] || 0) : 0;
-    const converted = bal * price;
-    data.value = converted > 0 ? symbol + converted.toFixed(2) : bal > 0 ? bal.toFixed(6) + ' ' + (sym || '') : '';
-  }
-  updateAccountAddressDisplay();
 }
 
 function populateWalletAddresses() {
@@ -1629,8 +1548,6 @@ async function updateAdversarialSecurity() {
     accountTotalEl.textContent = 'Bond: ' + formatCurrencyValue(totalConverted, currency);
   }
 
-  // Update account address dropdown values
-  updateAccountAddressValues(bondBalances, cryptoPrices, currency);
 }
 
 // =============================================================================
@@ -1638,7 +1555,7 @@ async function updateAdversarialSecurity() {
 // =============================================================================
 
 function generateVCard(info, { skipPhoto = false } = {}) {
-  const person = {};
+  const person = { KEY: [] };
 
   if (info.firstName || info.lastName) {
     if (info.lastName) person.FAMILY_NAME = info.lastName;
@@ -1648,8 +1565,15 @@ function generateVCard(info, { skipPhoto = false } = {}) {
     if (info.suffix) person.HONORIFIC_SUFFIX = info.suffix;
   }
 
+  const contacts = [];
   if (info.email) {
-    person.CONTACT_POINT = [{ EMAIL: info.email }];
+    contacts.push({ EMAIL: info.email, CONTACT_TYPE: 'HOME' });
+  }
+  if (info.phone) {
+    contacts.push({ TELEPHONE: info.phone, CONTACT_TYPE: 'CELL' });
+  }
+  if (contacts.length) {
+    person.CONTACT_POINT = contacts;
   }
 
   if (info.org) {
@@ -1664,33 +1588,41 @@ function generateVCard(info, { skipPhoto = false } = {}) {
     person.IMAGE = state.vcardPhoto;
   }
 
-  if (info.includeKeys && state.wallet.x25519) {
+  if (info.includeKeys && state.wallet?.x25519) {
     person.KEY = [
-      ...(state.hdRoot?.publicExtendedKey ? [{
-        KEY_TYPE: 'xpub',
-        PUBLIC_KEY: state.hdRoot.toXpub(),
+      ...(state.hdRoot?.toXpub ? [{
+        XPUB: state.hdRoot.toXpub(),
+        LABEL: '',
       }] : []),
       {
-        KEY_TYPE: 'X25519',
         PUBLIC_KEY: toBase64(state.wallet.x25519.publicKey),
+        LABEL: 'X25519',
       },
       {
-        KEY_TYPE: 'Ed25519',
         PUBLIC_KEY: toBase64(state.wallet.ed25519.publicKey),
+        LABEL: "Ed25519 m/44'/501'/0'/0/0",
       },
       {
-        KEY_TYPE: 'secp256k1',
         PUBLIC_KEY: toBase64(state.wallet.secp256k1.publicKey),
-        CRYPTO_ADDRESS: state.addresses.btc || undefined,
+        KEY_ADDRESS: state.addresses.btc || undefined,
+        LABEL: "secp256k1 m/44'/0'/0'/0/0",
       },
     ];
+  } else if (info.xpubOnly && state.hdRoot?.toXpub) {
+    person.KEY = [{ XPUB: state.hdRoot.toXpub(), LABEL: '' }];
   }
 
   const note = info.includeKeys
-    ? 'Generated by HD Wallet UI'
+    ? 'Generated by Space Data Network'
     : undefined;
 
   let vcard = createV3(person, note);
+
+  // Add NICKNAME field (not supported by createV3)
+  if (info.nickname) {
+    vcard = vcard.replace('END:VCARD', `NICKNAME:${info.nickname}\nEND:VCARD`);
+  }
+
 
   // Convert PHOTO from data URI format to iOS-compatible inline base64 format
   vcard = vcard.replace(
@@ -1709,127 +1641,126 @@ function generateVCard(info, { skipPhoto = false } = {}) {
 }
 
 // =============================================================================
-// vCard Keys Display
+// vCard Digital Signature (Ed25519)
 // =============================================================================
 
-function populateVCardKeysDisplay() {
-  const keysDisplay = $('vcard-keys-display');
-  if (!keysDisplay) return;
+function getSignableBody(vcardText) {
+  const lines = vcardText.split('\n');
+  const sigItems = new Set();
+  for (const line of lines) {
+    const m = line.match(/^item(\d+)\.X-ABLabel:Digital Signature/);
+    if (m) sigItems.add(m[1]);
+  }
+  return lines.filter(line => {
+    if (line.trim() === 'END:VCARD') return false;
+    for (const n of sigItems) {
+      if (line.startsWith(`item${n}.`)) return false;
+    }
+    return true;
+  }).join('\n') + '\n';
+}
 
-  const keys = [];
+function signVCard(vcardText) {
+  if (!state.wallet?.ed25519?.privateKey) return vcardText;
 
-  // Bitcoin signing key
-  if (state.addresses.btc) {
-    keys.push({
-      label: 'Bitcoin Signing',
-      curve: 'secp256k1',
-      address: state.addresses.btc,
-      pubkey: state.wallet.secp256k1 ? toHex(state.wallet.secp256k1.publicKey) : '—',
-      path: buildSigningPath(0, 0, 0), // m/44'/0'/0'/0'/0'
-      role: 'signing',
-      explorer: `https://blockstream.info/address/${state.addresses.btc}`,
-    });
+  const body = getSignableBody(vcardText);
+  const messageBytes = new TextEncoder().encode(body);
+  const signature = ed25519.sign(messageBytes, state.wallet.ed25519.privateKey);
+  const sigB64 = toBase64(signature);
+
+  // Encode signature + derivation path (coinType=501, account=0, index=0)
+  const sigValue = `${sigB64}:501:0:0`;
+
+  // Find highest itemN and key index
+  let maxItem = 0;
+  let maxKeyIdx = 0;
+  const itemRe = /item(\d+)\./g;
+  const keyIdxRe = /#(\d+)/g;
+  let match;
+  while ((match = itemRe.exec(vcardText)) !== null) {
+    maxItem = Math.max(maxItem, parseInt(match[1], 10));
+  }
+  while ((match = keyIdxRe.exec(vcardText)) !== null) {
+    maxKeyIdx = Math.max(maxKeyIdx, parseInt(match[1], 10));
   }
 
-  // Ethereum signing key
-  if (state.addresses.eth) {
-    keys.push({
-      label: 'Ethereum Signing',
-      curve: 'secp256k1',
-      address: state.addresses.eth,
-      pubkey: state.wallet.secp256k1 ? toHex(state.wallet.secp256k1.publicKey) : '—',
-      path: buildSigningPath(60, 0, 0), // m/44'/60'/0'/0'/0'
-      role: 'signing',
-      explorer: `https://etherscan.io/address/${state.addresses.eth}`,
-    });
+  const sigLines =
+    `item${maxItem + 1}.X-ABLabel:Digital Signature #${maxKeyIdx + 1}\n` +
+    `item${maxItem + 1}.X-ABRELATEDNAMES:${sigValue}\n`;
+
+  return body + sigLines + 'END:VCARD';
+}
+
+function verifyVCardSignature(vcardText) {
+  // Parse all itemN label/value pairs
+  const lines = vcardText.split('\n');
+  const items = {};
+  for (const line of lines) {
+    const labelMatch = line.match(/^item(\d+)\.X-ABLabel:(.+)/);
+    if (labelMatch) {
+      items[labelMatch[1]] = items[labelMatch[1]] || {};
+      items[labelMatch[1]].label = labelMatch[2].trim();
+    }
+    const valueMatch = line.match(/^item(\d+)\.X-ABRELATEDNAMES:(.+)/);
+    if (valueMatch) {
+      items[valueMatch[1]] = items[valueMatch[1]] || {};
+      items[valueMatch[1]].value = valueMatch[2].trim();
+    }
   }
 
-  // Solana signing key
-  if (state.addresses.sol) {
-    keys.push({
-      label: 'Solana Signing',
-      curve: 'Ed25519',
-      address: state.addresses.sol,
-      pubkey: state.wallet.ed25519 ? toHex(state.wallet.ed25519.publicKey) : '—',
-      path: buildSigningPath(501, 0, 0), // m/44'/501'/0'/0'
-      role: 'signing',
-      explorer: `https://explorer.solana.com/address/${state.addresses.sol}`,
-    });
+  // Find Digital Signature entry
+  let sigValue = null;
+  for (const item of Object.values(items)) {
+    if (item.label?.startsWith('Digital Signature') && item.value) {
+      sigValue = item.value;
+    }
   }
 
-  // P-256 encryption key
-  if (state.wallet.p256) {
-    keys.push({
-      label: 'Encryption Key',
-      curve: 'P-256 (NIST)',
-      address: '—',
-      pubkey: toHex(state.wallet.p256.publicKey),
-      path: buildEncryptionPath(0, 0, 0), // m/44'/0'/0'/1'/0'
-      role: 'encryption',
-      explorer: null,
-    });
+  if (!sigValue) {
+    return { verified: false, path: null, publicKey: null, error: 'unsigned' };
   }
 
-  // Clear and populate
-  keysDisplay.innerHTML = '';
+  // Parse signature value: base64sig:coinType:account:index
+  const parts = sigValue.split(':');
+  if (parts.length < 4) {
+    return { verified: false, path: null, publicKey: null, error: 'Malformed signature' };
+  }
+  const sigB64 = parts[0];
+  const coinType = parts[1];
+  const account = parts[2];
+  const index = parts[3];
+  const path = `m/44'/${coinType}'/${account}'/0/${index}`;
 
-  keys.forEach(key => {
-    const keyCard = document.createElement('div');
-    keyCard.className = 'key-display-card';
-    keyCard.innerHTML = `
-      <div class="key-display-header">
-        <span class="key-display-label">${key.label}</span>
-        <span class="key-display-badge ${key.role}">${key.role}</span>
-      </div>
-      <div class="key-display-row">
-        <span class="key-display-field">Curve</span>
-        <code class="key-display-value">${key.curve}</code>
-      </div>
-      <div class="key-display-row">
-        <span class="key-display-field">Public Key</span>
-        <code class="key-display-value truncate" title="${key.pubkey}">${truncateAddress(key.pubkey, 16)}</code>
-        <button class="copy-btn-small" data-copy-text="${key.pubkey}" title="Copy">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-        </button>
-      </div>
-      ${key.address !== '—' ? `
-      <div class="key-display-row">
-        <span class="key-display-field">Address</span>
-        <code class="key-display-value truncate" title="${key.address}">${truncateAddress(key.address, 16)}</code>
-        ${key.explorer ? `<a href="${key.explorer}" target="_blank" rel="noopener" class="explorer-link-small" title="View on Explorer">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-            <polyline points="15 3 21 3 21 9"/>
-            <line x1="10" y1="14" x2="21" y2="3"/>
-          </svg>
-        </a>` : ''}
-      </div>
-      ` : ''}
-      <div class="key-display-row">
-        <span class="key-display-field">Derivation Path</span>
-        <code class="key-display-value">${key.path}</code>
-      </div>
-    `;
-    keysDisplay.appendChild(keyCard);
-  });
-
-  // Add copy button event listeners
-  keysDisplay.querySelectorAll('.copy-btn-small').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const text = btn.getAttribute('data-copy-text');
+  // Find Ed25519 public key — look for "Public Key" entries with 32-byte (44-char base64) values
+  let ed25519PubB64 = null;
+  for (const item of Object.values(items)) {
+    if (item.label?.startsWith('Public Key') && item.value) {
       try {
-        await navigator.clipboard.writeText(text);
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '✓';
-        setTimeout(() => { btn.innerHTML = originalHTML; }, 1000);
-      } catch (err) {
-        console.error('Copy failed:', err);
-      }
-    });
-  });
+        const decoded = Uint8Array.from(atob(item.value), c => c.charCodeAt(0));
+        if (decoded.length === 32) {
+          ed25519PubB64 = item.value;
+          break;
+        }
+      } catch { /* not base64 */ }
+    }
+  }
+
+  if (!ed25519PubB64) {
+    return { verified: false, path, publicKey: null, error: 'No Ed25519 public key found' };
+  }
+
+  // Reconstruct signable body and verify
+  const body = getSignableBody(vcardText);
+  const messageBytes = new TextEncoder().encode(body);
+  const sigBytes = Uint8Array.from(atob(sigB64), c => c.charCodeAt(0));
+  const pubKeyBytes = Uint8Array.from(atob(ed25519PubB64), c => c.charCodeAt(0));
+
+  try {
+    const valid = ed25519.verify(sigBytes, messageBytes, pubKeyBytes);
+    return { verified: valid, path, publicKey: ed25519PubB64, error: valid ? null : 'Signature invalid' };
+  } catch (e) {
+    return { verified: false, path, publicKey: ed25519PubB64, error: e.message };
+  }
 }
 
 function parseAndDisplayVCF(vcfText) {
@@ -1911,6 +1842,23 @@ function parseAndDisplayVCF(vcfText) {
       html += `<div class="vcf-import-key"><strong>${k.type}:</strong> <code>${k.value}</code></div>`;
     }
     html += '</div>';
+  }
+
+  // Verify digital signature
+  const sigStatus = $('vcf-import-sig-status');
+  if (sigStatus) {
+    const result = verifyVCardSignature(vcfText);
+    if (result.error === 'unsigned') {
+      sigStatus.className = 'vcard-sig-badge sig-unsigned';
+      sigStatus.innerHTML = 'No signature';
+    } else if (result.verified) {
+      sigStatus.className = 'vcard-sig-badge sig-verified';
+      sigStatus.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Verified (${result.path})`;
+    } else {
+      sigStatus.className = 'vcard-sig-badge sig-invalid';
+      sigStatus.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Invalid signature`;
+    }
+    sigStatus.style.display = 'flex';
   }
 
   fieldsEl.innerHTML = html;
@@ -2431,11 +2379,55 @@ function setupMainAppHandlers() {
     });
   });
 
+  // Messaging sub-tab switching
+  $qa('.messaging-sub-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      $qa('.messaging-sub-tab').forEach(t => t.classList.remove('active'));
+      $qa('.messaging-sub-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      const target = $(tab.dataset.messagingSub);
+      if (target) target.classList.add('active');
+    });
+  });
+
+  // Identity card summary — updates the read-only card display from form fields
+  function updateIdentityCardSummary() {
+    const prefix = $('vcard-prefix')?.value || '';
+    const first = $('vcard-firstname')?.value || '';
+    const middle = $('vcard-middlename')?.value || '';
+    const last = $('vcard-lastname')?.value || '';
+    const suffix = $('vcard-suffix')?.value || '';
+    const nick = $('vcard-nickname')?.value || '';
+    const parts = [prefix, first, middle, last, suffix].filter(Boolean);
+    const nameEl = $('identity-card-name');
+    if (nameEl) {
+      const namePart = parts.length > 0 ? parts.join(' ') : '--';
+      if (nick) {
+        nameEl.innerHTML = `${namePart} <span class="nickname">(${nick})</span>`;
+      } else {
+        nameEl.textContent = namePart;
+      }
+    }
+
+    const titleEl = $('identity-card-title');
+    if (titleEl) titleEl.textContent = $('vcard-title')?.value || '';
+
+    const orgEl = $('identity-card-org');
+    if (orgEl) orgEl.textContent = $('vcard-org')?.value || '';
+
+    const emailEl = $('identity-card-email');
+    if (emailEl) emailEl.textContent = $('vcard-email')?.value || '';
+
+    const phoneEl = $('identity-card-phone');
+    if (phoneEl) phoneEl.textContent = $('vcard-phone')?.value || '';
+  }
+
+
   // vCard identity auto-save
   const VCARD_STORAGE_KEY = 'hd-wallet-vcard-identity';
   const vcardFieldIds = [
     'vcard-prefix', 'vcard-firstname', 'vcard-middlename', 'vcard-lastname',
-    'vcard-suffix', 'vcard-email', 'vcard-phone', 'vcard-org', 'vcard-title',
+    'vcard-suffix', 'vcard-nickname', 'vcard-email', 'vcard-phone', 'vcard-org', 'vcard-title',
     'vcard-street', 'vcard-city', 'vcard-region', 'vcard-postal', 'vcard-country'
   ];
 
@@ -2466,16 +2458,95 @@ function setupMainAppHandlers() {
   }
 
   restoreVcardIdentity();
+  updateIdentityCardSummary();
 
-  let vcardSaveTimer = null;
-  function debouncedVcardSave() {
-    clearTimeout(vcardSaveTimer);
-    vcardSaveTimer = setTimeout(saveVcardIdentity, 500);
+  // Snapshot of field values before editing (for Back/cancel)
+  let _vcardEditSnapshot = {};
+
+  function snapshotVcardFields() {
+    _vcardEditSnapshot = {};
+    for (const id of vcardFieldIds) {
+      const el = $(id);
+      if (el) _vcardEditSnapshot[id] = el.value;
+    }
   }
 
-  for (const id of vcardFieldIds) {
-    $(id)?.addEventListener('input', debouncedVcardSave);
+  function restoreVcardSnapshot() {
+    for (const id of vcardFieldIds) {
+      const el = $(id);
+      if (el && _vcardEditSnapshot[id] !== undefined) el.value = _vcardEditSnapshot[id];
+    }
   }
+
+  // Edit button — switch to edit view
+  $('identity-edit-btn')?.addEventListener('click', () => {
+    setPhotoActionsVisible(false);
+    stopCamera();
+    snapshotVcardFields();
+    $('vcard-form-view').style.display = 'none';
+    $('vcard-edit-view').style.display = 'flex';
+  });
+
+  // Save button — persist and return to card view
+  $('identity-save-btn')?.addEventListener('click', () => {
+    saveVcardIdentity();
+    updateIdentityCardSummary();
+    setPhotoActionsVisible(false);
+    $('vcard-edit-view').style.display = 'none';
+    $('vcard-form-view').style.display = '';
+  });
+
+  // Back button — discard changes and return to card view
+  $('identity-back-btn')?.addEventListener('click', () => {
+    restoreVcardSnapshot();
+    setPhotoActionsVisible(false);
+    stopCamera();
+    $('vcard-edit-view').style.display = 'none';
+    $('vcard-form-view').style.display = '';
+  });
+
+  const photoActions = $('vcard-photo-actions');
+  const photoEditBtn = $('vcard-photo-edit-btn');
+  function setPhotoActionsVisible(visible) {
+    if (photoActions) photoActions.classList.toggle('visible', visible);
+    if (photoEditBtn) {
+      photoEditBtn.classList.toggle('is-open', visible);
+      photoEditBtn.title = visible ? 'Close Photo Menu' : 'Edit Photo';
+    }
+  }
+  function arePhotoActionsVisible() {
+    return !!photoActions?.classList.contains('visible');
+  }
+  setPhotoActionsVisible(false);
+
+  function encodeVcardPhoto(source, sourceWidth, sourceHeight) {
+    if (!source || !sourceWidth || !sourceHeight) return null;
+    const maxDimension = 1024;
+    const quality = 0.9;
+    const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+    const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight);
+    return canvas.toDataURL('image/jpeg', quality);
+  }
+
+  photoEditBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (arePhotoActionsVisible()) {
+      setPhotoActionsVisible(false);
+      stopCamera();
+      return;
+    }
+    setPhotoActionsVisible(true);
+  });
 
   // Photo upload handler
   $('vcard-photo-input')?.addEventListener('change', (e) => {
@@ -2485,19 +2556,12 @@ function setupMainAppHandlers() {
     reader.onload = (ev) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const size = 128;
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        const min = Math.min(img.width, img.height);
-        const sx = (img.width - min) / 2;
-        const sy = (img.height - min) / 2;
-        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const dataUrl = encodeVcardPhoto(img, img.width, img.height);
+        if (!dataUrl) return;
         state.vcardPhoto = dataUrl;
         stopCamera();
         showPhotoPreview(dataUrl);
+        setPhotoActionsVisible(false);
         saveVcardIdentity();
       };
       img.src = ev.target.result;
@@ -2526,6 +2590,7 @@ function setupMainAppHandlers() {
       const cameraBtn = $('vcard-camera-btn');
       if (cameraBtn) cameraBtn.style.display = '';
     }
+    setPhotoActionsVisible(false);
     const modal = $('photo-remove-confirm-modal');
     if (modal) modal.classList.remove('active');
   });
@@ -2543,6 +2608,14 @@ function setupMainAppHandlers() {
     if (placeholder) placeholder.style.display = '';
     const video = $('vcard-camera-video');
     if (video) video.style.display = 'none';
+    const removeBtn = $('vcard-photo-remove');
+    if (removeBtn) removeBtn.style.display = 'none';
+    const uploadLabel = document.querySelector('label[for="vcard-photo-input"]');
+    if (uploadLabel) uploadLabel.style.display = '';
+    const cameraBtn = $('vcard-camera-btn');
+    if (cameraBtn && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      cameraBtn.style.display = '';
+    }
   }
 
   function showPhotoPreview(dataUrl) {
@@ -2559,23 +2632,28 @@ function setupMainAppHandlers() {
     preview.appendChild(img);
     const removeBtn = $('vcard-photo-remove');
     if (removeBtn) removeBtn.style.display = '';
-    // Hide upload/camera buttons when photo is present
     const uploadLabel = document.querySelector('label[for="vcard-photo-input"]');
-    if (uploadLabel) uploadLabel.style.display = 'none';
+    if (uploadLabel) uploadLabel.style.display = '';
     const cameraBtn = $('vcard-camera-btn');
-    if (cameraBtn) cameraBtn.style.display = 'none';
+    if (cameraBtn && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      cameraBtn.style.display = '';
+    }
   }
 
   // Camera support
   let cameraStream = null;
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     const cameraBtn = $('vcard-camera-btn');
-    if (cameraBtn && !state.vcardPhoto) cameraBtn.style.display = '';
+    if (cameraBtn) cameraBtn.style.display = '';
 
     cameraBtn?.addEventListener('click', async () => {
       try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 512 }, height: { ideal: 512 } }
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+          }
         });
         const video = $('vcard-camera-video');
         if (video) {
@@ -2590,6 +2668,10 @@ function setupMainAppHandlers() {
           preview.querySelectorAll('img').forEach(el => el.style.display = 'none');
         }
         cameraBtn.style.display = 'none';
+        const uploadLabel = document.querySelector('label[for="vcard-photo-input"]');
+        if (uploadLabel) uploadLabel.style.display = 'none';
+        const removeBtn = $('vcard-photo-remove');
+        if (removeBtn) removeBtn.style.display = 'none';
         const captureBtn = $('vcard-camera-capture');
         const cancelBtn = $('vcard-camera-cancel');
         if (captureBtn) captureBtn.style.display = '';
@@ -2603,21 +2685,14 @@ function setupMainAppHandlers() {
     $('vcard-camera-capture')?.addEventListener('click', () => {
       const video = $('vcard-camera-video');
       if (!video) return;
-      const canvas = document.createElement('canvas');
-      const size = 128;
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-      const min = Math.min(vw, vh);
-      const sx = (vw - min) / 2;
-      const sy = (vh - min) / 2;
-      ctx.drawImage(video, sx, sy, min, min, 0, 0, size, size);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      const dataUrl = encodeVcardPhoto(video, vw, vh);
+      if (!dataUrl) return;
       state.vcardPhoto = dataUrl;
       stopCamera();
       showPhotoPreview(dataUrl);
+      setPhotoActionsVisible(false);
       saveVcardIdentity();
     });
 
@@ -2642,9 +2717,13 @@ function setupMainAppHandlers() {
       video.style.display = 'none';
     }
     const cameraBtn = $('vcard-camera-btn');
+    const uploadLabel = document.querySelector('label[for="vcard-photo-input"]');
+    const removeBtn = $('vcard-photo-remove');
     const captureBtn = $('vcard-camera-capture');
     const cancelBtn = $('vcard-camera-cancel');
-    if (cameraBtn) cameraBtn.style.display = state.vcardPhoto ? 'none' : '';
+    if (uploadLabel) uploadLabel.style.display = '';
+    if (removeBtn) removeBtn.style.display = state.vcardPhoto ? '' : 'none';
+    if (cameraBtn && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) cameraBtn.style.display = '';
     if (captureBtn) captureBtn.style.display = 'none';
     if (cancelBtn) cancelBtn.style.display = 'none';
   }
@@ -2845,7 +2924,9 @@ function setupMainAppHandlers() {
       middleName: $('vcard-middlename')?.value || '',
       lastName: $('vcard-lastname')?.value || '',
       suffix: $('vcard-suffix')?.value || '',
+      nickname: $('vcard-nickname')?.value || '',
       email: $('vcard-email')?.value || '',
+      phone: $('vcard-phone')?.value || '',
       org: $('vcard-org')?.value || '',
       title: $('vcard-title')?.value || '',
       includeKeys: true,
@@ -2856,10 +2937,9 @@ function setupMainAppHandlers() {
       return;
     }
 
-    const vcard = generateVCard(info);
-    const vcardForQR = generateVCard(info, { skipPhoto: true });
-    const vcardPreview = $('vcard-preview');
-    if (vcardPreview) vcardPreview.textContent = vcard;
+    const vcard = signVCard(generateVCard(info));
+    const vcardForQR = signVCard(generateVCard(info, { skipPhoto: true }));
+    state._exportedVCard = vcard;
 
     try {
       const qrCanvas = $('qr-code');
@@ -2874,9 +2954,47 @@ function setupMainAppHandlers() {
       const resultView = $('vcard-result-view');
       if (formView) formView.style.display = 'none';
       if (resultView) resultView.style.display = '';
+
+      // Show/hide signature badge
+      const sigBadge = $('vcard-sig-badge');
+      if (sigBadge) {
+        sigBadge.style.display = state.wallet?.ed25519?.privateKey ? 'flex' : 'none';
+      }
+
+      // Populate raw view (strip PHOTO base64 data)
+      const rawView = $('vcard-raw-view');
+      if (rawView) {
+        const rawText = vcard.replace(/PHOTO;ENCODING=b;TYPE=\w+:[\s\S]*?(?=\n[A-Z])/m, 'PHOTO:[image data omitted]');
+        rawView.textContent = rawText;
+      }
+
+      // Reset toggle to QR
+      $('vcard-toggle-qr')?.classList.add('active');
+      $('vcard-toggle-raw')?.classList.remove('active');
+      document.querySelector('.qr-container')?.style.setProperty('display', '');
+      if (rawView) rawView.style.display = 'none';
     } catch (err) {
       alert('Error generating QR code: ' + err.message);
     }
+  });
+
+  // Toggle QR / Raw
+  $('vcard-toggle-qr')?.addEventListener('click', () => {
+    $('vcard-toggle-qr')?.classList.add('active');
+    $('vcard-toggle-raw')?.classList.remove('active');
+    const qr = document.querySelector('#vcard-result-view .qr-container');
+    const raw = $('vcard-raw-view');
+    if (qr) qr.style.display = '';
+    if (raw) raw.style.display = 'none';
+  });
+
+  $('vcard-toggle-raw')?.addEventListener('click', () => {
+    $('vcard-toggle-raw')?.classList.add('active');
+    $('vcard-toggle-qr')?.classList.remove('active');
+    const qr = document.querySelector('#vcard-result-view .qr-container');
+    const raw = $('vcard-raw-view');
+    if (qr) qr.style.display = 'none';
+    if (raw) raw.style.display = '';
   });
 
   // Back to editor from result view
@@ -2889,7 +3007,7 @@ function setupMainAppHandlers() {
 
   // Download vCard
   $('download-vcard')?.addEventListener('click', () => {
-    const vcard = $('vcard-preview')?.textContent || '';
+    const vcard = state._exportedVCard || '';
     const blob = new Blob([vcard], { type: 'text/vcard' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -2901,7 +3019,7 @@ function setupMainAppHandlers() {
 
   // Copy vCard
   $('copy-vcard')?.addEventListener('click', async () => {
-    const vcard = $('vcard-preview')?.textContent || '';
+    const vcard = state._exportedVCard || '';
     try {
       await navigator.clipboard.writeText(vcard);
       const btn = $('copy-vcard');
@@ -3091,7 +3209,7 @@ function setupTrustHandlers() {
       return;
     }
     const { exportTrustData } = await import('./trust-ui.js');
-    const xpub = state.hdRoot ? state.hdRoot.publicExtendedKey() : '';
+    const xpub = state.hdRoot ? state.hdRoot.toXpub() : '';
     exportTrustData(state.trustTransactions, xpub);
   });
 
@@ -3158,7 +3276,7 @@ function setupTrustHandlers() {
   }
 
   // Update encryption tab when it becomes active or HD controls change
-  $qa('.modal-tab[data-modal-tab="encrypt-tab-content"]').forEach(tab => {
+  $qa('.modal-tab[data-modal-tab="messaging-tab-content"]').forEach(tab => {
     tab.addEventListener('click', () => {
       if (state.hdRoot) updateEncryptionTab();
     });

@@ -34,9 +34,11 @@
     "bip39": "^3.1.0",
     "buffer": "^6.0.3",
     "flatbuffers": "^25.9.23",
+    "flatc-wasm": "^25.12.19-wasm.43",
     "hd-wallet-wasm": "file:../wasm",
     "qrcode": "^1.5.3",
-    "vcard-cryptoperson": "^1.1.10"
+    "spacedatastandards.org": "^23.3.3-0.3.4",
+    "vcard-cryptoperson": "^1.1.11"
   },
   "devDependencies": {
     "vite": "^5.0.0",

@@ -13,7 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@wallet': resolve(__dirname, 'src'),
-      '@sds': resolve(__dirname, '..', '..', 'spacedatastandards.org'),
+      '@sds': resolve(__dirname, 'node_modules', 'spacedatastandards.org'),
     },
   },
   optimizeDeps: {
@@ -42,7 +42,7 @@ export default defineConfig({
     fs: {
       allow: [
         resolve(__dirname, '..'),
-        resolve(__dirname, '..', '..', 'spacedatastandards.org'),
+        resolve(__dirname, 'node_modules', 'spacedatastandards.org'),
       ],
     },
     proxy: {
