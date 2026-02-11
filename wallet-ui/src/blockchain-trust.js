@@ -10,6 +10,8 @@
  *   Revocation: [0x52][0x01][timestamp:4][txhash:32]          = 38 bytes
  */
 
+import { apiUrl } from './address-derivation.js';
+
 // =============================================================================
 // Trust Levels (PGP-style)
 // =============================================================================
@@ -41,6 +43,16 @@ const VERSION = 0x01;
 // Legacy ASCII prefixes
 const LEGACY_TRUST_PREFIX = 'TRUST';
 const LEGACY_REVOKE_PREFIX = 'REVOKE';
+const SOLANA_TRUST_RPC_ENDPOINTS = [
+  'https://solana-rpc.publicnode.com',
+  'https://mainnet.helius-rpc.com/?api-key=1d8740dc-e5f4-421c-b823-e1bad1889eda',
+  'https://api.mainnet-beta.solana.com',
+];
+const SOLANA_TRUST_MAX_SIGNATURES = 40;
+const SOLANA_TRUST_REQUEST_DELAY_MS = 350;
+const SOLANA_TRUST_UNAVAILABLE_COOLDOWN_MS = 5 * 60 * 1000;
+let _solanaTrustLastRequestAt = 0;
+let _solanaTrustUnavailableUntil = 0;
 
 // =============================================================================
 // Binary Encoding Helpers
@@ -420,39 +432,80 @@ export async function scanBitcoinTrustTransactions(address) {
  * Uses RPC to get transactions with memo instructions.
  */
 export async function scanSolanaTrustTransactions(address) {
-  try {
-    const response = await fetch('https://api.mainnet-beta.solana.com', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'getSignaturesForAddress',
-        params: [address, { limit: 100 }],
-      }),
-    });
+  const isRateLimited = (msg) => {
+    const t = (msg || '').toLowerCase();
+    return t.includes('429') || t.includes('rate') || t.includes('limit') || t.includes('too many');
+  };
+  const isEndpointUnavailable = (msg) => {
+    const t = (msg || '').toLowerCase();
+    return t.includes('403') || t.includes('404') || t.includes('forbidden') || t.includes('not found');
+  };
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const waitForThrottle = async () => {
+    const elapsed = Date.now() - _solanaTrustLastRequestAt;
+    if (elapsed < SOLANA_TRUST_REQUEST_DELAY_MS) {
+      await sleep(SOLANA_TRUST_REQUEST_DELAY_MS - elapsed);
+    }
+    _solanaTrustLastRequestAt = Date.now();
+  };
+  const solanaRpcCall = async (method, params) => {
+    let lastError = 'Unknown Solana RPC error';
 
-    if (!response.ok) throw new Error('Failed to fetch Solana signatures');
-    const data = await response.json();
-    const signatures = data.result || [];
+    for (const endpoint of SOLANA_TRUST_RPC_ENDPOINTS) {
+      try {
+        await waitForThrottle();
+        const response = await fetch(apiUrl(endpoint), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method,
+            params,
+          }),
+        });
+
+        if (!response.ok) {
+          lastError = `HTTP ${response.status}`;
+          continue;
+        }
+
+        const data = await response.json();
+        if (data.error) {
+          lastError = data.error.message || 'Solana RPC returned error';
+          continue;
+        }
+
+        return { ok: true, result: data.result };
+      } catch (e) {
+        lastError = e?.message || 'Solana RPC fetch failed';
+      }
+    }
+
+    return { ok: false, error: lastError };
+  };
+
+  try {
+    if (Date.now() < _solanaTrustUnavailableUntil) {
+      return [];
+    }
+
+    const sigResp = await solanaRpcCall('getSignaturesForAddress', [address, { limit: SOLANA_TRUST_MAX_SIGNATURES }]);
+    if (!sigResp.ok) {
+      if (isRateLimited(sigResp.error) || isEndpointUnavailable(sigResp.error)) {
+        _solanaTrustUnavailableUntil = Date.now() + SOLANA_TRUST_UNAVAILABLE_COOLDOWN_MS;
+      }
+      throw new Error(`Failed to fetch Solana signatures (${sigResp.error})`);
+    }
+
+    const signatures = Array.isArray(sigResp.result) ? sigResp.result : [];
 
     const trustTxs = [];
 
     for (const sig of signatures) {
-      const txResponse = await fetch('https://api.mainnet-beta.solana.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getTransaction',
-          params: [sig.signature, { encoding: 'jsonParsed' }],
-        }),
-      });
-
-      if (!txResponse.ok) continue;
-      const txData = await txResponse.json();
-      const tx = txData.result;
+      const txResp = await solanaRpcCall('getTransaction', [sig.signature, { encoding: 'jsonParsed' }]);
+      if (!txResp.ok) continue;
+      const tx = txResp.result;
 
       if (!tx || !tx.meta) continue;
 
@@ -477,7 +530,7 @@ export async function scanSolanaTrustTransactions(address) {
 
     return trustTxs;
   } catch (err) {
-    console.error('Solana trust scan failed:', err);
+    console.warn('Solana trust scan skipped:', err.message || err);
     return [];
   }
 }

@@ -25,6 +25,13 @@ export function getModalHTML() {
               </div>
             </div>
 
+            <div class="wallet-selector-row">
+              <div class="wallet-selector-control">
+                <select id="wallet-active-select" class="glass-input compact wallet-selector-input"></select>
+                <button id="wallet-manage-btn" class="glass-btn small">Manage</button>
+              </div>
+            </div>
+
             <!-- Action Buttons Row -->
             <div class="ph-actions">
               <button class="ph-action-btn" id="wallet-scan-btn">
@@ -39,9 +46,13 @@ export function getModalHTML() {
                 <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
                 <span>Receive</span>
               </button>
-              <button class="ph-action-btn" id="wallet-settings-btn">
-                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
-                <span>Settings</span>
+              <button class="ph-action-btn" id="wallet-export-btn-main">
+                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <span>Export</span>
+              </button>
+              <button class="ph-action-btn" id="wallet-advanced-btn-main">
+                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></div>
+                <span>Advanced</span>
               </button>
             </div>
 
@@ -63,30 +74,63 @@ export function getModalHTML() {
             </div>
           </div>
 
-          <!-- Settings View (replaces main view) -->
-          <div id="wallet-settings-view" class="wallet-overlay-view" style="display:none;">
-            <div class="wallet-overlay-header">
-              <button id="wallet-settings-back" class="wallet-back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
-              <h4>Settings</h4>
+          <!-- Wallets View (replaces main view) -->
+          <div id="wallet-wallets-view" class="wallet-overlay-view" style="display:none;">
+            <div class="wallet-overlay-header wallet-wallets-header">
+              <div class="wallet-overlay-title-row">
+                <button id="wallet-wallets-back" class="wallet-back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+                <h4>Wallets</h4>
+              </div>
+              <button id="wallet-new-btn" class="glass-btn small">+ New Wallet</button>
             </div>
             <div class="wallet-overlay-body">
               <div class="settings-group">
-                <div class="settings-group-header"><span class="settings-group-label">Wallets</span><button id="wallet-new-btn" class="glass-btn small">+ New Wallet</button></div>
                 <div id="wallet-list" class="wallet-name-list"></div>
               </div>
+            </div>
+          </div>
+
+          <!-- Export View (replaces main view) -->
+          <div id="wallet-export-view" class="wallet-overlay-view" style="display:none;">
+            <div class="wallet-overlay-header">
+              <button id="wallet-export-back" class="wallet-back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+              <h4>Export Wallet</h4>
+            </div>
+            <div class="wallet-overlay-body wallet-export-body">
               <div class="settings-group">
                 <span class="settings-group-label">HD Wallet Root</span>
                 <div class="key-item"><label>Master Public Key (xpub)</label><div class="key-value-row"><code id="wallet-xpub" class="key-value truncate"></code><button class="copy-key-btn" data-copy="wallet-xpub" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
                 <div class="key-item sensitive"><label>Master Private Key (xprv)</label><div class="key-value-row"><code id="wallet-xprv" class="key-value truncate blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-xprv" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-xprv" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
                 <div class="key-item sensitive"><label>Seed Phrase (BIP39)</label><div class="key-value-row"><code id="wallet-seed-phrase" class="key-value seed-phrase blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-seed-phrase" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-seed-phrase" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
-                <div class="export-section"><div class="export-dropdown"><button class="glass-btn small export-btn" id="export-wallet-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Wallet</button><div class="export-menu" id="export-menu"><button class="export-option" data-format="mnemonic"><span class="export-label">BIP39 Mnemonic</span></button><button class="export-option" data-format="xpub"><span class="export-label">Extended Public Key</span></button><button class="export-option" data-format="xprv"><span class="export-label">Extended Private Key</span></button></div></div></div>
               </div>
+              <div class="settings-group">
+                <span class="settings-group-label">Export Format</span>
+                <div class="wallet-export-options">
+                  <button class="export-option export-option-card" data-format="mnemonic"><span class="export-label">BIP39 Mnemonic</span><span class="export-desc">12/24 word recovery phrase</span></button>
+                  <button class="export-option export-option-card" data-format="xpub"><span class="export-label">Extended Public Key</span><span class="export-desc">Shareable watch-only root</span></button>
+                  <button class="export-option export-option-card" data-format="xprv"><span class="export-label">Extended Private Key</span><span class="export-desc">Full access master private key</span></button>
+                  <button class="export-option export-option-card" data-format="hex"><span class="export-label">Raw Seed (Hex)</span><span class="export-desc">Binary seed in hexadecimal</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced View (replaces main view) -->
+          <div id="wallet-advanced-view" class="wallet-overlay-view" style="display:none;">
+            <div class="wallet-overlay-header">
+              <button id="wallet-advanced-back" class="wallet-back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+              <h4>Advanced</h4>
+            </div>
+            <div class="wallet-overlay-body">
               <div class="settings-group">
                 <span class="settings-group-label">Advanced</span>
                 <div class="settings-custom-path">
+                  <label>Wallet</label>
+                  <div class="wallet-selected-path" id="custom-path-wallet-label"></div>
+                  <label>Chain</label>
+                  <select id="custom-path-chain" class="glass-input compact"><option value="0">BTC</option><option value="60">ETH</option><option value="501">SOL</option></select>
                   <label>Custom Derivation Path</label>
                   <div class="custom-path-row">
-                    <select id="custom-path-chain" class="glass-input compact"><option value="0">BTC</option><option value="60">ETH</option><option value="501">SOL</option></select>
                     <input id="custom-path-input" class="glass-input compact" placeholder="m/44'/0'/0'/0/0">
                     <button id="custom-path-add" class="glass-btn small">Add</button>
                   </div>

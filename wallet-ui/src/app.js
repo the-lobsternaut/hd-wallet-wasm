@@ -234,6 +234,12 @@ const state = {
   // Wallet groups (Phantom-style: each wallet = same account index across chains)
   wallets: [{ id: 0, name: 'Wallet 1', accountIndex: 0 }],
   activeWalletId: 0,
+  walletFiatTotals: {},
+  walletFiatCurrency: 'USD',
+  balanceCache: {},
+  balanceCacheLoaded: false,
+  balanceRateLimitUntil: {},
+  scanInProgress: false,
   // PKI Demo state
   pki: {
     alice: null,
@@ -487,6 +493,401 @@ function deriveAddressForPath(coinType, account, index) {
 
 const ACTIVE_ACCOUNTS_KEY = 'hd-wallet-active-accounts';
 const WALLETS_KEY = 'hd-wallet-wallets';
+const DEFAULT_WALLET_COUNT = 10;
+const WALLET_OVERLAY_VIEWS = ['wallet-wallets-view', 'wallet-export-view', 'wallet-advanced-view', 'wallet-send-view'];
+const BALANCE_CACHE_KEY = 'hd-wallet-scan-balance-cache-v1';
+const BALANCE_CACHE_TTL_MS = 2 * 60 * 1000;
+const BALANCE_CACHE_STALE_MS = 30 * 60 * 1000;
+const SCAN_REQUEST_DELAY_MS = 700;
+const SCAN_RETRY_BASE_DELAY_MS = 1200;
+const SCAN_MAX_RETRIES = 2;
+const BALANCE_RATE_LIMIT_COOLDOWN_MS = 2 * 60 * 1000;
+let _scanLastRequestAt = 0;
+let _balanceCacheDirty = false;
+
+function getDefaultWalletState() {
+  return [{ id: 0, name: 'Wallet 1', accountIndex: 0 }];
+}
+
+function getWalletDerivationEntries(wallet) {
+  return [
+    { coinType: 0, name: 'BTC', account: wallet.accountIndex, index: 0 },
+    { coinType: 60, name: 'ETH', account: 0, index: wallet.accountIndex },
+    { coinType: 501, name: 'SOL', account: wallet.accountIndex, index: 0 },
+  ];
+}
+
+function getWalletIdForPath(coinType, account, index) {
+  const accountIndex = coinType === 60 ? index : account;
+  const wallet = state.wallets.find(w => w.accountIndex === accountIndex);
+  return wallet ? wallet.id : 0;
+}
+
+function normalizeWallets(wallets) {
+  const normalized = [];
+  const source = Array.isArray(wallets) ? wallets : [];
+  const usedIds = new Set();
+  const usedAccountIndexes = new Set();
+
+  for (const wallet of source) {
+    const id = Number.parseInt(wallet?.id, 10);
+    const accountIndex = Number.parseInt(wallet?.accountIndex, 10);
+    if (Number.isNaN(id) || Number.isNaN(accountIndex)) continue;
+    if (usedIds.has(id) || usedAccountIndexes.has(accountIndex)) continue;
+
+    const name = (wallet?.name || '').toString().trim() || `Wallet ${accountIndex + 1}`;
+    normalized.push({ id, name, accountIndex });
+    usedIds.add(id);
+    usedAccountIndexes.add(accountIndex);
+  }
+
+  let nextId = normalized.reduce((max, wallet) => Math.max(max, wallet.id), -1) + 1;
+  for (let accountIndex = 0; accountIndex < DEFAULT_WALLET_COUNT; accountIndex++) {
+    if (usedAccountIndexes.has(accountIndex)) continue;
+    while (usedIds.has(nextId)) nextId++;
+    normalized.push({
+      id: nextId,
+      name: `Wallet ${accountIndex + 1}`,
+      accountIndex,
+    });
+    usedIds.add(nextId);
+  }
+
+  if (normalized.length === 0) return getDefaultWalletState();
+  normalized.sort((a, b) => a.accountIndex - b.accountIndex || a.id - b.id);
+  return normalized;
+}
+
+function normalizeActiveAccounts(accounts) {
+  const source = Array.isArray(accounts) ? accounts : [];
+  return source.map((acct) => {
+    const existingWalletId = Number.parseInt(acct.walletId, 10);
+    const walletExists = state.wallets.some(w => w.id === existingWalletId);
+    const walletId = walletExists
+      ? existingWalletId
+      : getWalletIdForPath(Number.parseInt(acct.coinType, 10), Number.parseInt(acct.account, 10), Number.parseInt(acct.index, 10));
+    return { ...acct, walletId };
+  });
+}
+
+function ensureWalletAccounts() {
+  if (!state.hdRoot) return false;
+
+  const existing = new Set(
+    state.activeAccounts.map(a => `${a.walletId ?? getWalletIdForPath(a.coinType, a.account, a.index)}:${a.coinType}:${a.account}:${a.index}`)
+  );
+  let added = false;
+
+  for (const wallet of state.wallets) {
+    for (const entry of getWalletDerivationEntries(wallet)) {
+      const key = `${wallet.id}:${entry.coinType}:${entry.account}:${entry.index}`;
+      if (existing.has(key)) continue;
+      try {
+        const { address, path } = deriveAddressForPath(entry.coinType, entry.account, entry.index);
+        state.activeAccounts.push({
+          coinType: entry.coinType,
+          name: entry.name,
+          account: entry.account,
+          index: entry.index,
+          address,
+          path,
+          balance: '--',
+          active: false,
+          walletId: wallet.id,
+        });
+        existing.add(key);
+        added = true;
+      } catch (e) {
+        console.warn('Failed to derive wallet account:', entry, e);
+      }
+    }
+  }
+
+  if (added) saveActiveAccounts();
+  return added;
+}
+
+function getWalletById(walletId) {
+  return state.wallets.find(w => w.id === walletId);
+}
+
+function getCurrentWallet() {
+  const current = getWalletById(state.activeWalletId);
+  return current || state.wallets[0] || null;
+}
+
+function getAccountWalletId(acct) {
+  if (!acct) return 0;
+  if (acct.walletId !== undefined && getWalletById(acct.walletId)) return acct.walletId;
+  return getWalletIdForPath(acct.coinType, acct.account, acct.index);
+}
+
+function isSigningAccountForWallet(acct, wallet) {
+  if (!acct || !wallet) return false;
+  const coinType = Number.parseInt(acct.coinType, 10);
+  const account = Number.parseInt(acct.account, 10);
+  const index = Number.parseInt(acct.index, 10);
+  if (Number.isNaN(coinType) || Number.isNaN(account) || Number.isNaN(index)) return false;
+
+  if (coinType === 60) return account === 0 && index === wallet.accountIndex;
+  if (coinType === 0 || coinType === 501) return account === wallet.accountIndex && index === 0;
+  return false;
+}
+
+function isSigningAccount(acct) {
+  const wallet = getWalletById(getAccountWalletId(acct));
+  return isSigningAccountForWallet(acct, wallet);
+}
+
+function updateCustomPathWalletLabel() {
+  const label = $('custom-path-wallet-label');
+  const wallet = getCurrentWallet();
+  if (!label) return;
+  label.textContent = wallet ? `${wallet.name} (account ${wallet.accountIndex})` : 'Wallet 1 (account 0)';
+}
+
+function updateCustomPathDefault() {
+  const chainSelect = $('custom-path-chain');
+  const input = $('custom-path-input');
+  const wallet = getCurrentWallet();
+  if (!chainSelect || !input || !wallet) return;
+
+  const coinType = Number.parseInt(chainSelect.value, 10);
+  if (Number.isNaN(coinType)) return;
+  const account = coinType === 60 ? 0 : wallet.accountIndex;
+  const index = coinType === 60 ? wallet.accountIndex : 0;
+  input.value = buildSigningPath(coinType, account, index);
+  input.dataset.autogenerated = 'true';
+}
+
+function renderWalletSelector() {
+  const select = $('wallet-active-select');
+  if (!select) return;
+
+  const currentWallet = getCurrentWallet();
+  if (!currentWallet) {
+    select.innerHTML = '';
+    return;
+  }
+  state.activeWalletId = currentWallet.id;
+
+  select.innerHTML = '';
+  const displayCurrency = state.walletFiatCurrency || getSelectedCurrency();
+  state.wallets.forEach((wallet) => {
+    const option = document.createElement('option');
+    option.value = String(wallet.id);
+    const walletValue = state.walletFiatTotals[wallet.id] ?? 0;
+    option.textContent = `${wallet.name} (${formatCurrencyValue(walletValue, displayCurrency)})`;
+    select.appendChild(option);
+  });
+  select.value = String(state.activeWalletId);
+  updateCustomPathWalletLabel();
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function loadBalanceCache() {
+  try {
+    const raw = localStorage.getItem(BALANCE_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBalanceCache() {
+  if (!_balanceCacheDirty) return;
+  try {
+    localStorage.setItem(BALANCE_CACHE_KEY, JSON.stringify(state.balanceCache));
+    _balanceCacheDirty = false;
+  } catch (e) {
+    console.warn('Failed to save balance cache:', e);
+  }
+}
+
+function pruneBalanceCache() {
+  const now = Date.now();
+  let changed = false;
+  Object.entries(state.balanceCache).forEach(([key, entry]) => {
+    if (!entry || typeof entry.ts !== 'number' || now - entry.ts > BALANCE_CACHE_STALE_MS) {
+      delete state.balanceCache[key];
+      changed = true;
+    }
+  });
+  if (changed) _balanceCacheDirty = true;
+}
+
+function getBalanceCacheKey(coinType, address) {
+  return `${coinType}:${address}`;
+}
+
+function isNumericBalance(balance) {
+  const n = Number.parseFloat(balance);
+  return Number.isFinite(n) && n >= 0;
+}
+
+function getCachedBalance(coinType, address, { allowStale = false } = {}) {
+  const key = getBalanceCacheKey(coinType, address);
+  const entry = state.balanceCache[key];
+  if (!entry || typeof entry.balance !== 'string' || typeof entry.ts !== 'number') return null;
+
+  const age = Date.now() - entry.ts;
+  if (age <= BALANCE_CACHE_TTL_MS) return { ...entry, stale: false };
+  if (allowStale && age <= BALANCE_CACHE_STALE_MS) return { ...entry, stale: true };
+  return null;
+}
+
+function setCachedBalance(coinType, address, balance) {
+  if (!isNumericBalance(balance)) return;
+  state.balanceCache[getBalanceCacheKey(coinType, address)] = {
+    balance: String(balance),
+    ts: Date.now(),
+  };
+  _balanceCacheDirty = true;
+}
+
+function hydrateAccountsFromBalanceCache() {
+  let changed = false;
+  for (const acct of state.activeAccounts) {
+    if (!acct?.address) continue;
+    const cached = getCachedBalance(acct.coinType, acct.address, { allowStale: true });
+    if (!cached || !isNumericBalance(cached.balance)) continue;
+
+    const prev = Number.parseFloat(acct.balance);
+    const next = Number.parseFloat(cached.balance);
+    if (!Number.isFinite(prev) || Math.abs(prev - next) > 1e-12) {
+      acct.balance = cached.balance;
+      changed = true;
+    }
+    if (next > 0 && !acct.active) {
+      acct.active = true;
+      changed = true;
+    }
+  }
+  if (changed) saveActiveAccounts();
+  return changed;
+}
+
+function isRateLimitError(message) {
+  const text = (message || '').toLowerCase();
+  return text.includes('429')
+    || text.includes('rate')
+    || text.includes('limit')
+    || text.includes('too many')
+    || text.includes('throttl')
+    || text.includes('quota');
+}
+
+async function waitForScanThrottle() {
+  const now = Date.now();
+  const elapsed = now - _scanLastRequestAt;
+  if (elapsed < SCAN_REQUEST_DELAY_MS) {
+    await sleep(SCAN_REQUEST_DELAY_MS - elapsed);
+  }
+  _scanLastRequestAt = Date.now();
+}
+
+function findExistingAccountForTarget(target) {
+  return state.activeAccounts.find(a =>
+    getAccountWalletId(a) === target.walletId
+    && a.coinType === target.coinType
+    && a.account === target.account
+    && a.index === target.index
+  );
+}
+
+async function fetchBalanceForScanTarget(target, address) {
+  const cooldownUntil = state.balanceRateLimitUntil[target.coinType] || 0;
+  if (Date.now() < cooldownUntil) {
+    const stale = getCachedBalance(target.coinType, address, { allowStale: true });
+    if (stale) {
+      return {
+        ok: true,
+        balance: stale.balance,
+        source: 'cache',
+        stale: true,
+        error: 'Rate-limited; using cached balance',
+      };
+    }
+    return {
+      ok: false,
+      balance: '--',
+      source: 'none',
+      stale: false,
+      error: 'Rate-limited; retrying later',
+    };
+  }
+
+  const fresh = getCachedBalance(target.coinType, address);
+  if (fresh) {
+    return {
+      ok: true,
+      balance: fresh.balance,
+      source: 'cache',
+      stale: false,
+    };
+  }
+
+  let lastError = '';
+  for (let attempt = 0; attempt <= SCAN_MAX_RETRIES; attempt++) {
+    await waitForScanThrottle();
+    try {
+      const result = await target.fetchBalance(address);
+      const balance = result?.balance;
+      const error = result?.error;
+      if (!error && isNumericBalance(balance)) {
+        state.balanceRateLimitUntil[target.coinType] = 0;
+        setCachedBalance(target.coinType, address, balance);
+        return {
+          ok: true,
+          balance: String(balance),
+          source: 'network',
+          stale: false,
+        };
+      }
+
+      lastError = error || 'Unknown balance fetch error';
+      if (isRateLimitError(lastError)) {
+        state.balanceRateLimitUntil[target.coinType] = Date.now() + BALANCE_RATE_LIMIT_COOLDOWN_MS;
+      }
+    } catch (e) {
+      lastError = e?.message || 'Unknown balance fetch exception';
+      if (isRateLimitError(lastError)) {
+        state.balanceRateLimitUntil[target.coinType] = Date.now() + BALANCE_RATE_LIMIT_COOLDOWN_MS;
+      }
+    }
+
+    const retryable = isRateLimitError(lastError) || lastError.length > 0;
+    if (attempt < SCAN_MAX_RETRIES && retryable) {
+      const delay = SCAN_RETRY_BASE_DELAY_MS * (attempt + 1);
+      await sleep(delay);
+      continue;
+    }
+  }
+
+  const stale = getCachedBalance(target.coinType, address, { allowStale: true });
+  if (stale) {
+    return {
+      ok: true,
+      balance: stale.balance,
+      source: 'cache',
+      stale: true,
+      error: lastError,
+    };
+  }
+
+  return {
+    ok: false,
+    balance: '--',
+    source: 'none',
+    stale: false,
+    error: lastError || 'Balance unavailable',
+  };
+}
 
 function saveActiveAccounts() {
   try {
@@ -527,9 +928,9 @@ function saveWallets() {
 function loadWallets() {
   try {
     const saved = localStorage.getItem(WALLETS_KEY);
-    return saved ? JSON.parse(saved) : [{ id: 0, name: 'Wallet 1', accountIndex: 0 }];
+    return normalizeWallets(saved ? JSON.parse(saved) : getDefaultWalletState());
   } catch {
-    return [{ id: 0, name: 'Wallet 1', accountIndex: 0 }];
+    return normalizeWallets(getDefaultWalletState());
   }
 }
 
@@ -543,7 +944,7 @@ function createNewWallet(walletName) {
   const maxIdx = state.wallets.reduce((m, w) => Math.max(m, w.accountIndex), -1);
   const nextIdx = maxIdx + 1;
   const nextId = state.wallets.reduce((m, w) => Math.max(m, w.id), -1) + 1;
-  const name = walletName || ('Wallet ' + (nextId + 1));
+  const name = walletName || (`Wallet ${nextIdx + 1}`);
 
   const wallet = { id: nextId, name, accountIndex: nextIdx };
   state.wallets.push(wallet);
@@ -576,8 +977,11 @@ function createNewWallet(walletName) {
   }
 
   saveActiveAccounts();
+  state.activeWalletId = nextId;
   renderAccountsList();
   renderWalletList();
+  renderWalletSelector();
+  updateCustomPathDefault();
 }
 
 function renameWallet(walletId, newName) {
@@ -586,11 +990,39 @@ function renameWallet(walletId, newName) {
   wallet.name = newName;
   saveWallets();
   renderAccountsList();
+  renderWalletSelector();
 }
 
-function getWalletName(walletId) {
-  const w = state.wallets.find(w => w.id === walletId);
-  return w ? w.name : 'Wallet ' + (walletId + 1);
+function removeWallet(walletId) {
+  if (state.wallets.length <= 1) {
+    alert('At least one wallet is required.');
+    return;
+  }
+
+  const wallet = getWalletById(walletId);
+  if (!wallet) return;
+
+  const confirmed = window.confirm(`Remove ${wallet.name}?`);
+  if (!confirmed) return;
+
+  state.activeAccounts = state.activeAccounts.filter(a => getAccountWalletId(a) !== walletId);
+  state.wallets = state.wallets.filter(w => w.id !== walletId);
+
+  if (state.walletFiatTotals && Object.prototype.hasOwnProperty.call(state.walletFiatTotals, walletId)) {
+    delete state.walletFiatTotals[walletId];
+  }
+
+  if (state.activeWalletId === walletId) {
+    state.activeWalletId = state.wallets[0]?.id ?? 0;
+  }
+
+  saveWallets();
+  saveActiveAccounts();
+  renderWalletList();
+  renderWalletSelector();
+  renderAccountsList();
+  updateCustomPathDefault();
+  updateWalletBondTotal();
 }
 
 function renderWalletList() {
@@ -598,54 +1030,80 @@ function renderWalletList() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
+  const hasMultipleWallets = state.wallets.length > 1;
   for (const w of state.wallets) {
-    const count = state.activeAccounts.filter(a => (a.walletId ?? 0) === w.id).length;
+    const count = state.activeAccounts.filter(a => getAccountWalletId(a) === w.id && isSigningAccountForWallet(a, w)).length;
     const row = document.createElement('div');
     row.className = 'wallet-name-row';
     row.innerHTML =
       '<input class="wallet-name-input glass-input compact" value="' + (w.name || '').replace(/"/g, '&quot;') + '" data-wallet-id="' + w.id + '">' +
-      '<span class="wallet-account-count">' + count + ' account' + (count !== 1 ? 's' : '') + '</span>';
+      '<span class="wallet-account-count">' + count + ' account' + (count !== 1 ? 's' : '') + '</span>' +
+      '<button class="wallet-remove-btn glass-btn small' + (hasMultipleWallets ? '' : ' disabled') + '" data-wallet-id="' + w.id + '" ' + (hasMultipleWallets ? '' : 'disabled') + '>Remove</button>';
     listEl.appendChild(row);
   }
 
   listEl.querySelectorAll('.wallet-name-input').forEach(input => {
     input.addEventListener('change', (e) => {
-      const id = parseInt(e.target.dataset.walletId);
-      renameWallet(id, e.target.value.trim() || ('Wallet ' + (id + 1)));
+      const id = Number.parseInt(e.target.dataset.walletId, 10);
+      const wallet = getWalletById(id);
+      renameWallet(id, e.target.value.trim() || (`Wallet ${wallet ? wallet.accountIndex + 1 : id + 1}`));
+    });
+  });
+
+  listEl.querySelectorAll('.wallet-remove-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = Number.parseInt(e.currentTarget.dataset.walletId, 10);
+      if (Number.isNaN(id)) return;
+      removeWallet(id);
     });
   });
 }
 
 // --- Wallet Overlay Navigation ---
 
-function showWalletSettings() {
+function hideWalletOverlays() {
+  WALLET_OVERLAY_VIEWS.forEach((viewId) => {
+    const view = $(viewId);
+    if (view) view.style.display = 'none';
+  });
+}
+
+function showWalletMainView() {
   const main = $('wallet-main-view');
-  const settings = $('wallet-settings-view');
+  hideWalletOverlays();
+  if (main) main.style.display = 'block';
+}
+
+function showWalletView(viewId) {
+  const main = $('wallet-main-view');
+  hideWalletOverlays();
   if (main) main.style.display = 'none';
-  if (settings) settings.style.display = 'block';
+  const view = $(viewId);
+  if (view) view.style.display = viewId === 'wallet-wallets-view' ? 'flex' : 'block';
+}
+
+function showWalletsView() {
+  showWalletView('wallet-wallets-view');
   renderWalletList();
 }
 
-function hideWalletSettings() {
-  const main = $('wallet-main-view');
-  const settings = $('wallet-settings-view');
-  if (main) main.style.display = 'block';
-  if (settings) settings.style.display = 'none';
+function showExportView() {
+  showWalletView('wallet-export-view');
+}
+
+function showAdvancedView() {
+  showWalletView('wallet-advanced-view');
+  updateCustomPathWalletLabel();
+  updateCustomPathDefault();
 }
 
 function showSendView(preselectedIdx) {
-  const main = $('wallet-main-view');
-  const send = $('wallet-send-view');
-  if (main) main.style.display = 'none';
-  if (send) send.style.display = 'block';
+  showWalletView('wallet-send-view');
   populateSendForm(preselectedIdx);
 }
 
 function hideSendView() {
-  const main = $('wallet-main-view');
-  const send = $('wallet-send-view');
-  if (main) main.style.display = 'block';
-  if (send) send.style.display = 'none';
+  showWalletMainView();
   // Reset form
   const compose = $('send-compose-step');
   const review = $('send-review-step');
@@ -659,16 +1117,33 @@ function addCustomPathAccount() {
   const pathInput = $('custom-path-input');
   if (!chainSelect || !pathInput) return;
 
-  const coinType = parseInt(chainSelect.value);
+  const coinType = Number.parseInt(chainSelect.value, 10);
   const pathStr = pathInput.value.trim();
-  if (!pathStr) return;
+  if (!pathStr || Number.isNaN(coinType)) return;
 
-  // Parse account/index from path (best effort)
+  // Parse account/index from path (m/44'/coin'/account'/0/index)
   const parts = pathStr.replace(/'/g, '').split('/');
-  const account = parseInt(parts[3]) || 0;
-  const index = parseInt(parts[4]) || 0;
+  const account = Number.parseInt(parts[3], 10) || 0;
+  const index = Number.parseInt(parts[5], 10) || 0;
+  const wallet = getCurrentWallet();
+  const walletId = wallet ? wallet.id : 0;
+  if (!wallet) return;
+
+  const proposed = { coinType, account, index, walletId };
+  if (!isSigningAccountForWallet(proposed, wallet)) {
+    alert('Only signing-path accounts are supported for wallet availability.');
+    updateCustomPathDefault();
+    return;
+  }
 
   const chainName = CHAIN_CONFIG.find(c => c.coinType === coinType)?.name || 'BTC';
+  const exists = state.activeAccounts.some(
+    a => getAccountWalletId(a) === walletId
+      && a.coinType === coinType
+      && a.account === account
+      && a.index === index
+  );
+  if (exists) return;
 
   try {
     const { address, path } = deriveAddressForPath(coinType, account, index);
@@ -681,11 +1156,12 @@ function addCustomPathAccount() {
       path,
       balance: '--',
       active: false,
-      walletId: state.activeWalletId,
+      walletId,
     });
     saveActiveAccounts();
     renderAccountsList();
-    pathInput.value = '';
+    updateWalletBondTotal();
+    updateCustomPathDefault();
   } catch (e) {
     console.warn('Failed to add custom path:', e);
   }
@@ -696,12 +1172,12 @@ function addCustomPathAccount() {
  * Preserves user's active/inactive choices; updates balances.
  */
 function mergeAccounts(existing, scanned) {
-  const key = (a) => `${a.coinType}:${a.account}:${a.index}`;
+  const key = (a) => `${getAccountWalletId(a)}:${a.coinType}:${a.account}:${a.index}`;
   const map = new Map();
 
   // Existing accounts keep their active state
   for (const a of existing) {
-    map.set(key(a), { ...a });
+    map.set(key(a), { ...a, walletId: getAccountWalletId(a) });
   }
 
   // Scanned accounts update balances, add new entries
@@ -712,8 +1188,10 @@ function mergeAccounts(existing, scanned) {
       prev.balance = a.balance;
       prev.address = a.address;
       prev.path = a.path;
+      prev.name = a.name;
+      prev.walletId = getAccountWalletId(a);
     } else {
-      map.set(k, { ...a });
+      map.set(k, { ...a, walletId: getAccountWalletId(a) });
     }
   }
 
@@ -728,6 +1206,20 @@ const CHAIN_CONFIG = [
 
 async function scanActiveAccounts() {
   if (!state.hdRoot) return;
+  if (state.scanInProgress) return;
+  state.scanInProgress = true;
+
+  if (!state.balanceCacheLoaded) {
+    state.balanceCache = loadBalanceCache();
+    state.balanceCacheLoaded = true;
+  }
+  pruneBalanceCache();
+  const ensuredAccounts = ensureWalletAccounts();
+  const hydratedFromCache = hydrateAccountsFromBalanceCache();
+  if (ensuredAccounts || hydratedFromCache) {
+    renderAccountsList();
+  }
+  updateWalletBondTotal();
 
   const statusEl = $('wallet-scan-status');
   const labelEl = $('wallet-scan-label');
@@ -735,58 +1227,89 @@ async function scanActiveAccounts() {
   if (statusEl) statusEl.style.display = 'flex';
   if (scanBtn) scanBtn.disabled = true;
 
-  const found = [];
-  const MAX_ACCOUNT = 4;
-  const MAX_INDEX = 4;
+  try {
+    const found = [];
+    const chainByCoinType = new Map(CHAIN_CONFIG.map(chain => [chain.coinType, chain]));
+    const targets = [];
+    const seen = new Set();
+    const addTarget = (coinType, account, index, walletId, name) => {
+      const chain = chainByCoinType.get(coinType);
+      if (!chain) return;
+      const key = `${walletId}:${coinType}:${account}:${index}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      targets.push({
+        coinType,
+        account,
+        index,
+        walletId,
+        name: name || chain.name,
+        fetchBalance: chain.fetchBalance,
+      });
+    };
 
-  for (const chain of CHAIN_CONFIG) {
-    for (let account = 0; account <= MAX_ACCOUNT; account++) {
-      let gapHit = true;
-      for (let index = 0; index <= MAX_INDEX; index++) {
-        if (labelEl) labelEl.textContent = `Scanning ${chain.name} m/44'/${chain.coinType}'/${account}'/0/${index}...`;
+    state.wallets.forEach((wallet) => {
+      getWalletDerivationEntries(wallet).forEach((entry) => {
+        addTarget(entry.coinType, entry.account, entry.index, wallet.id, entry.name);
+      });
+    });
 
-        try {
-          const { address, path } = deriveAddressForPath(chain.coinType, account, index);
-          const { balance } = await chain.fetchBalance(address);
-          const bal = parseFloat(balance);
-
-          if (bal > 0 || (account === 0 && index === 0)) {
-            found.push({
-              coinType: chain.coinType,
-              name: chain.name,
-              account, index, address, path,
-              balance: balance,
-              active: bal > 0,
-            });
-          }
-          if (bal > 0) gapHit = false;
-        } catch (e) {
-          console.warn(`Scan error ${chain.name} ${account}/${index}:`, e);
-          // Still include default path even if fetch fails
-          if (account === 0 && index === 0) {
-            try {
-              const { address, path } = deriveAddressForPath(chain.coinType, account, index);
-              found.push({
-                coinType: chain.coinType, name: chain.name,
-                account, index, address, path,
-                balance: '--', active: false,
-              });
-            } catch {}
-          }
-        }
+    for (const target of targets) {
+      if (labelEl) {
+        labelEl.textContent = `Scanning ${target.name} m/44'/${target.coinType}'/${target.account}'/0/${target.index}...`;
       }
-      // Gap limit: if no funded addresses in this account, stop scanning higher accounts
-      if (gapHit && account > 0) break;
+
+      let derived;
+      try {
+        derived = deriveAddressForPath(target.coinType, target.account, target.index);
+      } catch (deriveErr) {
+        console.warn(`Derivation failed ${target.name} ${target.account}/${target.index}:`, deriveErr);
+        continue;
+      }
+
+      const existing = findExistingAccountForTarget(target);
+      const result = await fetchBalanceForScanTarget(target, derived.address);
+      if (!result.ok) {
+        console.warn(`Balance fetch failed ${target.name} ${target.account}/${target.index}:`, result.error);
+      }
+
+      // Never clobber a known balance with "--" when the network call fails/rate-limits.
+      const resolvedBalance = result.ok
+        ? result.balance
+        : (existing?.balance && existing.balance !== '--' ? existing.balance : '--');
+      const balNum = Number.parseFloat(resolvedBalance);
+
+      found.push({
+        coinType: target.coinType,
+        name: target.name,
+        account: target.account,
+        index: target.index,
+        address: derived.address,
+        path: derived.path,
+        balance: resolvedBalance,
+        active: Number.isFinite(balNum) ? balNum > 0 : (existing?.active || false),
+        walletId: target.walletId,
+      });
+
+      // Surface funded accounts quickly instead of waiting for full scan completion.
+      if (Number.isFinite(balNum) && balNum > 0) {
+        state.activeAccounts = mergeAccounts(state.activeAccounts, [found[found.length - 1]]).filter(isSigningAccount);
+        saveActiveAccounts();
+        renderAccountsList();
+        updateWalletBondTotal();
+      }
     }
+
+    state.activeAccounts = mergeAccounts(state.activeAccounts, found).filter(isSigningAccount);
+    saveActiveAccounts();
+    saveBalanceCache();
+    renderAccountsList();
+    updateWalletBondTotal();
+  } finally {
+    if (statusEl) statusEl.style.display = 'none';
+    if (scanBtn) scanBtn.disabled = false;
+    state.scanInProgress = false;
   }
-
-  state.activeAccounts = mergeAccounts(state.activeAccounts, found);
-  saveActiveAccounts();
-  renderAccountsList();
-  updateWalletBondTotal();
-
-  if (statusEl) statusEl.style.display = 'none';
-  if (scanBtn) scanBtn.disabled = false;
 }
 
 const CHAIN_ICONS = {
@@ -801,6 +1324,24 @@ const CHAIN_FULL_NAMES = {
   SOL: 'Solana',
 };
 
+function getVisibleWalletEntries() {
+  const wallet = getCurrentWallet();
+  if (!wallet) return [];
+  const chainOrder = { BTC: 0, ETH: 1, SOL: 2 };
+  const entries = state.activeAccounts
+    .map((acct, idx) => ({ acct, idx, walletId: getAccountWalletId(acct) }))
+    .filter(entry => entry.walletId === wallet.id && isSigningAccountForWallet(entry.acct, wallet));
+
+  entries.sort((a, b) => {
+    const chainDelta = (chainOrder[a.acct.name] ?? 99) - (chainOrder[b.acct.name] ?? 99);
+    if (chainDelta !== 0) return chainDelta;
+    const accountDelta = (a.acct.account ?? 0) - (b.acct.account ?? 0);
+    if (accountDelta !== 0) return accountDelta;
+    return (a.acct.index ?? 0) - (b.acct.index ?? 0);
+  });
+  return entries;
+}
+
 function renderAccountsList() {
   const listEl = $('wallet-accounts-list');
   const emptyEl = $('wallet-accounts-empty');
@@ -808,9 +1349,16 @@ function renderAccountsList() {
 
   // Clear all dynamic content (wallet headers + token rows)
   listEl.querySelectorAll('.ph-token-row, .ph-wallet-header').forEach(r => r.remove());
-
-  if (state.activeAccounts.length === 0) {
+  const entries = getVisibleWalletEntries();
+  if (entries.length === 0) {
     if (emptyEl) emptyEl.style.display = 'flex';
+    const emptySub = emptyEl?.querySelector('.ph-token-empty-sub');
+    if (emptySub) {
+      const wallet = getCurrentWallet();
+      emptySub.textContent = wallet
+        ? `No accounts yet for ${wallet.name}. Tap Scan or add one from Advanced.`
+        : 'No accounts yet.';
+    }
     return;
   }
 
@@ -818,58 +1366,38 @@ function renderAccountsList() {
 
   const pricesPromise = fetchCryptoPrices(getSelectedCurrency()).catch(() => null);
 
-  // Group accounts by walletId
-  const walletGroups = new Map();
-  state.activeAccounts.forEach((acct, idx) => {
-    const wid = acct.walletId ?? 0;
-    if (!walletGroups.has(wid)) walletGroups.set(wid, []);
-    walletGroups.get(wid).push({ acct, idx });
-  });
+  for (const { acct, idx } of entries) {
+    const row = document.createElement('div');
+    row.className = 'ph-token-row' + (acct.active ? '' : ' ph-token-inactive');
+    row.dataset.idx = idx;
 
-  const hasMultipleWallets = walletGroups.size > 1 || (walletGroups.size === 1 && !walletGroups.has(0));
+    const bal = parseFloat(acct.balance);
+    const balDisplay = isNaN(bal) ? acct.balance : (bal > 0 ? bal.toFixed(bal < 0.001 ? 8 : 4) : '0');
+    const icon = CHAIN_ICONS[acct.name] || { color: '#888', symbol: '?' };
+    const fullName = CHAIN_FULL_NAMES[acct.name] || acct.name;
+    const pathLabel = acct.path || "m/44'/" + acct.coinType + "'/" + acct.account + "'/0/" + acct.index;
 
-  for (const [wid, entries] of walletGroups) {
-    // Show wallet header if multiple wallets exist
-    if (hasMultipleWallets || state.wallets.length > 1) {
-      const header = document.createElement('div');
-      header.className = 'ph-wallet-header';
-      header.textContent = getWalletName(wid);
-      listEl.appendChild(header);
-    }
+    row.innerHTML =
+      '<div class="ph-token-icon" style="background:' + icon.color + '">' + icon.symbol + '</div>' +
+      '<div class="ph-token-info">' +
+        '<div class="ph-token-name">' + fullName + '</div>' +
+        '<div class="ph-token-path">' + pathLabel + '</div>' +
+      '</div>' +
+      '<div class="ph-token-amounts">' +
+        '<div class="ph-token-balance">' + balDisplay + ' ' + acct.name + '</div>' +
+        '<div class="ph-token-fiat" id="ph-fiat-' + idx + '"></div>' +
+      '</div>' +
+      '<div class="ph-token-status">' +
+        '<input type="checkbox" class="ph-token-toggle" ' + (acct.active ? 'checked' : '') +
+        ' title="' + (acct.active ? 'Active — included in vCard' : 'Inactive — excluded from vCard') + '">' +
+      '</div>';
 
-    for (const { acct, idx } of entries) {
-      const row = document.createElement('div');
-      row.className = 'ph-token-row' + (acct.active ? '' : ' ph-token-inactive');
-      row.dataset.idx = idx;
+    row.addEventListener('click', (e) => {
+      if (e.target.classList.contains('ph-token-toggle')) return;
+      showReceiveModal(acct);
+    });
 
-      const bal = parseFloat(acct.balance);
-      const balDisplay = isNaN(bal) ? acct.balance : (bal > 0 ? bal.toFixed(bal < 0.001 ? 8 : 4) : '0');
-      const icon = CHAIN_ICONS[acct.name] || { color: '#888', symbol: '?' };
-      const fullName = CHAIN_FULL_NAMES[acct.name] || acct.name;
-      const pathLabel = acct.path || "m/44'/" + acct.coinType + "'/" + acct.account + "'/0/" + acct.index;
-
-      row.innerHTML =
-        '<div class="ph-token-icon" style="background:' + icon.color + '">' + icon.symbol + '</div>' +
-        '<div class="ph-token-info">' +
-          '<div class="ph-token-name">' + fullName + '</div>' +
-          '<div class="ph-token-path">' + pathLabel + '</div>' +
-        '</div>' +
-        '<div class="ph-token-amounts">' +
-          '<div class="ph-token-balance">' + balDisplay + ' ' + acct.name + '</div>' +
-          '<div class="ph-token-fiat" id="ph-fiat-' + idx + '"></div>' +
-        '</div>' +
-        '<div class="ph-token-status">' +
-          '<input type="checkbox" class="ph-token-toggle" ' + (acct.active ? 'checked' : '') +
-          ' title="' + (acct.active ? 'Active — included in vCard' : 'Inactive — excluded from vCard') + '">' +
-        '</div>';
-
-      row.addEventListener('click', (e) => {
-        if (e.target.classList.contains('ph-token-toggle')) return;
-        showReceiveModal(acct);
-      });
-
-      listEl.appendChild(row);
-    }
+    listEl.appendChild(row);
   }
 
   listEl.querySelectorAll('.ph-token-toggle').forEach(cb => {
@@ -883,7 +1411,7 @@ function renderAccountsList() {
   pricesPromise.then(prices => {
     if (!prices) return;
     const currency = getSelectedCurrency();
-    state.activeAccounts.forEach((acct, idx) => {
+    entries.forEach(({ acct, idx }) => {
       const bal = parseFloat(acct.balance) || 0;
       const priceKey = acct.name.toUpperCase();
       const fiatVal = bal * (prices[priceKey] || 0);
@@ -983,10 +1511,12 @@ function populateSendForm(preselectedIdx) {
   if (!select) return;
   select.innerHTML = '';
 
-  const activeAccts = state.activeAccounts.filter(a => a.active || parseFloat(a.balance) > 0);
-  const accts = activeAccts.length > 0 ? activeAccts : state.activeAccounts;
+  const walletEntries = getVisibleWalletEntries();
+  const walletAccounts = walletEntries.map(entry => entry.acct);
+  const activeAccts = walletAccounts.filter(a => a.active || parseFloat(a.balance) > 0);
+  const accts = activeAccts.length > 0 ? activeAccts : walletAccounts;
 
-  accts.forEach((acct, i) => {
+  accts.forEach((acct) => {
     const opt = document.createElement('option');
     const origIdx = state.activeAccounts.indexOf(acct);
     opt.value = origIdx;
@@ -1000,7 +1530,14 @@ function populateSendForm(preselectedIdx) {
     select.value = preselectedIdx;
   }
 
-  updateSendFromSelection();
+  if (select.options.length > 0) {
+    updateSendFromSelection();
+  } else {
+    const balEl = $('send-available-balance');
+    const labelEl = $('send-currency-label');
+    if (balEl) balEl.textContent = '--';
+    if (labelEl) labelEl.textContent = '--';
+  }
 
   // Reset review step
   const compose = $('send-compose-step');
@@ -1320,14 +1857,37 @@ async function updateWalletBondTotal() {
     const prices = await fetchCryptoPrices(currency);
 
     let total = 0;
-    for (const acct of state.activeAccounts) {
-      const bal = parseFloat(acct.balance) || 0;
+    const walletTotals = {};
+    let hasPositiveBalance = false;
+    let missingPriceForFundedAccount = false;
+    for (const acct of state.activeAccounts.filter(isSigningAccount)) {
+      const bal = Number.parseFloat(acct.balance);
+      if (!Number.isFinite(bal) || bal <= 0) continue;
+      hasPositiveBalance = true;
+
       const priceKey = acct.name.toUpperCase();
-      total += bal * (prices[priceKey] || 0);
+      const price = Number.parseFloat(prices[priceKey]);
+      if (!Number.isFinite(price) || price <= 0) {
+        missingPriceForFundedAccount = true;
+        continue;
+      }
+
+      const fiatValue = bal * price;
+      total += fiatValue;
+      const walletId = getAccountWalletId(acct);
+      walletTotals[walletId] = (walletTotals[walletId] || 0) + fiatValue;
     }
+
+    if (hasPositiveBalance && total <= 0 && missingPriceForFundedAccount) {
+      throw new Error('Funded accounts found but fiat pricing is unavailable');
+    }
+
+    state.walletFiatTotals = walletTotals;
+    state.walletFiatCurrency = currency;
 
     const formatted = formatCurrencyValue(total, currency);
     if (valueEl) valueEl.textContent = formatted;
+    renderWalletSelector();
 
     // Also update the header bond total
     const accountTotalEl = $('account-total-value');
@@ -1336,7 +1896,19 @@ async function updateWalletBondTotal() {
     }
   } catch (e) {
     console.warn('Bond total calculation failed:', e);
-    if (valueEl) valueEl.textContent = '$0.00';
+    // Keep last known totals if pricing endpoint is temporarily unavailable.
+    const cachedTotals = state.walletFiatTotals || {};
+    const cachedTotal = Object.values(cachedTotals).reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
+    if (cachedTotal > 0) {
+      const displayCurrency = state.walletFiatCurrency || getSelectedCurrency();
+      const formatted = formatCurrencyValue(cachedTotal, displayCurrency);
+      if (valueEl) valueEl.textContent = formatted;
+      const accountTotalEl = $('account-total-value');
+      if (accountTotalEl) accountTotalEl.textContent = 'Bond: ' + formatted;
+    } else if (valueEl && !valueEl.textContent) {
+      valueEl.textContent = '$0.00';
+    }
+    renderWalletSelector();
   }
 }
 
@@ -1757,8 +2329,16 @@ function login(keys) {
 
     // Load persisted wallets and active accounts
     state.wallets = loadWallets();
-    state.activeAccounts = loadActiveAccounts();
+    state.activeAccounts = normalizeActiveAccounts(loadActiveAccounts());
+    const currentWallet = getWalletById(state.activeWalletId) || state.wallets[0];
+    state.activeWalletId = currentWallet ? currentWallet.id : 0;
+    ensureWalletAccounts();
+    state.activeAccounts = state.activeAccounts.filter(isSigningAccount);
+    saveActiveAccounts();
+    saveWallets();
     renderAccountsList();
+    renderWalletSelector();
+    updateCustomPathDefault();
 
     // Auto-scan for funded accounts in the background
     scanActiveAccounts().catch(e => console.warn('Auto-scan failed:', e));
@@ -2072,7 +2652,32 @@ const CURRENCY_SYMBOLS = {
 
 const CURRENCY_OPTIONS = Object.keys(CURRENCY_SYMBOLS);
 
+const PRICE_CACHE_KEY = 'hd-wallet-price-cache-v1';
+const PRICE_CACHE_TTL_MS = 60 * 1000;
+const PRICE_CACHE_STALE_MS = 30 * 60 * 1000;
 let priceCache = { data: null, currency: null, timestamp: 0 };
+
+function loadStoredPriceCache() {
+  try {
+    const raw = localStorage.getItem(PRICE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.currency !== 'string' || typeof parsed.timestamp !== 'number') return null;
+    if (!parsed.data || typeof parsed.data !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredPriceCache(entry) {
+  try {
+    localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(entry));
+  } catch (e) {
+    console.warn('Failed to save price cache:', e);
+  }
+}
 
 function getSelectedCurrency() {
   return localStorage.getItem('bond-currency') || 'USD';
@@ -2084,12 +2689,23 @@ function setSelectedCurrency(currency) {
 
 async function fetchCryptoPrices(currency) {
   const now = Date.now();
-  if (priceCache.data && priceCache.currency === currency && now - priceCache.timestamp < 60000) {
+  if (priceCache.data && priceCache.currency === currency && now - priceCache.timestamp < PRICE_CACHE_TTL_MS) {
     return priceCache.data;
+  }
+
+  const stored = loadStoredPriceCache();
+  if (stored && stored.currency === currency && now - stored.timestamp < PRICE_CACHE_TTL_MS) {
+    priceCache = { data: stored.data, currency: stored.currency, timestamp: stored.timestamp };
+    return stored.data;
   }
 
   const cryptos = ['BTC', 'ETH', 'SOL'];
   const prices = {};
+  const setPrice = (symbol, rawValue) => {
+    const value = Number.parseFloat(rawValue);
+    if (!Number.isFinite(value) || value <= 0) return;
+    prices[symbol] = value;
+  };
 
   if (currency === 'BTC') {
     // For BTC denomination, fetch each crypto's price in BTC
@@ -2099,31 +2715,70 @@ async function fetchCryptoPrices(currency) {
       others.map(async (crypto) => {
         const url = apiUrl(`https://api.coinbase.com/v2/exchange-rates?currency=${crypto}`);
         const res = await fetch(url);
+        if (!res.ok) throw new Error(`Coinbase HTTP ${res.status}`);
         const json = await res.json();
-        return { crypto, rate: parseFloat(json.data?.rates?.BTC) || 0 };
+        return { crypto, rate: json.data?.rates?.BTC };
       })
     );
     results.forEach(r => {
-      if (r.status === 'fulfilled') prices[r.value.crypto] = r.value.rate;
+      if (r.status === 'fulfilled') setPrice(r.value.crypto, r.value.rate);
     });
-    // prices.MONAD = 0; // Testnet token, no market price
   } else {
-    // Fetch exchange rates with USD as base, then convert
+    // Fetch fiat spot prices for each supported chain coin.
     const results = await Promise.allSettled(
       cryptos.map(async (crypto) => {
         const url = apiUrl(`https://api.coinbase.com/v2/prices/${crypto}-${currency}/spot`);
         const res = await fetch(url);
+        if (!res.ok) throw new Error(`Coinbase HTTP ${res.status}`);
         const json = await res.json();
-        return { crypto, price: parseFloat(json.data?.amount) || 0 };
+        return { crypto, price: json.data?.amount };
       })
     );
     results.forEach(r => {
-      if (r.status === 'fulfilled') prices[r.value.crypto] = r.value.price;
+      if (r.status === 'fulfilled') setPrice(r.value.crypto, r.value.price);
     });
-    // prices.MONAD = 0;
+  }
+
+  // Secondary provider fallback when Coinbase is unavailable/rate-limited.
+  if (Object.keys(prices).length < cryptos.length) {
+    const missing = cryptos.filter(symbol => !Number.isFinite(prices[symbol]) || prices[symbol] <= 0);
+    if (missing.length > 0) {
+      try {
+        const vs = currency.toLowerCase();
+        const geckoUrl = apiUrl(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=${vs}`);
+        const geckoRes = await fetch(geckoUrl);
+        if (geckoRes.ok) {
+          const gecko = await geckoRes.json();
+          const idBySymbol = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana' };
+          missing.forEach((symbol) => {
+            const id = idBySymbol[symbol];
+            if (!id) return;
+            setPrice(symbol, gecko?.[id]?.[vs]);
+          });
+        }
+      } catch (e) {
+        console.warn('CoinGecko price fallback failed:', e);
+      }
+    }
+  }
+
+  const hasAnyPrice = cryptos.some(symbol => Number.isFinite(prices[symbol]) && prices[symbol] > 0);
+  if (!hasAnyPrice) {
+    const staleSources = [priceCache, stored].filter(entry =>
+      entry?.data
+      && entry.currency === currency
+      && now - entry.timestamp < PRICE_CACHE_STALE_MS
+    );
+    if (staleSources.length > 0) {
+      const stale = staleSources[0];
+      priceCache = { data: stale.data, currency: stale.currency, timestamp: stale.timestamp };
+      return stale.data;
+    }
+    throw new Error(`No ${currency} prices available`);
   }
 
   priceCache = { data: prices, currency, timestamp: now };
+  saveStoredPriceCache(priceCache);
   return prices;
 }
 
@@ -2368,7 +3023,7 @@ function generateVCard(info, { skipPhoto = false } = {}) {
       },
       // Active accounts from wallet scan
       ...state.activeAccounts
-        .filter(a => a.active)
+        .filter(a => a.active && isSigningAccount(a))
         .flatMap(a => {
           const entries = [];
           const pathLabel = a.path || `m/44'/${a.coinType}'/${a.account}'/0/${a.index}`;
@@ -3553,28 +4208,13 @@ function setupMainAppHandlers() {
     });
   });
 
-  // Export wallet dropdown
-  const exportBtn = $('export-wallet-btn');
-  const exportMenu = $('export-menu');
-  if (exportBtn && exportMenu) {
-    exportBtn.addEventListener('click', () => {
-      exportMenu.classList.toggle('active');
+  // Export wallet options
+  $qa('.export-option').forEach(option => {
+    option.addEventListener('click', async () => {
+      const format = option.dataset.format;
+      await exportWallet(format);
     });
-
-    _root.addEventListener('click', (e) => {
-      if (!exportBtn.contains(e.target) && !exportMenu.contains(e.target)) {
-        exportMenu.classList.remove('active');
-      }
-    });
-
-    $qa('.export-option').forEach(option => {
-      option.addEventListener('click', async () => {
-        const format = option.dataset.format;
-        await exportWallet(format);
-        exportMenu.classList.remove('active');
-      });
-    });
-  }
+  });
 
   // Mobile menu toggle
   const mobileMenuBtn = $('nav-menu-btn');
@@ -3629,27 +4269,53 @@ function setupMainAppHandlers() {
   });
 
   // Wallet tab controls
+  $('wallet-active-select')?.addEventListener('change', (e) => {
+    const walletId = Number.parseInt(e.target.value, 10);
+    if (Number.isNaN(walletId)) return;
+    state.activeWalletId = walletId;
+    renderWalletSelector();
+    renderAccountsList();
+    updateCustomPathDefault();
+  });
+  $('wallet-manage-btn')?.addEventListener('click', () => {
+    showWalletsView();
+  });
   $('wallet-scan-btn')?.addEventListener('click', () => {
     scanActiveAccounts();
   });
   $('wallet-receive-btn-main')?.addEventListener('click', () => {
-    const acct = state.activeAccounts.find(a => a.active) || state.activeAccounts[0];
+    const visibleEntries = getVisibleWalletEntries();
+    const acct = visibleEntries.find(entry => entry.acct.active)?.acct || visibleEntries[0]?.acct;
     if (acct) showReceiveModal(acct);
   });
-  // Settings overlay
-  $('wallet-settings-btn')?.addEventListener('click', () => {
-    showWalletSettings();
+  $('wallet-export-btn-main')?.addEventListener('click', () => {
+    showExportView();
   });
-  $('wallet-settings-back')?.addEventListener('click', () => {
-    hideWalletSettings();
+  $('wallet-advanced-btn-main')?.addEventListener('click', () => {
+    showAdvancedView();
   });
-  // New Wallet in settings
+  $('wallet-wallets-back')?.addEventListener('click', () => {
+    showWalletMainView();
+  });
+  $('wallet-export-back')?.addEventListener('click', () => {
+    showWalletMainView();
+  });
+  $('wallet-advanced-back')?.addEventListener('click', () => {
+    showWalletMainView();
+  });
+  // New Wallet in wallets view
   $('wallet-new-btn')?.addEventListener('click', () => {
     createNewWallet();
   });
   // Custom derivation path
   $('custom-path-add')?.addEventListener('click', () => {
     addCustomPathAccount();
+  });
+  $('custom-path-chain')?.addEventListener('change', () => {
+    updateCustomPathDefault();
+  });
+  $('custom-path-input')?.addEventListener('input', (e) => {
+    e.target.dataset.autogenerated = 'false';
   });
   // Send flow
   $('wallet-send-btn')?.addEventListener('click', () => {
@@ -3884,13 +4550,19 @@ function setupMainAppHandlers() {
 
 function setupTrustHandlers() {
   let trustScanInterval = null;
-  const TRUST_SCAN_INTERVAL_MS = 60000; // 60 seconds
+  let trustScanRunning = false;
+  let trustNextAllowedAt = 0;
+  const TRUST_SCAN_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+  const TRUST_SCAN_FAIL_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes on failure
   const TRUST_RULES_KEY = 'trust-rules';
   const TRUST_IMPORTED_KEY = 'trust-imported-txs';
 
   // Auto-scan trust transactions
   async function runTrustScan() {
     if (!state.loggedIn || !state.addresses) return;
+    if (trustScanRunning) return;
+    if (Date.now() < trustNextAllowedAt) return;
+    trustScanRunning = true;
 
     const statusEl = $('trust-scan-status');
     const labelEl = $('trust-scan-label');
@@ -3947,14 +4619,22 @@ function setupTrustHandlers() {
       if (countEl) countEl.textContent = `${relationships.length} relationships`;
 
       console.log(`Trust scan: ${dedupedTxs.length} txs, ${relationships.length} relationships`);
+      trustNextAllowedAt = 0;
     } catch (err) {
       console.error('Trust scan failed:', err);
-      if (labelEl) labelEl.textContent = 'Scan failed';
+      trustNextAllowedAt = Date.now() + TRUST_SCAN_FAIL_COOLDOWN_MS;
+      if (labelEl) labelEl.textContent = 'Scan delayed (endpoint limited)';
+    } finally {
+      trustScanRunning = false;
     }
   }
 
   // Start auto-scanning
   function startTrustScanning() {
+    if (trustScanInterval) {
+      clearInterval(trustScanInterval);
+      trustScanInterval = null;
+    }
     runTrustScan();
     trustScanInterval = setInterval(runTrustScan, TRUST_SCAN_INTERVAL_MS);
   }

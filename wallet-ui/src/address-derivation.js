@@ -22,6 +22,7 @@ const isDev = import.meta.env?.DEV ?? false;
 
 const proxyMap = {
   'https://blockchain.info': '/api/blockchain',
+  'https://blockstream.info': '/api/blockstream',
   'https://cloudflare-eth.com': '/api/eth',
   'https://api.mainnet-beta.solana.com': '/api/solana/official',
   'https://solana-rpc.publicnode.com': '/api/solana/publicnode',
@@ -387,18 +388,44 @@ export function truncateAddress(address) {
  * @returns {Promise<{balance: string, error?: string}>}
  */
 export async function fetchBtcBalance(address) {
+  let lastError = 'No available endpoint';
+
+  // Primary endpoint: blockchain.info (fast/simple satoshi response)
   try {
     const response = await fetch(apiUrl(`https://blockchain.info/q/addressbalance/${address}?cors=true`));
-    if (!response.ok) {
-      return { balance: '0', error: 'API error' };
+    if (response.ok) {
+      const satoshis = await response.text();
+      const satoshisInt = parseInt(satoshis, 10);
+      if (Number.isFinite(satoshisInt)) {
+        return { balance: (satoshisInt / 1e8).toFixed(8) };
+      }
+      lastError = 'Invalid BTC balance response from blockchain.info';
+    } else {
+      lastError = `blockchain.info HTTP ${response.status}`;
     }
-    const satoshis = await response.text();
-    const btc = parseInt(satoshis, 10) / 1e8;
-    return { balance: btc.toFixed(8) };
   } catch (e) {
-    console.debug('BTC balance fetch unavailable:', e.message);
-    return { balance: '--', error: e.message };
+    lastError = `blockchain.info ${e.message || 'request failed'}`;
   }
+
+  // Fallback endpoint: blockstream.info (chain_stats + mempool_stats)
+  try {
+    const response = await fetch(apiUrl(`https://blockstream.info/api/address/${address}`));
+    if (response.ok) {
+      const data = await response.json();
+      const chainFunded = BigInt(data?.chain_stats?.funded_txo_sum ?? 0);
+      const chainSpent = BigInt(data?.chain_stats?.spent_txo_sum ?? 0);
+      const mempoolFunded = BigInt(data?.mempool_stats?.funded_txo_sum ?? 0);
+      const mempoolSpent = BigInt(data?.mempool_stats?.spent_txo_sum ?? 0);
+      const satoshis = chainFunded - chainSpent + mempoolFunded - mempoolSpent;
+      return { balance: (Number(satoshis) / 1e8).toFixed(8) };
+    }
+    lastError = `${lastError}; blockstream.info HTTP ${response.status}`;
+  } catch (e) {
+    lastError = `${lastError}; blockstream.info ${e.message || 'request failed'}`;
+  }
+
+  console.debug('BTC balance fetch unavailable:', lastError);
+  return { balance: '--', error: lastError };
 }
 
 /**
@@ -418,9 +445,12 @@ export async function fetchEthBalance(address) {
         params: [address, 'latest']
       })
     });
+    if (!response.ok) {
+      return { balance: '--', error: `HTTP ${response.status}` };
+    }
     const data = await response.json();
     if (data.error) {
-      return { balance: '0', error: data.error.message };
+      return { balance: '--', error: data.error.message || 'ETH RPC error' };
     }
     const balanceWei = BigInt(data.result || '0x0');
     const balanceEth = Number(balanceWei) / 1e18;
@@ -438,10 +468,11 @@ export async function fetchEthBalance(address) {
  */
 export async function fetchSolBalance(address) {
   const endpoints = [
-    'https://api.mainnet-beta.solana.com',
     'https://solana-rpc.publicnode.com',
     'https://mainnet.helius-rpc.com/?api-key=1d8740dc-e5f4-421c-b823-e1bad1889eda',
+    'https://api.mainnet-beta.solana.com',
   ];
+  let lastError = 'No available endpoint';
 
   for (const endpoint of endpoints) {
     try {
@@ -455,18 +486,25 @@ export async function fetchSolBalance(address) {
           params: [address]
         })
       });
-      if (!response.ok) continue;
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}`;
+        continue;
+      }
       const data = await response.json();
-      if (data.error) continue;
+      if (data.error) {
+        lastError = data.error.message || 'SOL RPC error';
+        continue;
+      }
       const lamports = data.result?.value || 0;
       const sol = lamports / 1e9;
       return { balance: sol.toFixed(6) };
     } catch (e) {
+      lastError = e?.message || 'SOL RPC fetch error';
       continue;
     }
   }
   console.debug('SOL balance fetch unavailable: all endpoints failed');
-  return { balance: '--', error: 'No available endpoint' };
+  return { balance: '--', error: lastError };
 }
 
 // Commented out — BTC/ETH/SOL only for now

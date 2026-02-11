@@ -51,6 +51,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/blockchain/, ''),
       },
+      '/api/blockstream': {
+        target: 'https://blockstream.info',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/blockstream/, ''),
+      },
       '/api/eth': {
         target: 'https://cloudflare-eth.com',
         changeOrigin: true,
