@@ -229,6 +229,11 @@ const state = {
   encryptionIV: null,
   // vCard photo (base64 data URI)
   vcardPhoto: null,
+  // Active accounts discovered by scanning or manually added
+  activeAccounts: [],
+  // Wallet groups (Phantom-style: each wallet = same account index across chains)
+  wallets: [{ id: 0, name: 'Wallet 1', accountIndex: 0 }],
+  activeWalletId: 0,
   // PKI Demo state
   pki: {
     alice: null,
@@ -453,6 +458,888 @@ function updatePathDisplay() {
   if (signingPathEl) signingPathEl.textContent = signingPath;
   if (encryptionPathEl) encryptionPathEl.textContent = encryptionPath;
 }
+
+// =============================================================================
+// Active Accounts: Derivation, Persistence, Scanning, Rendering
+// =============================================================================
+
+/**
+ * Derive an address for a given BIP44 path.
+ * SOL (501) uses ed25519; BTC (0) and ETH (60) use secp256k1.
+ * @returns {{ address: string, publicKey: Uint8Array, path: string }}
+ */
+function deriveAddressForPath(coinType, account, index) {
+  if (!state.hdRoot) throw new Error('HD wallet not initialized');
+  const path = buildSigningPath(coinType, account, index);
+  const derived = state.hdRoot.derivePath(path);
+
+  if (coinType === 501) {
+    // Solana: ed25519
+    const privKey = derived.privateKey();
+    const pubKey = ed25519.getPublicKey(privKey);
+    return { address: generateSolAddress(pubKey), publicKey: pubKey, path };
+  }
+
+  // BTC/ETH: secp256k1
+  const pubKey = derived.publicKey();
+  return { address: generateAddressForCoin(pubKey, coinType), publicKey: pubKey, path };
+}
+
+const ACTIVE_ACCOUNTS_KEY = 'hd-wallet-active-accounts';
+const WALLETS_KEY = 'hd-wallet-wallets';
+
+function saveActiveAccounts() {
+  try {
+    const serializable = state.activeAccounts.map(a => ({
+      coinType: a.coinType,
+      name: a.name,
+      account: a.account,
+      index: a.index,
+      address: a.address,
+      balance: a.balance,
+      active: a.active,
+      path: a.path,
+      walletId: a.walletId ?? 0,
+    }));
+    localStorage.setItem(ACTIVE_ACCOUNTS_KEY, JSON.stringify(serializable));
+  } catch (e) {
+    console.warn('Failed to save active accounts:', e);
+  }
+}
+
+function loadActiveAccounts() {
+  try {
+    const saved = localStorage.getItem(ACTIVE_ACCOUNTS_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveWallets() {
+  try {
+    localStorage.setItem(WALLETS_KEY, JSON.stringify(state.wallets));
+  } catch (e) {
+    console.warn('Failed to save wallets:', e);
+  }
+}
+
+function loadWallets() {
+  try {
+    const saved = localStorage.getItem(WALLETS_KEY);
+    return saved ? JSON.parse(saved) : [{ id: 0, name: 'Wallet 1', accountIndex: 0 }];
+  } catch {
+    return [{ id: 0, name: 'Wallet 1', accountIndex: 0 }];
+  }
+}
+
+/**
+ * Create a new wallet (Phantom-style: all chains at same account index N).
+ * BTC: m/44'/0'/N'/0/0, ETH: m/44'/60'/0'/0/N, SOL: m/44'/501'/N'/0
+ */
+function createNewWallet(walletName) {
+  if (!state.hdRoot) return;
+
+  const maxIdx = state.wallets.reduce((m, w) => Math.max(m, w.accountIndex), -1);
+  const nextIdx = maxIdx + 1;
+  const nextId = state.wallets.reduce((m, w) => Math.max(m, w.id), -1) + 1;
+  const name = walletName || ('Wallet ' + (nextId + 1));
+
+  const wallet = { id: nextId, name, accountIndex: nextIdx };
+  state.wallets.push(wallet);
+  saveWallets();
+
+  // Derive addresses for each chain at the new account index
+  const chainDerivations = [
+    { coinType: 0,   name: 'BTC', account: nextIdx, index: 0 },     // BTC: m/44'/0'/N'/0/0
+    { coinType: 60,  name: 'ETH', account: 0,       index: nextIdx }, // ETH: m/44'/60'/0'/0/N
+    { coinType: 501, name: 'SOL', account: nextIdx,  index: 0 },     // SOL: m/44'/501'/N'/0
+  ];
+
+  for (const cd of chainDerivations) {
+    try {
+      const { address, path } = deriveAddressForPath(cd.coinType, cd.account, cd.index);
+      state.activeAccounts.push({
+        coinType: cd.coinType,
+        name: cd.name,
+        account: cd.account,
+        index: cd.index,
+        address,
+        path,
+        balance: '--',
+        active: false,
+        walletId: nextId,
+      });
+    } catch (e) {
+      console.warn('Failed to derive for new wallet:', cd.name, e);
+    }
+  }
+
+  saveActiveAccounts();
+  renderAccountsList();
+  renderWalletList();
+}
+
+function renameWallet(walletId, newName) {
+  const wallet = state.wallets.find(w => w.id === walletId);
+  if (!wallet) return;
+  wallet.name = newName;
+  saveWallets();
+  renderAccountsList();
+}
+
+function getWalletName(walletId) {
+  const w = state.wallets.find(w => w.id === walletId);
+  return w ? w.name : 'Wallet ' + (walletId + 1);
+}
+
+function renderWalletList() {
+  const listEl = $('wallet-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  for (const w of state.wallets) {
+    const count = state.activeAccounts.filter(a => (a.walletId ?? 0) === w.id).length;
+    const row = document.createElement('div');
+    row.className = 'wallet-name-row';
+    row.innerHTML =
+      '<input class="wallet-name-input glass-input compact" value="' + (w.name || '').replace(/"/g, '&quot;') + '" data-wallet-id="' + w.id + '">' +
+      '<span class="wallet-account-count">' + count + ' account' + (count !== 1 ? 's' : '') + '</span>';
+    listEl.appendChild(row);
+  }
+
+  listEl.querySelectorAll('.wallet-name-input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      const id = parseInt(e.target.dataset.walletId);
+      renameWallet(id, e.target.value.trim() || ('Wallet ' + (id + 1)));
+    });
+  });
+}
+
+// --- Wallet Overlay Navigation ---
+
+function showWalletSettings() {
+  const main = $('wallet-main-view');
+  const settings = $('wallet-settings-view');
+  if (main) main.style.display = 'none';
+  if (settings) settings.style.display = 'block';
+  renderWalletList();
+}
+
+function hideWalletSettings() {
+  const main = $('wallet-main-view');
+  const settings = $('wallet-settings-view');
+  if (main) main.style.display = 'block';
+  if (settings) settings.style.display = 'none';
+}
+
+function showSendView(preselectedIdx) {
+  const main = $('wallet-main-view');
+  const send = $('wallet-send-view');
+  if (main) main.style.display = 'none';
+  if (send) send.style.display = 'block';
+  populateSendForm(preselectedIdx);
+}
+
+function hideSendView() {
+  const main = $('wallet-main-view');
+  const send = $('wallet-send-view');
+  if (main) main.style.display = 'block';
+  if (send) send.style.display = 'none';
+  // Reset form
+  const compose = $('send-compose-step');
+  const review = $('send-review-step');
+  if (compose) compose.style.display = 'block';
+  if (review) review.style.display = 'none';
+}
+
+function addCustomPathAccount() {
+  if (!state.hdRoot) return;
+  const chainSelect = $('custom-path-chain');
+  const pathInput = $('custom-path-input');
+  if (!chainSelect || !pathInput) return;
+
+  const coinType = parseInt(chainSelect.value);
+  const pathStr = pathInput.value.trim();
+  if (!pathStr) return;
+
+  // Parse account/index from path (best effort)
+  const parts = pathStr.replace(/'/g, '').split('/');
+  const account = parseInt(parts[3]) || 0;
+  const index = parseInt(parts[4]) || 0;
+
+  const chainName = CHAIN_CONFIG.find(c => c.coinType === coinType)?.name || 'BTC';
+
+  try {
+    const { address, path } = deriveAddressForPath(coinType, account, index);
+    state.activeAccounts.push({
+      coinType,
+      name: chainName,
+      account,
+      index,
+      address,
+      path,
+      balance: '--',
+      active: false,
+      walletId: state.activeWalletId,
+    });
+    saveActiveAccounts();
+    renderAccountsList();
+    pathInput.value = '';
+  } catch (e) {
+    console.warn('Failed to add custom path:', e);
+  }
+}
+
+/**
+ * Merge newly scanned accounts with existing ones.
+ * Preserves user's active/inactive choices; updates balances.
+ */
+function mergeAccounts(existing, scanned) {
+  const key = (a) => `${a.coinType}:${a.account}:${a.index}`;
+  const map = new Map();
+
+  // Existing accounts keep their active state
+  for (const a of existing) {
+    map.set(key(a), { ...a });
+  }
+
+  // Scanned accounts update balances, add new entries
+  for (const a of scanned) {
+    const k = key(a);
+    if (map.has(k)) {
+      const prev = map.get(k);
+      prev.balance = a.balance;
+      prev.address = a.address;
+      prev.path = a.path;
+    } else {
+      map.set(k, { ...a });
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+const CHAIN_CONFIG = [
+  { coinType: 0,   name: 'BTC', fetchBalance: fetchBtcBalance },
+  { coinType: 60,  name: 'ETH', fetchBalance: fetchEthBalance },
+  { coinType: 501, name: 'SOL', fetchBalance: fetchSolBalance },
+];
+
+async function scanActiveAccounts() {
+  if (!state.hdRoot) return;
+
+  const statusEl = $('wallet-scan-status');
+  const labelEl = $('wallet-scan-label');
+  const scanBtn = $('wallet-scan-btn');
+  if (statusEl) statusEl.style.display = 'flex';
+  if (scanBtn) scanBtn.disabled = true;
+
+  const found = [];
+  const MAX_ACCOUNT = 4;
+  const MAX_INDEX = 4;
+
+  for (const chain of CHAIN_CONFIG) {
+    for (let account = 0; account <= MAX_ACCOUNT; account++) {
+      let gapHit = true;
+      for (let index = 0; index <= MAX_INDEX; index++) {
+        if (labelEl) labelEl.textContent = `Scanning ${chain.name} m/44'/${chain.coinType}'/${account}'/0/${index}...`;
+
+        try {
+          const { address, path } = deriveAddressForPath(chain.coinType, account, index);
+          const { balance } = await chain.fetchBalance(address);
+          const bal = parseFloat(balance);
+
+          if (bal > 0 || (account === 0 && index === 0)) {
+            found.push({
+              coinType: chain.coinType,
+              name: chain.name,
+              account, index, address, path,
+              balance: balance,
+              active: bal > 0,
+            });
+          }
+          if (bal > 0) gapHit = false;
+        } catch (e) {
+          console.warn(`Scan error ${chain.name} ${account}/${index}:`, e);
+          // Still include default path even if fetch fails
+          if (account === 0 && index === 0) {
+            try {
+              const { address, path } = deriveAddressForPath(chain.coinType, account, index);
+              found.push({
+                coinType: chain.coinType, name: chain.name,
+                account, index, address, path,
+                balance: '--', active: false,
+              });
+            } catch {}
+          }
+        }
+      }
+      // Gap limit: if no funded addresses in this account, stop scanning higher accounts
+      if (gapHit && account > 0) break;
+    }
+  }
+
+  state.activeAccounts = mergeAccounts(state.activeAccounts, found);
+  saveActiveAccounts();
+  renderAccountsList();
+  updateWalletBondTotal();
+
+  if (statusEl) statusEl.style.display = 'none';
+  if (scanBtn) scanBtn.disabled = false;
+}
+
+const CHAIN_ICONS = {
+  BTC: { color: '#F7931A', symbol: '\u20BF' },
+  ETH: { color: '#627EEA', symbol: '\u039E' },
+  SOL: { color: '#9945FF', symbol: 'S' },
+};
+
+const CHAIN_FULL_NAMES = {
+  BTC: 'Bitcoin',
+  ETH: 'Ethereum',
+  SOL: 'Solana',
+};
+
+function renderAccountsList() {
+  const listEl = $('wallet-accounts-list');
+  const emptyEl = $('wallet-accounts-empty');
+  if (!listEl) return;
+
+  // Clear all dynamic content (wallet headers + token rows)
+  listEl.querySelectorAll('.ph-token-row, .ph-wallet-header').forEach(r => r.remove());
+
+  if (state.activeAccounts.length === 0) {
+    if (emptyEl) emptyEl.style.display = 'flex';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const pricesPromise = fetchCryptoPrices(getSelectedCurrency()).catch(() => null);
+
+  // Group accounts by walletId
+  const walletGroups = new Map();
+  state.activeAccounts.forEach((acct, idx) => {
+    const wid = acct.walletId ?? 0;
+    if (!walletGroups.has(wid)) walletGroups.set(wid, []);
+    walletGroups.get(wid).push({ acct, idx });
+  });
+
+  const hasMultipleWallets = walletGroups.size > 1 || (walletGroups.size === 1 && !walletGroups.has(0));
+
+  for (const [wid, entries] of walletGroups) {
+    // Show wallet header if multiple wallets exist
+    if (hasMultipleWallets || state.wallets.length > 1) {
+      const header = document.createElement('div');
+      header.className = 'ph-wallet-header';
+      header.textContent = getWalletName(wid);
+      listEl.appendChild(header);
+    }
+
+    for (const { acct, idx } of entries) {
+      const row = document.createElement('div');
+      row.className = 'ph-token-row' + (acct.active ? '' : ' ph-token-inactive');
+      row.dataset.idx = idx;
+
+      const bal = parseFloat(acct.balance);
+      const balDisplay = isNaN(bal) ? acct.balance : (bal > 0 ? bal.toFixed(bal < 0.001 ? 8 : 4) : '0');
+      const icon = CHAIN_ICONS[acct.name] || { color: '#888', symbol: '?' };
+      const fullName = CHAIN_FULL_NAMES[acct.name] || acct.name;
+      const pathLabel = acct.path || "m/44'/" + acct.coinType + "'/" + acct.account + "'/0/" + acct.index;
+
+      row.innerHTML =
+        '<div class="ph-token-icon" style="background:' + icon.color + '">' + icon.symbol + '</div>' +
+        '<div class="ph-token-info">' +
+          '<div class="ph-token-name">' + fullName + '</div>' +
+          '<div class="ph-token-path">' + pathLabel + '</div>' +
+        '</div>' +
+        '<div class="ph-token-amounts">' +
+          '<div class="ph-token-balance">' + balDisplay + ' ' + acct.name + '</div>' +
+          '<div class="ph-token-fiat" id="ph-fiat-' + idx + '"></div>' +
+        '</div>' +
+        '<div class="ph-token-status">' +
+          '<input type="checkbox" class="ph-token-toggle" ' + (acct.active ? 'checked' : '') +
+          ' title="' + (acct.active ? 'Active — included in vCard' : 'Inactive — excluded from vCard') + '">' +
+        '</div>';
+
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('ph-token-toggle')) return;
+        showReceiveModal(acct);
+      });
+
+      listEl.appendChild(row);
+    }
+  }
+
+  listEl.querySelectorAll('.ph-token-toggle').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(e.target.closest('.ph-token-row').dataset.idx);
+      toggleAccountActive(idx);
+    });
+  });
+
+  pricesPromise.then(prices => {
+    if (!prices) return;
+    const currency = getSelectedCurrency();
+    state.activeAccounts.forEach((acct, idx) => {
+      const bal = parseFloat(acct.balance) || 0;
+      const priceKey = acct.name.toUpperCase();
+      const fiatVal = bal * (prices[priceKey] || 0);
+      const el = $('ph-fiat-' + idx);
+      if (el) el.textContent = fiatVal > 0 ? formatCurrencyValue(fiatVal, currency) : '';
+    });
+  });
+}
+
+function toggleAccountActive(idx) {
+  if (idx < 0 || idx >= state.activeAccounts.length) return;
+  state.activeAccounts[idx].active = !state.activeAccounts[idx].active;
+  saveActiveAccounts();
+  renderAccountsList();
+}
+
+async function handleAccountAction(action, idx) {
+  const acct = state.activeAccounts[idx];
+  if (!acct) return;
+
+  switch (action) {
+    case 'receive':
+      showReceiveModal(acct);
+      break;
+    case 'copy':
+      try {
+        await navigator.clipboard.writeText(acct.address);
+      } catch {}
+      break;
+    case 'toggle':
+      toggleAccountActive(idx);
+      break;
+    case 'remove':
+      state.activeAccounts.splice(idx, 1);
+      saveActiveAccounts();
+      renderAccountsList();
+      break;
+  }
+}
+
+async function showReceiveModal(acct) {
+  // Create a simple receive overlay
+  let overlay = $('wallet-receive-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'wallet-receive-overlay';
+    overlay.className = 'wallet-receive-overlay';
+    overlay.innerHTML = `
+      <div class="wallet-receive-card">
+        <h4 id="wallet-receive-title" class="section-label"></h4>
+        <canvas id="wallet-receive-qr"></canvas>
+        <code id="wallet-receive-address" class="wallet-receive-address"></code>
+        <div class="wallet-receive-actions">
+          <button id="wallet-receive-copy" class="glass-btn small">Copy</button>
+          <button id="wallet-receive-close" class="glass-btn small">Close</button>
+        </div>
+      </div>
+    `;
+    $('wallet-tab-content')?.appendChild(overlay);
+  }
+
+  const titleEl = overlay.querySelector('#wallet-receive-title');
+  const addrEl = overlay.querySelector('#wallet-receive-address');
+  if (titleEl) titleEl.textContent = `Receive ${acct.name}`;
+  if (addrEl) addrEl.textContent = acct.address;
+
+  try {
+    const qrCanvas = overlay.querySelector('#wallet-receive-qr');
+    if (qrCanvas) {
+      await QRCode.toCanvas(qrCanvas, acct.address, {
+        width: 180,
+        margin: 2,
+        color: { dark: '#1e293b', light: '#ffffff' },
+      });
+    }
+  } catch (e) {
+    console.warn('QR generation failed:', e);
+  }
+
+  overlay.style.display = 'flex';
+
+  overlay.querySelector('#wallet-receive-copy')?.addEventListener('click', () => {
+    navigator.clipboard.writeText(acct.address).catch(() => {});
+  }, { once: true });
+
+  overlay.querySelector('#wallet-receive-close')?.addEventListener('click', () => {
+    overlay.style.display = 'none';
+  }, { once: true });
+}
+
+// =============================================================================
+// Send Flow
+// =============================================================================
+
+function populateSendForm(preselectedIdx) {
+  const select = $('send-from-account');
+  if (!select) return;
+  select.innerHTML = '';
+
+  const activeAccts = state.activeAccounts.filter(a => a.active || parseFloat(a.balance) > 0);
+  const accts = activeAccts.length > 0 ? activeAccts : state.activeAccounts;
+
+  accts.forEach((acct, i) => {
+    const opt = document.createElement('option');
+    const origIdx = state.activeAccounts.indexOf(acct);
+    opt.value = origIdx;
+    const bal = parseFloat(acct.balance);
+    const balStr = isNaN(bal) ? '' : (' — ' + bal.toFixed(bal < 0.001 ? 8 : 4) + ' ' + acct.name);
+    opt.textContent = acct.name + ' ' + truncateAddress(acct.address) + balStr;
+    select.appendChild(opt);
+  });
+
+  if (typeof preselectedIdx === 'number') {
+    select.value = preselectedIdx;
+  }
+
+  updateSendFromSelection();
+
+  // Reset review step
+  const compose = $('send-compose-step');
+  const review = $('send-review-step');
+  if (compose) compose.style.display = 'block';
+  if (review) review.style.display = 'none';
+  const statusEl = $('send-status');
+  if (statusEl) statusEl.style.display = 'none';
+
+  // Clear inputs
+  const toAddr = $('send-to-address');
+  const amount = $('send-amount');
+  if (toAddr) toAddr.value = '';
+  if (amount) amount.value = '';
+  const fiatEst = $('send-fiat-estimate');
+  if (fiatEst) fiatEst.textContent = '';
+  const reviewBtn = $('send-review-btn');
+  if (reviewBtn) reviewBtn.disabled = true;
+}
+
+function updateSendFromSelection() {
+  const select = $('send-from-account');
+  if (!select) return;
+  const idx = parseInt(select.value);
+  const acct = state.activeAccounts[idx];
+  if (!acct) return;
+
+  const balEl = $('send-available-balance');
+  const labelEl = $('send-currency-label');
+  if (balEl) {
+    const bal = parseFloat(acct.balance);
+    balEl.textContent = (isNaN(bal) ? acct.balance : bal.toFixed(bal < 0.001 ? 8 : 4)) + ' ' + acct.name;
+  }
+  if (labelEl) labelEl.textContent = acct.name;
+}
+
+function validateSendForm() {
+  const select = $('send-from-account');
+  const toAddr = $('send-to-address');
+  const amount = $('send-amount');
+  const reviewBtn = $('send-review-btn');
+  if (!select || !toAddr || !amount || !reviewBtn) return;
+
+  const idx = parseInt(select.value);
+  const acct = state.activeAccounts[idx];
+  const addr = toAddr.value.trim();
+  const amt = parseFloat(amount.value);
+
+  reviewBtn.disabled = !(acct && addr.length > 10 && amt > 0);
+}
+
+function showSendReview() {
+  const select = $('send-from-account');
+  const toAddr = $('send-to-address');
+  const amount = $('send-amount');
+  if (!select || !toAddr || !amount) return;
+
+  const idx = parseInt(select.value);
+  const acct = state.activeAccounts[idx];
+  if (!acct) return;
+
+  const amt = parseFloat(amount.value);
+  const fee = acct.name === 'BTC' ? 0.0001 : (acct.name === 'ETH' ? 0.002 : 0.000005);
+
+  const reviewTo = $('send-review-to');
+  const reviewAmt = $('send-review-amount');
+  const reviewFee = $('send-review-fee');
+  const reviewTotal = $('send-review-total');
+
+  if (reviewTo) reviewTo.textContent = toAddr.value.trim();
+  if (reviewAmt) reviewAmt.textContent = amt.toFixed(amt < 0.001 ? 8 : 4) + ' ' + acct.name;
+  if (reviewFee) reviewFee.textContent = '~' + fee + ' ' + acct.name;
+  if (reviewTotal) reviewTotal.textContent = (amt + fee).toFixed(8) + ' ' + acct.name;
+
+  const compose = $('send-compose-step');
+  const review = $('send-review-step');
+  if (compose) compose.style.display = 'none';
+  if (review) review.style.display = 'block';
+}
+
+async function executeSend() {
+  const select = $('send-from-account');
+  const toAddr = $('send-to-address');
+  const amount = $('send-amount');
+  const statusEl = $('send-status');
+  const confirmBtn = $('send-confirm-btn');
+
+  if (!select || !toAddr || !amount) return;
+
+  const idx = parseInt(select.value);
+  const acct = state.activeAccounts[idx];
+  if (!acct) return;
+
+  const to = toAddr.value.trim();
+  const amt = parseFloat(amount.value);
+
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.className = 'send-status send-status-pending';
+    statusEl.textContent = 'Broadcasting transaction...';
+  }
+  if (confirmBtn) confirmBtn.disabled = true;
+
+  try {
+    let txHash;
+
+    if (acct.coinType === 0) {
+      txHash = await sendBtcTransaction(acct, to, amt);
+    } else if (acct.coinType === 60) {
+      txHash = await sendEthTransaction(acct, to, amt);
+    } else if (acct.coinType === 501) {
+      txHash = await sendSolTransaction(acct, to, amt);
+    } else {
+      throw new Error('Unsupported chain: ' + acct.name);
+    }
+
+    if (statusEl) {
+      statusEl.className = 'send-status send-status-success';
+      statusEl.innerHTML = 'Transaction sent! Hash: <code class="truncate">' + (txHash || 'pending') + '</code>';
+    }
+
+    // Refresh balances after a short delay
+    setTimeout(() => {
+      scanActiveAccounts();
+    }, 5000);
+  } catch (e) {
+    console.error('Send failed:', e);
+    if (statusEl) {
+      statusEl.className = 'send-status send-status-error';
+      statusEl.textContent = 'Failed: ' + (e.message || 'Unknown error');
+    }
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+// --- Per-chain transaction construction ---
+
+async function sendBtcTransaction(acct, toAddress, amountBtc) {
+  const module = state.hdWalletModule;
+  if (!module?.bitcoin?.tx) throw new Error('Bitcoin tx builder not available');
+
+  // Fetch UTXOs
+  const utxoResp = await fetch(apiUrl('https://blockchain.info/unspent?active=' + acct.address));
+  if (!utxoResp.ok) throw new Error('Failed to fetch UTXOs (address may have no unspent outputs)');
+  const utxoData = await utxoResp.json();
+  const utxos = utxoData.unspent_outputs || [];
+  if (utxos.length === 0) throw new Error('No UTXOs available');
+
+  const amountSats = BigInt(Math.round(amountBtc * 1e8));
+  const feeSats = BigInt(10000); // ~0.0001 BTC flat fee estimate
+  const totalNeeded = amountSats + feeSats;
+
+  // Select UTXOs (simple greedy)
+  let inputSum = BigInt(0);
+  const selectedUtxos = [];
+  for (const utxo of utxos) {
+    selectedUtxos.push(utxo);
+    inputSum += BigInt(utxo.value);
+    if (inputSum >= totalNeeded) break;
+  }
+  if (inputSum < totalNeeded) throw new Error('Insufficient funds');
+
+  // Build transaction
+  const tx = module.bitcoin.tx.create();
+  for (const utxo of selectedUtxos) {
+    tx.addInput(utxo.tx_hash_big_endian, utxo.tx_output_n);
+  }
+  tx.addOutput(toAddress, amountSats);
+
+  // Change output
+  const change = inputSum - amountSats - feeSats;
+  if (change > BigInt(546)) { // dust threshold
+    tx.addOutput(acct.address, change);
+  }
+
+  // Sign each input
+  const path = acct.path || buildSigningPath(acct.coinType, acct.account, acct.index);
+  const derived = state.hdRoot.derivePath(path);
+  const privKey = derived.privateKey();
+  for (let i = 0; i < selectedUtxos.length; i++) {
+    tx.sign(i, privKey);
+  }
+
+  const rawTx = tx.serialize();
+  const hexTx = Array.from(rawTx).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // Broadcast
+  const broadcastResp = await fetch(apiUrl('https://blockchain.info/pushtx'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'tx=' + hexTx,
+  });
+  if (!broadcastResp.ok) {
+    const errText = await broadcastResp.text();
+    throw new Error('Broadcast failed: ' + errText);
+  }
+
+  return tx.getTxid();
+}
+
+async function sendEthTransaction(acct, toAddress, amountEth) {
+  const module = state.hdWalletModule;
+  if (!module?.ethereum?.tx) throw new Error('Ethereum tx builder not available');
+
+  const ETH_RPC = 'https://cloudflare-eth.com';
+  const rpc = async (method, params) => {
+    const resp = await fetch(ETH_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result;
+  };
+
+  // Get nonce, gas price, estimate gas
+  const [nonceHex, baseFeeBlock] = await Promise.all([
+    rpc('eth_getTransactionCount', [acct.address, 'latest']),
+    rpc('eth_getBlockByNumber', ['latest', false]),
+  ]);
+
+  const nonce = parseInt(nonceHex, 16);
+  const baseFee = BigInt(baseFeeBlock.baseFeePerGas || '0x0');
+  const maxPriorityFee = BigInt(2000000000); // 2 gwei
+  const maxFee = baseFee * BigInt(2) + maxPriorityFee;
+  const gasLimit = BigInt(21000);
+
+  // Convert ETH to wei
+  const weiStr = BigInt(Math.round(amountEth * 1e18));
+
+  const tx = module.ethereum.tx.createEIP1559({
+    nonce,
+    maxFeePerGas: maxFee,
+    maxPriorityFeePerGas: maxPriorityFee,
+    gasLimit,
+    to: toAddress,
+    value: weiStr,
+    chainId: 1,
+  });
+
+  // Sign
+  const path = acct.path || buildSigningPath(acct.coinType, acct.account, acct.index);
+  const derived = state.hdRoot.derivePath(path);
+  const privKey = derived.privateKey();
+  tx.sign(privKey);
+
+  const rawTx = tx.serialize();
+  const hexTx = '0x' + Array.from(rawTx).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // Broadcast
+  const txHash = await rpc('eth_sendRawTransaction', [hexTx]);
+  return txHash;
+}
+
+async function sendSolTransaction(acct, toAddress, amountSol) {
+  // Solana transfer via RPC (no WASM builder — manual SystemProgram.transfer)
+  const SOL_ENDPOINTS = [
+    'https://api.mainnet-beta.solana.com',
+    'https://solana-mainnet.g.alchemy.com/v2/demo',
+    'https://rpc.ankr.com/solana',
+  ];
+
+  const rpc = async (method, params) => {
+    for (const endpoint of SOL_ENDPOINTS) {
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.result;
+      } catch (e) {
+        continue;
+      }
+    }
+    throw new Error('All Solana RPC endpoints failed');
+  };
+
+  // For Solana, we need @solana/web3.js which may not be available
+  // Try dynamic import, otherwise fail gracefully
+  throw new Error('Solana send requires @solana/web3.js (not yet integrated). Use a Solana wallet to send SOL.');
+}
+
+async function updateSendFiatEstimate() {
+  const select = $('send-from-account');
+  const amount = $('send-amount');
+  const fiatEst = $('send-fiat-estimate');
+  if (!select || !amount || !fiatEst) return;
+
+  const idx = parseInt(select.value);
+  const acct = state.activeAccounts[idx];
+  if (!acct) return;
+
+  const amt = parseFloat(amount.value) || 0;
+  if (amt <= 0) { fiatEst.textContent = ''; return; }
+
+  try {
+    const currency = getSelectedCurrency();
+    const prices = await fetchCryptoPrices(currency);
+    const price = prices[acct.name.toUpperCase()] || 0;
+    const fiat = amt * price;
+    fiatEst.textContent = fiat > 0 ? '~ ' + formatCurrencyValue(fiat, currency) : '';
+  } catch {
+    fiatEst.textContent = '';
+  }
+}
+
+async function updateWalletBondTotal() {
+  const valueEl = $('wallet-bond-value');
+
+  try {
+    const currency = getSelectedCurrency();
+    const prices = await fetchCryptoPrices(currency);
+
+    let total = 0;
+    for (const acct of state.activeAccounts) {
+      const bal = parseFloat(acct.balance) || 0;
+      const priceKey = acct.name.toUpperCase();
+      total += bal * (prices[priceKey] || 0);
+    }
+
+    const formatted = formatCurrencyValue(total, currency);
+    if (valueEl) valueEl.textContent = formatted;
+
+    // Also update the header bond total
+    const accountTotalEl = $('account-total-value');
+    if (accountTotalEl) {
+      accountTotalEl.textContent = 'Bond: ' + formatted;
+    }
+  } catch (e) {
+    console.warn('Bond total calculation failed:', e);
+    if (valueEl) valueEl.textContent = '$0.00';
+  }
+}
+
 
 async function deriveAndDisplayAddress() {
   console.log('deriveAndDisplayAddress called, hdRoot:', !!state.hdRoot);
@@ -851,9 +1738,10 @@ function login(keys) {
     if (xpubEl) {
       setTruncatedValue(xpubEl, state.hdRoot.toXpub() || 'N/A');
     }
-    const keysXpubEl = $('keys-xpub');
-    if (keysXpubEl) {
-      setTruncatedValue(keysXpubEl, state.hdRoot.toXpub() || 'N/A');
+    // Populate wallet tab xpub display
+    const walletTabXpubEl = $('wallet-tab-xpub');
+    if (walletTabXpubEl) {
+      setTruncatedValue(walletTabXpubEl, state.hdRoot.toXpub() || 'N/A');
     }
     populateAccountAddressDropdown();
     if (xprvEl) {
@@ -866,6 +1754,14 @@ function login(keys) {
     } else if (seedEl) {
       seedEl.textContent = 'Not available (derived from password)';
     }
+
+    // Load persisted wallets and active accounts
+    state.wallets = loadWallets();
+    state.activeAccounts = loadActiveAccounts();
+    renderAccountsList();
+
+    // Auto-scan for funded accounts in the background
+    scanActiveAccounts().catch(e => console.warn('Auto-scan failed:', e));
   }
 
   // Derive PKI keys from HD wallet if available
@@ -910,7 +1806,6 @@ function login(keys) {
 
   // Open Account modal so user can see the wallet they just loaded
   $('keys-modal')?.classList.add('active');
-  deriveAndDisplayAddress();
 
   // Resolve names and update title
   clearNameCache();
@@ -1063,7 +1958,7 @@ function populateAccountAddressDropdown() {
   if (!addrEl) return;
 
   const xpubStr = state.hdRoot ? state.hdRoot.toXpub() : '';
-  addrEl.textContent = xpubStr;
+  addrEl.textContent = `${xpubStr.slice(0,10)}...${xpubStr.slice(-10)}`;
   addrEl.title = xpubStr;
 
   const copyBtn = $('account-address-copy');
@@ -1414,140 +2309,11 @@ function initCurrencySelector() {
 // =============================================================================
 
 async function updateAdversarialSecurity() {
-  const loginRequired = $('adversarial-login-required');
-  const balancesSection = $('adversarial-balances');
-
   const hasWallet = state.wallet && (state.wallet.secp256k1 || state.wallet.ed25519);
+  if (!hasWallet) return;
 
-  if (!hasWallet) {
-    if (loginRequired) loginRequired.style.display = 'block';
-    if (balancesSection) balancesSection.style.display = 'none';
-    const trustNote = $('trust-note');
-    if (trustNote) trustNote.textContent = 'Login to derive addresses and check balances.';
-    return;
-  }
-
-  if (loginRequired) loginRequired.style.display = 'none';
-  if (balancesSection) balancesSection.style.display = 'block';
-
-  populateWalletAddresses();
-
-  const btcAddress = state.addresses?.btc;
-  const ethAddress = state.addresses?.eth;
-  const solAddress = state.addresses?.sol;
-
-  // let suiAddress = null;
-  // let adaAddress = null;
-  // if (state.hdRoot) {
-  //   try {
-  //     const suiPath = buildSigningPath(784, 0, 0);
-  //     const suiDerived = state.hdRoot.derivePath(suiPath);
-  //     const suiPubKey = ed25519.getPublicKey(suiDerived.privateKey());
-  //     suiAddress = deriveSuiAddress(suiPubKey, 'ed25519');
-  //   } catch (e) { console.error('SUI derivation error:', e); }
-
-  //   try {
-  //     const adaPath = buildSigningPath(1815, 0, 0);
-  //     const adaDerived = state.hdRoot.derivePath(adaPath);
-  //     const adaPubKey = ed25519.getPublicKey(adaDerived.privateKey());
-  //     adaAddress = deriveCardanoAddress(adaPubKey);
-  //   } catch (e) { console.error('ADA derivation error:', e); }
-  // }
-
-  // const monadAddress = ethAddress;
-  // const xrpAddress = state.addresses?.xrp;
-
-  // Set loading state
-  const networks = ['btc', 'eth', 'sol'];
-  networks.forEach(net => {
-    const balEl = $(`wallet-${net}-balance`);
-    if (balEl) balEl.textContent = '...';
-  });
-  const trustNote = $('trust-note');
-  if (trustNote) trustNote.textContent = 'Fetching balances from blockchain...';
-
-  const fetchResults = await Promise.allSettled([
-    btcAddress ? fetchBtcBalance(btcAddress) : Promise.resolve({ balance: '0' }),
-    ethAddress ? fetchEthBalance(ethAddress) : Promise.resolve({ balance: '0' }),
-    solAddress ? fetchSolBalance(solAddress) : Promise.resolve({ balance: '0' }),
-    // suiAddress ? fetchSuiBalance(suiAddress) : Promise.resolve({ balance: '0' }),
-    // monadAddress ? fetchMonadBalance(monadAddress) : Promise.resolve({ balance: '0' }),
-    // adaAddress ? fetchAdaBalance(adaAddress) : Promise.resolve({ balance: '0' }),
-    // xrpAddress ? fetchXrpBalance(xrpAddress) : Promise.resolve({ balance: '0' }),
-  ]);
-
-  const [btcResult, ethResult, solResult] = fetchResults.map(
-    r => r.status === 'fulfilled' ? r.value : { balance: '0' }
-  );
-
-  const updateBalance = (network, balance, decimals = 4) => {
-    const balEl = $(`wallet-${network}-balance`);
-    if (balEl) {
-      const val = parseFloat(balance) || 0;
-      balEl.textContent = val > 0 ? val.toFixed(val < 0.0001 ? 8 : decimals) : '0';
-    }
-
-    const card = $(`wallet-${network}-card`);
-    if (card) {
-      const hasBalance = parseFloat(balance) > 0;
-      card.classList.toggle('has-balance', hasBalance);
-      card.classList.toggle('secure', hasBalance);
-    }
-  };
-
-  updateBalance('btc', btcResult.balance, 8);
-  updateBalance('eth', ethResult.balance, 6);
-  updateBalance('sol', solResult.balance, 6);
-  // updateBalance('sui', suiResult.balance, 4);
-  // updateBalance('monad', monadResult.balance, 4);
-  // updateBalance('ada', adaResult.balance, 6);
-  // updateBalance('xrp', xrpResult.balance, 6);
-
-  // Update bond tab per-network balances
-  const bondBalances = {
-    btc: btcResult.balance, eth: ethResult.balance, sol: solResult.balance,
-    // sui: suiResult.balance, monad: monadResult.balance, ada: adaResult.balance,
-    // xrp: xrpResult.balance,
-  };
-  Object.entries(bondBalances).forEach(([net, bal]) => {
-    const el = $(`bond-${net}-balance`);
-    const card = $(`bond-${net}-card`);
-    const val = parseFloat(bal) || 0;
-    if (el) el.textContent = val > 0 ? val.toFixed(val < 0.0001 ? 8 : 4) : '0';
-    if (card) card.classList.toggle('has-balance', val > 0);
-  });
-
-  // Convert to selected currency
-  const currency = getSelectedCurrency();
-  let totalConverted = 0;
-  let cryptoPrices = null;
-
-  try {
-    cryptoPrices = await fetchCryptoPrices(currency);
-    const prices = cryptoPrices;
-    const balances = {
-      BTC: parseFloat(btcResult.balance) || 0,
-      ETH: parseFloat(ethResult.balance) || 0,
-      SOL: parseFloat(solResult.balance) || 0,
-      // SUI: parseFloat(suiResult.balance) || 0,
-      // MONAD: parseFloat(monadResult.balance) || 0,
-      // ADA: parseFloat(adaResult.balance) || 0,
-      // XRP: parseFloat(xrpResult.balance) || 0,
-    };
-
-    for (const [crypto, bal] of Object.entries(balances)) {
-      totalConverted += bal * (prices[crypto] || 0);
-    }
-  } catch (e) {
-    console.warn('Price conversion failed:', e);
-  }
-
-  // Update account header total value
-  const accountTotalEl = $('account-total-value');
-  if (accountTotalEl) {
-    accountTotalEl.textContent = 'Bond: ' + formatCurrencyValue(totalConverted, currency);
-  }
-
+  // Wallet tab bond total is now updated by scanActiveAccounts/updateWalletBondTotal
+  updateWalletBondTotal();
 }
 
 // =============================================================================
@@ -1590,23 +2356,38 @@ function generateVCard(info, { skipPhoto = false } = {}) {
 
   if (info.includeKeys && state.wallet?.x25519) {
     person.KEY = [
+      // Always include xPub
       ...(state.hdRoot?.toXpub ? [{
         XPUB: state.hdRoot.toXpub(),
         LABEL: '',
       }] : []),
+      // X25519 encryption key
       {
         PUBLIC_KEY: toBase64(state.wallet.x25519.publicKey),
         LABEL: 'X25519',
       },
-      {
-        PUBLIC_KEY: toBase64(state.wallet.ed25519.publicKey),
-        LABEL: "Ed25519 m/44'/501'/0'/0/0",
-      },
-      {
-        PUBLIC_KEY: toBase64(state.wallet.secp256k1.publicKey),
-        KEY_ADDRESS: state.addresses.btc || undefined,
-        LABEL: "secp256k1 m/44'/0'/0'/0/0",
-      },
+      // Active accounts from wallet scan
+      ...state.activeAccounts
+        .filter(a => a.active)
+        .flatMap(a => {
+          const entries = [];
+          const pathLabel = a.path || `m/44'/${a.coinType}'/${a.account}'/0/${a.index}`;
+          try {
+            const { publicKey } = deriveAddressForPath(a.coinType, a.account, a.index);
+            const curve = a.coinType === 501 ? 'Ed25519' : 'secp256k1';
+            entries.push({
+              PUBLIC_KEY: toBase64(publicKey),
+              LABEL: `${curve} ${pathLabel}`,
+            });
+          } catch {}
+          if (a.address) {
+            entries.push({
+              KEY_ADDRESS: a.address,
+              LABEL: pathLabel,
+            });
+          }
+          return entries;
+        }),
     ];
   } else if (info.xpubOnly && state.hdRoot?.toXpub) {
     person.KEY = [{ XPUB: state.hdRoot.toXpub(), LABEL: '' }];
@@ -2352,7 +3133,6 @@ function setupMainAppHandlers() {
   $('nav-logout')?.addEventListener('click', logout);
   $('nav-keys')?.addEventListener('click', async () => {
     $('keys-modal')?.classList.add('active');
-    deriveAndDisplayAddress();
     if (state.loggedIn) {
       const names = await resolveNames();
       updateAccountTitle(names);
@@ -2848,21 +3628,71 @@ function setupMainAppHandlers() {
     });
   });
 
-  // HD wallet controls
-  $('hd-coin')?.addEventListener('change', () => {
-    updatePathDisplay();
-    deriveAndDisplayAddress();
-    updateEncryptionTab();
+  // Wallet tab controls
+  $('wallet-scan-btn')?.addEventListener('click', () => {
+    scanActiveAccounts();
   });
-  $('hd-account')?.addEventListener('input', () => {
-    updatePathDisplay();
-    deriveAndDisplayAddress();
-    updateEncryptionTab();
+  $('wallet-receive-btn-main')?.addEventListener('click', () => {
+    const acct = state.activeAccounts.find(a => a.active) || state.activeAccounts[0];
+    if (acct) showReceiveModal(acct);
   });
-  $('hd-index')?.addEventListener('input', () => {
-    updatePathDisplay();
-    deriveAndDisplayAddress();
-    updateEncryptionTab();
+  // Settings overlay
+  $('wallet-settings-btn')?.addEventListener('click', () => {
+    showWalletSettings();
+  });
+  $('wallet-settings-back')?.addEventListener('click', () => {
+    hideWalletSettings();
+  });
+  // New Wallet in settings
+  $('wallet-new-btn')?.addEventListener('click', () => {
+    createNewWallet();
+  });
+  // Custom derivation path
+  $('custom-path-add')?.addEventListener('click', () => {
+    addCustomPathAccount();
+  });
+  // Send flow
+  $('wallet-send-btn')?.addEventListener('click', () => {
+    showSendView();
+  });
+  $('wallet-send-back')?.addEventListener('click', () => {
+    hideSendView();
+  });
+  $('send-from-account')?.addEventListener('change', () => {
+    updateSendFromSelection();
+  });
+  $('send-to-address')?.addEventListener('input', () => {
+    validateSendForm();
+  });
+  $('send-amount')?.addEventListener('input', () => {
+    validateSendForm();
+    updateSendFiatEstimate();
+  });
+  $('send-max-btn')?.addEventListener('click', () => {
+    const select = $('send-from-account');
+    const amountInput = $('send-amount');
+    if (!select || !amountInput) return;
+    const idx = parseInt(select.value);
+    const acct = state.activeAccounts[idx];
+    if (!acct) return;
+    const bal = parseFloat(acct.balance);
+    if (!isNaN(bal) && bal > 0) {
+      amountInput.value = bal;
+      validateSendForm();
+      updateSendFiatEstimate();
+    }
+  });
+  $('send-review-btn')?.addEventListener('click', () => {
+    showSendReview();
+  });
+  $('send-confirm-btn')?.addEventListener('click', () => {
+    executeSend();
+  });
+  $('send-edit-btn')?.addEventListener('click', () => {
+    const compose = $('send-compose-step');
+    const review = $('send-review-step');
+    if (compose) compose.style.display = 'block';
+    if (review) review.style.display = 'none';
   });
 
   // PKI clear keys

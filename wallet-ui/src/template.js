@@ -6,65 +6,140 @@ export function getModalHTML() {
       <div class="modal-header"><div class="account-header-info"><div class="account-header-top"><h3>Account</h3><h3 class="account-total-value" id="account-total-value"></h3></div><div class="account-address-row"><span class="account-address-label">xpub</span><code class="account-address-display" id="account-address-display"></code><button class="account-address-copy" id="account-address-copy" title="Copy xpub"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div><button class="modal-close">&times;</button></div>
       <div class="modal-tabs">
         <button class="modal-tab active" data-modal-tab="vcard-tab-content">Identity</button>
-        <button class="modal-tab" data-modal-tab="keys-tab-content">Keys</button>
         <button class="modal-tab" data-modal-tab="trust-tab-content">Trust Map</button>
-        <button class="modal-tab" data-modal-tab="bond-tab-content">Bond</button>
         <button class="modal-tab" data-modal-tab="messaging-tab-content">Messaging</button>
+        <button class="modal-tab" data-modal-tab="wallet-tab-content">Wallet</button>
       </div>
       <div class="modal-body">
-        <div id="keys-tab-content" class="modal-tab-content">
-          <div id="memory-info-box" class="memory-info-box" style="display:none"><div class="memory-info-content"><p><strong>Your keys never leave your device.</strong></p></div><button class="wallet-info-close" id="memory-info-close" title="Close">&times;</button></div>
-          <div class="xpub-section">
-            <div class="xpub-header">
-              <h4 class="section-label">Extended Public Key (xpub)</h4>
-              <div class="wallet-info-icon-wrap" id="xpub-info-toggle" title="What is an xpub?"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="0.75"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="11" fill="currentColor">i</text></svg></div>
-              <div class="memory-notice-row"><span class="memory-notice-label">Local Storage Only</span><div class="wallet-info-icon-wrap" id="memory-info-toggle" title="What does this mean?"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="0.75"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="11" fill="currentColor">i</text></svg></div></div>
-            </div>
-            <div id="xpub-info-box" class="xpub-info-box" style="display:none"><div class="xpub-info-content"><p><strong>Your xpub is your public identity root.</strong></p></div><button class="wallet-info-close" id="xpub-info-close" title="Close">&times;</button></div>
-            <div class="key-value-row">
-              <code id="keys-xpub" class="key-value truncate"></code>
-              <button class="copy-key-btn" data-copy="keys-xpub" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-            </div>
-          </div>
-          <div class="keys-section hd-section">
-            <h4 class="section-label">HD Wallet Derivation (BIP44)</h4>
-            <div class="hd-controls-row">
-              <div class="hd-control-group"><label>Network</label>
-                <select id="hd-coin" class="glass-select compact">
-                  <option value="0" data-symbol="BTC" data-name="Bitcoin">Bitcoin</option>
-                  <option value="60" data-symbol="ETH" data-name="Ethereum">Ethereum</option>
-                  <option value="501" data-symbol="SOL" data-name="Solana">Solana</option>
-                  <!-- Commented out — BTC/ETH/SOL only for now
-                  <option value="2" data-symbol="LTC" data-name="Litecoin">Litecoin</option>
-                  <option value="145" data-symbol="BCH" data-name="Bitcoin Cash">Bitcoin Cash</option>
-                  <option value="3" data-symbol="DOGE" data-name="Dogecoin">Dogecoin</option>
-                  <option value="118" data-symbol="ATOM" data-name="Cosmos">Cosmos</option>
-                  <option value="330" data-symbol="ALGO" data-name="Algorand">Algorand</option>
-                  <option value="354" data-symbol="DOT" data-name="Polkadot">Polkadot</option>
-                  <option value="1815" data-symbol="ADA" data-name="Cardano">Cardano</option>
-                  <option value="144" data-symbol="XRP" data-name="Ripple">Ripple (XRP)</option>
-                  -->
-                </select>
+        <!-- Wallet Tab -->
+        <div id="wallet-tab-content" class="modal-tab-content">
+          <!-- Main Wallet View -->
+          <div id="wallet-main-view">
+            <!-- Portfolio Value (Phantom-style hero) -->
+            <div class="ph-portfolio">
+              <div class="ph-portfolio-value" id="wallet-bond-value">$0.00</div>
+              <div class="ph-portfolio-label">Total Balance</div>
+              <div class="ph-portfolio-xpub">
+                <code id="wallet-tab-xpub" class="ph-xpub-text truncate"></code>
+                <button class="ph-xpub-copy copy-key-btn" data-copy="wallet-tab-xpub" title="Copy xPub"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
               </div>
-              <div class="hd-control-group"><label>Account</label><input type="number" id="hd-account" class="glass-input compact hd-num-input" value="0" min="0" step="1"></div>
-              <div class="hd-control-group"><label>Index</label><input type="number" id="hd-index" class="glass-input compact hd-num-input" value="0" min="0" step="1"></div>
             </div>
-            <div id="hd-not-initialized" class="hd-not-initialized" style="display: none;"><p>HD wallet not initialized. Please log in with a password or seed phrase.</p></div>
-            <div id="derived-result" class="derived-result" style="display: none;">
-              <div class="hd-key-row"><div class="hd-key-label">Signing</div><div class="hd-key-path"><code id="signing-path">m/44'/0'/0'/0'/0'</code></div><div class="hd-key-value"><code id="signing-pubkey" class="truncate"></code><button class="copy-btn" data-copy="signing-pubkey" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
-              <div class="hd-key-row"><div class="hd-key-label">Encryption</div><div class="hd-key-path"><code id="encryption-path">m/44'/0'/0'/1'/0'</code></div><div class="hd-key-value"><code id="encryption-pubkey" class="truncate"></code><button class="copy-btn" data-copy="encryption-pubkey" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div></div>
-              <div class="hd-address-row"><div class="hd-address-info"><span class="crypto-icon" id="derived-icon"></span><span class="crypto-name" id="derived-crypto-name">Bitcoin</span><code id="derived-address" class="hd-address"></code><a id="derived-explorer-link" href="#" target="_blank" class="explorer-link" title="View on Explorer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></a></div><div class="qr-section"><canvas id="address-qr" width="64" height="64"></canvas></div></div>
+
+            <!-- Action Buttons Row -->
+            <div class="ph-actions">
+              <button class="ph-action-btn" id="wallet-scan-btn">
+                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+                <span>Scan</span>
+              </button>
+              <button class="ph-action-btn" id="wallet-send-btn">
+                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
+                <span>Send</span>
+              </button>
+              <button class="ph-action-btn" id="wallet-receive-btn-main">
+                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
+                <span>Receive</span>
+              </button>
+              <button class="ph-action-btn" id="wallet-settings-btn">
+                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+                <span>Settings</span>
+              </button>
+            </div>
+
+            <!-- Scan Status -->
+            <div id="wallet-scan-status" class="ph-scan-status" style="display:none;">
+              <div class="wallet-scan-spinner"></div>
+              <span id="wallet-scan-label">Scanning derivation paths...</span>
+            </div>
+
+            <!-- Token List -->
+            <div id="wallet-accounts-list" class="ph-token-list">
+              <div class="ph-token-empty" id="wallet-accounts-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.25">
+                  <rect x="2" y="6" width="20" height="12" rx="2"/><line x1="2" y1="12" x2="22" y2="12"/>
+                </svg>
+                <p>No tokens yet</p>
+                <p class="ph-token-empty-sub">Log in and tap Scan to discover your accounts</p>
+              </div>
             </div>
           </div>
-          <details class="keys-section collapsible-section">
-            <summary class="section-label collapsible-header"><span>HD Wallet Root</span></summary>
-            <div class="collapsible-content">
-              <div class="key-item"><label>Master Public Key (xpub)</label><div class="key-value-row"><code id="wallet-xpub" class="key-value truncate"></code><button class="copy-key-btn" data-copy="wallet-xpub" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
-              <div class="key-item sensitive"><label>Master Private Key (xprv)</label><div class="key-value-row"><code id="wallet-xprv" class="key-value truncate blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-xprv" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-xprv" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
-              <div class="key-item sensitive"><label>Seed Phrase (BIP39)</label><div class="key-value-row"><code id="wallet-seed-phrase" class="key-value seed-phrase blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-seed-phrase" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-seed-phrase" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
-              <div class="export-section"><div class="export-dropdown"><button class="glass-btn small export-btn" id="export-wallet-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Wallet</button><div class="export-menu" id="export-menu"><button class="export-option" data-format="mnemonic"><span class="export-label">BIP39 Mnemonic</span></button><button class="export-option" data-format="xpub"><span class="export-label">Extended Public Key</span></button><button class="export-option" data-format="xprv"><span class="export-label">Extended Private Key</span></button></div></div></div>
+
+          <!-- Settings View (replaces main view) -->
+          <div id="wallet-settings-view" class="wallet-overlay-view" style="display:none;">
+            <div class="wallet-overlay-header">
+              <button id="wallet-settings-back" class="wallet-back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+              <h4>Settings</h4>
             </div>
-          </details>
+            <div class="wallet-overlay-body">
+              <div class="settings-group">
+                <div class="settings-group-header"><span class="settings-group-label">Wallets</span><button id="wallet-new-btn" class="glass-btn small">+ New Wallet</button></div>
+                <div id="wallet-list" class="wallet-name-list"></div>
+              </div>
+              <div class="settings-group">
+                <span class="settings-group-label">HD Wallet Root</span>
+                <div class="key-item"><label>Master Public Key (xpub)</label><div class="key-value-row"><code id="wallet-xpub" class="key-value truncate"></code><button class="copy-key-btn" data-copy="wallet-xpub" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
+                <div class="key-item sensitive"><label>Master Private Key (xprv)</label><div class="key-value-row"><code id="wallet-xprv" class="key-value truncate blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-xprv" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-xprv" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
+                <div class="key-item sensitive"><label>Seed Phrase (BIP39)</label><div class="key-value-row"><code id="wallet-seed-phrase" class="key-value seed-phrase blurred" data-revealed="false"></code><button class="reveal-key-btn" data-target="wallet-seed-phrase" title="Reveal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="copy-key-btn" data-copy="wallet-seed-phrase" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div></div>
+                <div class="export-section"><div class="export-dropdown"><button class="glass-btn small export-btn" id="export-wallet-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export Wallet</button><div class="export-menu" id="export-menu"><button class="export-option" data-format="mnemonic"><span class="export-label">BIP39 Mnemonic</span></button><button class="export-option" data-format="xpub"><span class="export-label">Extended Public Key</span></button><button class="export-option" data-format="xprv"><span class="export-label">Extended Private Key</span></button></div></div></div>
+              </div>
+              <div class="settings-group">
+                <span class="settings-group-label">Advanced</span>
+                <div class="settings-custom-path">
+                  <label>Custom Derivation Path</label>
+                  <div class="custom-path-row">
+                    <select id="custom-path-chain" class="glass-input compact"><option value="0">BTC</option><option value="60">ETH</option><option value="501">SOL</option></select>
+                    <input id="custom-path-input" class="glass-input compact" placeholder="m/44'/0'/0'/0/0">
+                    <button id="custom-path-add" class="glass-btn small">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Send View (replaces main view) -->
+          <div id="wallet-send-view" class="wallet-overlay-view" style="display:none;">
+            <div class="wallet-overlay-header">
+              <button id="wallet-send-back" class="wallet-back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back</button>
+              <h4>Send</h4>
+            </div>
+            <div class="wallet-overlay-body">
+              <div id="send-compose-step">
+                <div class="send-field-group">
+                  <label class="send-label">From</label>
+                  <select id="send-from-account" class="glass-input"></select>
+                  <div class="send-balance-display">Balance: <span id="send-available-balance">--</span></div>
+                </div>
+                <div class="send-field-group">
+                  <label class="send-label">To Address</label>
+                  <input id="send-to-address" class="glass-input" placeholder="Recipient address" autocomplete="off">
+                </div>
+                <div class="send-field-group">
+                  <label class="send-label">Amount</label>
+                  <div class="send-amount-row">
+                    <input id="send-amount" class="glass-input" type="number" step="any" min="0" placeholder="0.00">
+                    <span class="send-currency-label" id="send-currency-label">BTC</span>
+                    <button id="send-max-btn" class="glass-btn small">Max</button>
+                  </div>
+                  <div class="send-fiat-estimate" id="send-fiat-estimate"></div>
+                </div>
+                <div class="send-fee-display" id="send-fee-section" style="display:none;">
+                  <span class="send-label">Estimated Fee</span>
+                  <span id="send-fee-estimate">--</span>
+                </div>
+                <button id="send-review-btn" class="glass-btn primary full-width" disabled>Review Transaction</button>
+              </div>
+              <div id="send-review-step" style="display:none;">
+                <div class="send-review-card">
+                  <div class="send-review-row"><span>To</span><code id="send-review-to" class="truncate"></code></div>
+                  <div class="send-review-row"><span>Amount</span><span id="send-review-amount"></span></div>
+                  <div class="send-review-row"><span>Network Fee</span><span id="send-review-fee"></span></div>
+                  <div class="send-review-row send-review-total"><span>Total</span><span id="send-review-total"></span></div>
+                </div>
+                <button id="send-confirm-btn" class="glass-btn primary full-width">Confirm & Send</button>
+                <button id="send-edit-btn" class="glass-btn full-width">Edit</button>
+                <div id="send-status" class="send-status" style="display:none;"></div>
+              </div>
+            </div>
+          </div>
         </div>
         <div id="vcard-tab-content" class="modal-tab-content active">
           <div id="vcard-form-view">
@@ -269,34 +344,6 @@ export function getModalHTML() {
               <p>No trust relationships found yet.</p>
               <p class="trust-list-subtitle">Relationships will appear here as your addresses are scanned.</p>
             </div>
-          </div>
-        </div>
-
-        <!-- Security Bond Tab -->
-        <div id="bond-tab-content" class="modal-tab-content">
-          <div class="bond-intro">
-            <h4 class="section-label">Trust Proof</h4>
-            <p>Holding value on your keys signals commitment and reduces Sybil risk. Your total balance across all networks serves as proof of stake in the trust network.</p>
-          </div>
-          <div class="bond-networks-grid">
-            <div class="bond-network-card" id="bond-btc-card">
-              <div class="bond-net-header"><span class="bond-net-name">Bitcoin</span><span class="bond-net-balance" id="bond-btc-balance">--</span></div>
-              <a href="#" id="bond-btc-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-btc-address">--</code></a>
-            </div>
-            <div class="bond-network-card" id="bond-eth-card">
-              <div class="bond-net-header"><span class="bond-net-name">Ethereum</span><span class="bond-net-balance" id="bond-eth-balance">--</span></div>
-              <a href="#" id="bond-eth-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-eth-address">--</code></a>
-            </div>
-            <div class="bond-network-card" id="bond-sol-card">
-              <div class="bond-net-header"><span class="bond-net-name">Solana</span><span class="bond-net-balance" id="bond-sol-balance">--</span></div>
-              <a href="#" id="bond-sol-explorer" class="bond-net-address" target="_blank" rel="noopener"><code id="bond-sol-address">--</code></a>
-            </div>
-            <!-- Commented out — BTC/ETH/SOL only for now
-            <div class="bond-network-card" id="bond-sui-card">...</div>
-            <div class="bond-network-card" id="bond-monad-card">...</div>
-            <div class="bond-network-card" id="bond-ada-card">...</div>
-            <div class="bond-network-card" id="bond-xrp-card">...</div>
-            -->
           </div>
         </div>
 
