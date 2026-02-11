@@ -38,14 +38,28 @@ export function getModalHTML() {
                 <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
                 <span>Scan</span>
               </button>
-              <button class="ph-action-btn" id="wallet-send-btn">
-                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
-                <span>Send</span>
-              </button>
-              <button class="ph-action-btn" id="wallet-receive-btn-main">
-                <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
-                <span>Receive</span>
-              </button>
+              <div class="ph-action-wrap" id="wallet-send-action">
+                <button class="ph-action-btn" id="wallet-send-btn">
+                  <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
+                  <span>Send</span>
+                </button>
+                <div class="ph-action-menu" id="wallet-send-menu">
+                  <button class="ph-action-menu-item" type="button" data-chain="BTC">Bitcoin (BTC)</button>
+                  <button class="ph-action-menu-item" type="button" data-chain="ETH">Ethereum (ETH)</button>
+                  <button class="ph-action-menu-item" type="button" data-chain="SOL">Solana (SOL)</button>
+                </div>
+              </div>
+              <div class="ph-action-wrap" id="wallet-receive-action">
+                <button class="ph-action-btn" id="wallet-receive-btn-main">
+                  <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></div>
+                  <span>Receive</span>
+                </button>
+                <div class="ph-action-menu" id="wallet-receive-menu">
+                  <button class="ph-action-menu-item" type="button" data-chain="BTC">Bitcoin (BTC)</button>
+                  <button class="ph-action-menu-item" type="button" data-chain="ETH">Ethereum (ETH)</button>
+                  <button class="ph-action-menu-item" type="button" data-chain="SOL">Solana (SOL)</button>
+                </div>
+              </div>
               <button class="ph-action-btn" id="wallet-export-btn-main">
                 <div class="ph-action-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
                 <span>Export</span>
@@ -84,6 +98,10 @@ export function getModalHTML() {
               <button id="wallet-new-btn" class="glass-btn small">+ New Wallet</button>
             </div>
             <div class="wallet-overlay-body">
+              <div class="wallet-manage-tabs" role="tablist" aria-label="Wallet status">
+                <button id="wallet-manage-tab-active" class="wallet-manage-tab active" type="button">Active</button>
+                <button id="wallet-manage-tab-inactive" class="wallet-manage-tab" type="button">Inactive</button>
+              </div>
               <div class="settings-group">
                 <div id="wallet-list" class="wallet-name-list"></div>
               </div>

@@ -234,6 +234,7 @@ const state = {
   // Wallet groups (Phantom-style: each wallet = same account index across chains)
   wallets: [{ id: 0, name: 'Wallet 1', accountIndex: 0 }],
   activeWalletId: 0,
+  walletManageTab: 'active',
   walletFiatTotals: {},
   walletFiatCurrency: 'USD',
   balanceCache: {},
@@ -506,7 +507,32 @@ let _scanLastRequestAt = 0;
 let _balanceCacheDirty = false;
 
 function getDefaultWalletState() {
-  return [{ id: 0, name: 'Wallet 1', accountIndex: 0 }];
+  return [{ id: 0, name: 'Wallet 1', accountIndex: 0, inactive: false }];
+}
+
+function getDefaultWalletName(accountIndex) {
+  return `Wallet ${accountIndex + 1}`;
+}
+
+function normalizeWalletName(rawName, accountIndex) {
+  const fallback = getDefaultWalletName(accountIndex);
+  const trimmed = (rawName || '').toString().trim();
+  if (!trimmed) return fallback;
+  if (/^wallet(?:\s+\d+)?$/i.test(trimmed)) return fallback;
+  return trimmed;
+}
+
+function ensureWalletNamesNormalized() {
+  let changed = false;
+  state.wallets.forEach((wallet) => {
+    const normalized = normalizeWalletName(wallet.name, wallet.accountIndex);
+    if (normalized !== wallet.name) {
+      wallet.name = normalized;
+      changed = true;
+    }
+  });
+  if (changed) saveWallets();
+  return changed;
 }
 
 function getWalletDerivationEntries(wallet) {
@@ -523,6 +549,18 @@ function getWalletIdForPath(coinType, account, index) {
   return wallet ? wallet.id : 0;
 }
 
+function isWalletInactive(wallet) {
+  return Boolean(wallet?.inactive);
+}
+
+function getActiveWallets() {
+  return state.wallets.filter(wallet => !isWalletInactive(wallet));
+}
+
+function getInactiveWallets() {
+  return state.wallets.filter(wallet => isWalletInactive(wallet));
+}
+
 function normalizeWallets(wallets) {
   const normalized = [];
   const source = Array.isArray(wallets) ? wallets : [];
@@ -535,8 +573,9 @@ function normalizeWallets(wallets) {
     if (Number.isNaN(id) || Number.isNaN(accountIndex)) continue;
     if (usedIds.has(id) || usedAccountIndexes.has(accountIndex)) continue;
 
-    const name = (wallet?.name || '').toString().trim() || `Wallet ${accountIndex + 1}`;
-    normalized.push({ id, name, accountIndex });
+    const name = normalizeWalletName(wallet?.name, accountIndex);
+    const inactive = Boolean(wallet?.inactive);
+    normalized.push({ id, name, accountIndex, inactive });
     usedIds.add(id);
     usedAccountIndexes.add(accountIndex);
   }
@@ -547,8 +586,9 @@ function normalizeWallets(wallets) {
     while (usedIds.has(nextId)) nextId++;
     normalized.push({
       id: nextId,
-      name: `Wallet ${accountIndex + 1}`,
+      name: getDefaultWalletName(accountIndex),
       accountIndex,
+      inactive: false,
     });
     usedIds.add(nextId);
   }
@@ -612,8 +652,10 @@ function getWalletById(walletId) {
 }
 
 function getCurrentWallet() {
-  const current = getWalletById(state.activeWalletId);
-  return current || state.wallets[0] || null;
+  const activeWallets = getActiveWallets();
+  if (activeWallets.length === 0) return null;
+  const current = activeWallets.find(wallet => wallet.id === state.activeWalletId);
+  return current || activeWallets[0] || null;
 }
 
 function getAccountWalletId(acct) {
@@ -643,7 +685,7 @@ function updateCustomPathWalletLabel() {
   const label = $('custom-path-wallet-label');
   const wallet = getCurrentWallet();
   if (!label) return;
-  label.textContent = wallet ? `${wallet.name} (account ${wallet.accountIndex})` : 'Wallet 1 (account 0)';
+  label.textContent = wallet ? `${wallet.name} (account ${wallet.accountIndex})` : `${getDefaultWalletName(0)} (account 0)`;
 }
 
 function updateCustomPathDefault() {
@@ -663,6 +705,7 @@ function updateCustomPathDefault() {
 function renderWalletSelector() {
   const select = $('wallet-active-select');
   if (!select) return;
+  ensureWalletNamesNormalized();
 
   const currentWallet = getCurrentWallet();
   if (!currentWallet) {
@@ -673,7 +716,8 @@ function renderWalletSelector() {
 
   select.innerHTML = '';
   const displayCurrency = state.walletFiatCurrency || getSelectedCurrency();
-  state.wallets.forEach((wallet) => {
+  const activeWallets = getActiveWallets();
+  activeWallets.forEach((wallet) => {
     const option = document.createElement('option');
     option.value = String(wallet.id);
     const walletValue = state.walletFiatTotals[wallet.id] ?? 0;
@@ -944,9 +988,9 @@ function createNewWallet(walletName) {
   const maxIdx = state.wallets.reduce((m, w) => Math.max(m, w.accountIndex), -1);
   const nextIdx = maxIdx + 1;
   const nextId = state.wallets.reduce((m, w) => Math.max(m, w.id), -1) + 1;
-  const name = walletName || (`Wallet ${nextIdx + 1}`);
+  const name = normalizeWalletName(walletName, nextIdx);
 
-  const wallet = { id: nextId, name, accountIndex: nextIdx };
+  const wallet = { id: nextId, name, accountIndex: nextIdx, inactive: false };
   state.wallets.push(wallet);
   saveWallets();
 
@@ -987,37 +1031,32 @@ function createNewWallet(walletName) {
 function renameWallet(walletId, newName) {
   const wallet = state.wallets.find(w => w.id === walletId);
   if (!wallet) return;
-  wallet.name = newName;
+  wallet.name = normalizeWalletName(newName, wallet.accountIndex);
   saveWallets();
   renderAccountsList();
   renderWalletSelector();
+  updateCustomPathWalletLabel();
 }
 
-function removeWallet(walletId) {
-  if (state.wallets.length <= 1) {
-    alert('At least one wallet is required.');
-    return;
-  }
-
+function setWalletInactive(walletId, inactive) {
   const wallet = getWalletById(walletId);
   if (!wallet) return;
 
-  const confirmed = window.confirm(`Remove ${wallet.name}?`);
-  if (!confirmed) return;
+  if (!inactive && !isWalletInactive(wallet)) return;
+  if (inactive && isWalletInactive(wallet)) return;
 
-  state.activeAccounts = state.activeAccounts.filter(a => getAccountWalletId(a) !== walletId);
-  state.wallets = state.wallets.filter(w => w.id !== walletId);
-
-  if (state.walletFiatTotals && Object.prototype.hasOwnProperty.call(state.walletFiatTotals, walletId)) {
-    delete state.walletFiatTotals[walletId];
+  if (inactive && getActiveWallets().length <= 1) {
+    alert('At least one active wallet is required.');
+    return;
   }
 
-  if (state.activeWalletId === walletId) {
-    state.activeWalletId = state.wallets[0]?.id ?? 0;
+  wallet.inactive = inactive;
+  if (inactive && state.activeWalletId === walletId) {
+    const fallback = getActiveWallets()[0];
+    state.activeWalletId = fallback ? fallback.id : 0;
   }
 
   saveWallets();
-  saveActiveAccounts();
   renderWalletList();
   renderWalletSelector();
   renderAccountsList();
@@ -1025,20 +1064,55 @@ function removeWallet(walletId) {
   updateWalletBondTotal();
 }
 
+function setWalletManageTab(tabName) {
+  state.walletManageTab = tabName === 'inactive' ? 'inactive' : 'active';
+
+  const activeBtn = $('wallet-manage-tab-active');
+  const inactiveBtn = $('wallet-manage-tab-inactive');
+  if (activeBtn) activeBtn.classList.toggle('active', state.walletManageTab === 'active');
+  if (inactiveBtn) inactiveBtn.classList.toggle('active', state.walletManageTab === 'inactive');
+
+  renderWalletList();
+}
+
 function renderWalletList() {
   const listEl = $('wallet-list');
   if (!listEl) return;
   listEl.innerHTML = '';
+  ensureWalletNamesNormalized();
 
-  const hasMultipleWallets = state.wallets.length > 1;
-  for (const w of state.wallets) {
+  const activeWalletCount = getActiveWallets().length;
+  const walletsToRender = state.walletManageTab === 'inactive'
+    ? getInactiveWallets()
+    : getActiveWallets();
+
+  if (walletsToRender.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'wallet-manage-empty';
+    empty.textContent = state.walletManageTab === 'inactive'
+      ? 'No inactive wallets.'
+      : 'No active wallets.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  for (const w of walletsToRender) {
     const count = state.activeAccounts.filter(a => getAccountWalletId(a) === w.id && isSigningAccountForWallet(a, w)).length;
+    const actionLabel = isWalletInactive(w) ? 'Active' : 'Inactive';
+    const disableAction = !isWalletInactive(w) && activeWalletCount <= 1;
+    const derivationSummary = getWalletDerivationEntries(w)
+      .map(entry => buildSigningPath(entry.coinType, entry.account, entry.index))
+      .join(' • ');
+    const derivationTitle = derivationSummary.replace(/"/g, '&quot;');
     const row = document.createElement('div');
     row.className = 'wallet-name-row';
     row.innerHTML =
+      '<div class="wallet-name-cell">' +
       '<input class="wallet-name-input glass-input compact" value="' + (w.name || '').replace(/"/g, '&quot;') + '" data-wallet-id="' + w.id + '">' +
+      '<div class="wallet-derivation-path" title="' + derivationTitle + '">' + derivationSummary + '</div>' +
+      '</div>' +
       '<span class="wallet-account-count">' + count + ' account' + (count !== 1 ? 's' : '') + '</span>' +
-      '<button class="wallet-remove-btn glass-btn small' + (hasMultipleWallets ? '' : ' disabled') + '" data-wallet-id="' + w.id + '" ' + (hasMultipleWallets ? '' : 'disabled') + '>Remove</button>';
+      '<button class="wallet-status-btn glass-btn small' + (disableAction ? ' disabled' : '') + '" data-wallet-id="' + w.id + '" data-target-inactive="' + (!isWalletInactive(w)) + '" ' + (disableAction ? 'disabled' : '') + '>' + actionLabel + '</button>';
     listEl.appendChild(row);
   }
 
@@ -1046,15 +1120,16 @@ function renderWalletList() {
     input.addEventListener('change', (e) => {
       const id = Number.parseInt(e.target.dataset.walletId, 10);
       const wallet = getWalletById(id);
-      renameWallet(id, e.target.value.trim() || (`Wallet ${wallet ? wallet.accountIndex + 1 : id + 1}`));
+      renameWallet(id, e.target.value.trim() || getDefaultWalletName(wallet ? wallet.accountIndex : id));
     });
   });
 
-  listEl.querySelectorAll('.wallet-remove-btn').forEach(btn => {
+  listEl.querySelectorAll('.wallet-status-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = Number.parseInt(e.currentTarget.dataset.walletId, 10);
       if (Number.isNaN(id)) return;
-      removeWallet(id);
+      const targetInactive = e.currentTarget.dataset.targetInactive === 'true';
+      setWalletInactive(id, targetInactive);
     });
   });
 }
@@ -1084,7 +1159,7 @@ function showWalletView(viewId) {
 
 function showWalletsView() {
   showWalletView('wallet-wallets-view');
-  renderWalletList();
+  setWalletManageTab(state.walletManageTab);
 }
 
 function showExportView() {
@@ -1248,7 +1323,7 @@ async function scanActiveAccounts() {
       });
     };
 
-    state.wallets.forEach((wallet) => {
+    getActiveWallets().forEach((wallet) => {
       getWalletDerivationEntries(wallet).forEach((entry) => {
         addTarget(entry.coinType, entry.account, entry.index, wallet.id, entry.name);
       });
@@ -1342,6 +1417,37 @@ function getVisibleWalletEntries() {
   return entries;
 }
 
+function getWalletAccountForChain(chainName) {
+  const matches = getVisibleWalletEntries()
+    .map(entry => entry.acct)
+    .filter(acct => acct.name === chainName);
+  if (matches.length === 0) return null;
+
+  const funded = matches.filter(acct => (Number.parseFloat(acct.balance) || 0) > 0);
+  const activeFunded = funded.find(acct => acct.active);
+  if (activeFunded) return activeFunded;
+  if (funded.length > 0) return funded[0];
+
+  const active = matches.find(acct => acct.active);
+  if (active) return active;
+  return matches[0];
+}
+
+function updateWalletActionMenus() {
+  ['BTC', 'ETH', 'SOL'].forEach((chain) => {
+    const available = Boolean(getWalletAccountForChain(chain));
+    $qa(`.ph-action-menu-item[data-chain="${chain}"]`).forEach((btn) => {
+      btn.disabled = !available;
+      btn.title = available ? '' : `No ${chain} account in this wallet`;
+    });
+  });
+}
+
+function closeWalletActionMenus() {
+  $('wallet-send-menu')?.classList.remove('visible');
+  $('wallet-receive-menu')?.classList.remove('visible');
+}
+
 function renderAccountsList() {
   const listEl = $('wallet-accounts-list');
   const emptyEl = $('wallet-accounts-empty');
@@ -1359,6 +1465,7 @@ function renderAccountsList() {
         ? `No accounts yet for ${wallet.name}. Tap Scan or add one from Advanced.`
         : 'No accounts yet.';
     }
+    updateWalletActionMenus();
     return;
   }
 
@@ -1386,27 +1493,15 @@ function renderAccountsList() {
       '<div class="ph-token-amounts">' +
         '<div class="ph-token-balance">' + balDisplay + ' ' + acct.name + '</div>' +
         '<div class="ph-token-fiat" id="ph-fiat-' + idx + '"></div>' +
-      '</div>' +
-      '<div class="ph-token-status">' +
-        '<input type="checkbox" class="ph-token-toggle" ' + (acct.active ? 'checked' : '') +
-        ' title="' + (acct.active ? 'Active — included in vCard' : 'Inactive — excluded from vCard') + '">' +
       '</div>';
 
-    row.addEventListener('click', (e) => {
-      if (e.target.classList.contains('ph-token-toggle')) return;
+    row.addEventListener('click', () => {
       showReceiveModal(acct);
     });
 
     listEl.appendChild(row);
   }
-
-  listEl.querySelectorAll('.ph-token-toggle').forEach(cb => {
-    cb.addEventListener('change', (e) => {
-      e.stopPropagation();
-      const idx = parseInt(e.target.closest('.ph-token-row').dataset.idx);
-      toggleAccountActive(idx);
-    });
-  });
+  updateWalletActionMenus();
 
   pricesPromise.then(prices => {
     if (!prices) return;
@@ -1514,7 +1609,11 @@ function populateSendForm(preselectedIdx) {
   const walletEntries = getVisibleWalletEntries();
   const walletAccounts = walletEntries.map(entry => entry.acct);
   const activeAccts = walletAccounts.filter(a => a.active || parseFloat(a.balance) > 0);
-  const accts = activeAccts.length > 0 ? activeAccts : walletAccounts;
+  const accts = activeAccts.length > 0 ? [...activeAccts] : [...walletAccounts];
+  const preselectedAcct = typeof preselectedIdx === 'number' ? state.activeAccounts[preselectedIdx] : null;
+  if (preselectedAcct && walletAccounts.includes(preselectedAcct) && !accts.includes(preselectedAcct)) {
+    accts.unshift(preselectedAcct);
+  }
 
   accts.forEach((acct) => {
     const opt = document.createElement('option');
@@ -1527,7 +1626,7 @@ function populateSendForm(preselectedIdx) {
   });
 
   if (typeof preselectedIdx === 'number') {
-    select.value = preselectedIdx;
+    select.value = String(preselectedIdx);
   }
 
   if (select.options.length > 0) {
@@ -2330,7 +2429,7 @@ function login(keys) {
     // Load persisted wallets and active accounts
     state.wallets = loadWallets();
     state.activeAccounts = normalizeActiveAccounts(loadActiveAccounts());
-    const currentWallet = getWalletById(state.activeWalletId) || state.wallets[0];
+    const currentWallet = getCurrentWallet() || getActiveWallets()[0] || state.wallets[0];
     state.activeWalletId = currentWallet ? currentWallet.id : 0;
     ensureWalletAccounts();
     state.activeAccounts = state.activeAccounts.filter(isSigningAccount);
@@ -4273,29 +4372,80 @@ function setupMainAppHandlers() {
     const walletId = Number.parseInt(e.target.value, 10);
     if (Number.isNaN(walletId)) return;
     state.activeWalletId = walletId;
+    closeWalletActionMenus();
     renderWalletSelector();
     renderAccountsList();
     updateCustomPathDefault();
   });
   $('wallet-manage-btn')?.addEventListener('click', () => {
+    closeWalletActionMenus();
     showWalletsView();
   });
   $('wallet-scan-btn')?.addEventListener('click', () => {
     scanActiveAccounts();
   });
-  $('wallet-receive-btn-main')?.addEventListener('click', () => {
-    const visibleEntries = getVisibleWalletEntries();
-    const acct = visibleEntries.find(entry => entry.acct.active)?.acct || visibleEntries[0]?.acct;
-    if (acct) showReceiveModal(acct);
+  const sendAction = $('wallet-send-action');
+  const receiveAction = $('wallet-receive-action');
+  $('wallet-send-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    updateWalletActionMenus();
+    const sendMenu = $('wallet-send-menu');
+    const receiveMenu = $('wallet-receive-menu');
+    if (!sendMenu || !receiveMenu) return;
+    const nextVisible = !sendMenu.classList.contains('visible');
+    receiveMenu.classList.remove('visible');
+    sendMenu.classList.toggle('visible', nextVisible);
+  });
+  $('wallet-receive-btn-main')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    updateWalletActionMenus();
+    const sendMenu = $('wallet-send-menu');
+    const receiveMenu = $('wallet-receive-menu');
+    if (!sendMenu || !receiveMenu) return;
+    const nextVisible = !receiveMenu.classList.contains('visible');
+    sendMenu.classList.remove('visible');
+    receiveMenu.classList.toggle('visible', nextVisible);
+  });
+  $qa('#wallet-send-menu .ph-action-menu-item').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const chain = btn.dataset.chain;
+      const acct = getWalletAccountForChain(chain);
+      closeWalletActionMenus();
+      if (!acct) return;
+      showSendView(state.activeAccounts.indexOf(acct));
+    });
+  });
+  $qa('#wallet-receive-menu .ph-action-menu-item').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const chain = btn.dataset.chain;
+      const acct = getWalletAccountForChain(chain);
+      closeWalletActionMenus();
+      if (!acct) return;
+      showReceiveModal(acct);
+    });
+  });
+  _root.addEventListener('click', (e) => {
+    if (sendAction?.contains(e.target) || receiveAction?.contains(e.target)) return;
+    closeWalletActionMenus();
   });
   $('wallet-export-btn-main')?.addEventListener('click', () => {
+    closeWalletActionMenus();
     showExportView();
   });
   $('wallet-advanced-btn-main')?.addEventListener('click', () => {
+    closeWalletActionMenus();
     showAdvancedView();
   });
   $('wallet-wallets-back')?.addEventListener('click', () => {
     showWalletMainView();
+  });
+  $('wallet-manage-tab-active')?.addEventListener('click', () => {
+    setWalletManageTab('active');
+  });
+  $('wallet-manage-tab-inactive')?.addEventListener('click', () => {
+    setWalletManageTab('inactive');
   });
   $('wallet-export-back')?.addEventListener('click', () => {
     showWalletMainView();
@@ -4318,9 +4468,6 @@ function setupMainAppHandlers() {
     e.target.dataset.autogenerated = 'false';
   });
   // Send flow
-  $('wallet-send-btn')?.addEventListener('click', () => {
-    showSendView();
-  });
   $('wallet-send-back')?.addEventListener('click', () => {
     hideSendView();
   });
