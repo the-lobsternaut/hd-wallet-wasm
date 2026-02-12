@@ -1297,9 +1297,10 @@ async function scanActiveAccounts() {
   updateWalletBondTotal();
 
   const statusEl = $('wallet-scan-status');
-  const labelEl = $('wallet-scan-label');
+  const barEl = $('wallet-scan-bar');
   const scanBtn = $('wallet-scan-btn');
-  if (statusEl) statusEl.style.display = 'flex';
+  if (statusEl) statusEl.style.display = 'block';
+  if (barEl) barEl.style.width = '0%';
   if (scanBtn) scanBtn.disabled = true;
 
   try {
@@ -1329,10 +1330,9 @@ async function scanActiveAccounts() {
       });
     });
 
-    for (const target of targets) {
-      if (labelEl) {
-        labelEl.textContent = `Scanning ${target.name} m/44'/${target.coinType}'/${target.account}'/0/${target.index}...`;
-      }
+    for (let ti = 0; ti < targets.length; ti++) {
+      const target = targets[ti];
+      if (barEl) barEl.style.width = Math.round(((ti + 1) / targets.length) * 100) + '%';
 
       let derived;
       try {

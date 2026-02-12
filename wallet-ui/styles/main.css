@@ -2081,30 +2081,21 @@ body:has(.modal.active) .nav-bar {
   cursor: not-allowed;
 }
 
-/* Scan Status */
-.ph-scan-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--white-05);
-  border-radius: 12px;
+/* Scan Progress Bar */
+.wallet-scan-progress {
+  height: 2px;
+  background: var(--glass-border);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-bottom: 4px;
 }
 
-.wallet-scan-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--glass-border);
-  border-top-color: #AB82FF;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.wallet-scan-bar {
+  height: 100%;
+  width: 0%;
+  background: #22c55e;
+  border-radius: 1px;
+  transition: width 0.3s ease;
 }
 
 /* Token List */

@@ -70,10 +70,9 @@ export function getModalHTML() {
               </button>
             </div>
 
-            <!-- Scan Status -->
-            <div id="wallet-scan-status" class="ph-scan-status" style="display:none;">
-              <div class="wallet-scan-spinner"></div>
-              <span id="wallet-scan-label">Scanning derivation paths...</span>
+            <!-- Scan Progress Bar -->
+            <div id="wallet-scan-status" class="wallet-scan-progress" style="display:none;">
+              <div id="wallet-scan-bar" class="wallet-scan-bar"></div>
             </div>
 
             <!-- Token List -->
