@@ -204,6 +204,9 @@ async function p384GenerateKeyPairAsync() {
 // State
 // =============================================================================
 
+// Integration callback — set via options.onLogin in createWalletUI / init
+let _onLoginCallback = null;
+
 const state = {
   initialized: false,
   loggedIn: false,
@@ -2374,6 +2377,27 @@ function login(keys) {
   state.wallet = keys;
   state.addresses = deriveAllAddressesFromHD();
   state.selectedCrypto = 'btc';
+
+  // Fire onLogin callback with SDN identity (coin type 9999)
+  if (_onLoginCallback && state.hdRoot) {
+    try {
+      const sdnSigning = getSigningKey(state.hdRoot, 9999, 0, 0);
+      const sdnPubKey = ed25519.getPublicKey(sdnSigning.privateKey);
+      const xpub = state.hdRoot.toXpub();
+      _onLoginCallback({
+        xpub,
+        signingPublicKey: sdnPubKey,
+        async sign(message) {
+          const msgBytes = typeof message === 'string'
+            ? new TextEncoder().encode(message)
+            : message;
+          return ed25519.sign(msgBytes, sdnSigning.privateKey);
+        },
+      });
+    } catch (err) {
+      console.error('onLogin callback error:', err);
+    }
+  }
 
   // Close login modal if open
   $('login-modal')?.classList.remove('active');
@@ -5224,9 +5248,10 @@ function setupHomepageHandlers() {
 // =============================================================================
 
 export async function init(rootElement, options = {}) {
-  const { autoOpenWallet = false } = typeof rootElement === 'object' && !(rootElement instanceof Node)
+  const { autoOpenWallet = false, onLogin = null } = typeof rootElement === 'object' && !(rootElement instanceof Node)
     ? (options = rootElement, {}) : options;
   if (rootElement && rootElement instanceof Node) _root = rootElement;
+  if (typeof onLogin === 'function') _onLoginCallback = onLogin;
 
   // Inject modal HTML if not already present in the DOM
   if (!document.getElementById('keys-modal')) {
@@ -5337,6 +5362,8 @@ export async function init(rootElement, options = {}) {
  *
  * @param {Node}   [rootElement]  - Optional root element for DOM queries
  * @param {Object} [options]      - Options passed to init()
+ * @param {Function} [options.onLogin] - Callback fired after successful login with
+ *   `{ xpub, signingPublicKey, sign(message) }` for SDN identity (coin type 9999)
  * @returns {Promise<{openLogin: Function, openAccount: Function, destroy: Function}>}
  */
 export async function createWalletUI(rootElement, options = {}) {
