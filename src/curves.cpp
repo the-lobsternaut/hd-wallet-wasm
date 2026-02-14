@@ -234,6 +234,7 @@ public:
 
                 point.x.Decode(key + 1, 32);
                 point.y.Decode(key + 33, 32);
+                point.identity = false;
             }
 
             // Verify point is on curve
@@ -392,11 +393,7 @@ private:
             y = p - y;
         }
 
-        CryptoPP::ECPPoint point;
-        point.x = x;
-        point.y = y;
-
-        return point;
+        return CryptoPP::ECPPoint(x, y);
     }
 };
 
@@ -477,6 +474,7 @@ public:
                 if (key[0] != 0x04) return false;
                 point.x.Decode(key + 1, 32);
                 point.y.Decode(key + 33, 32);
+                point.identity = false;
             }
 
             return curve_.GetCurve().VerifyPoint(point);
@@ -623,11 +621,7 @@ private:
             y = p - y;
         }
 
-        CryptoPP::ECPPoint point;
-        point.x = x;
-        point.y = y;
-
-        return point;
+        return CryptoPP::ECPPoint(x, y);
     }
 };
 
@@ -708,6 +702,7 @@ public:
                 if (key[0] != 0x04) return false;
                 point.x.Decode(key + 1, 48);
                 point.y.Decode(key + 49, 48);
+                point.identity = false;
             }
 
             return curve_.GetCurve().VerifyPoint(point);
@@ -854,11 +849,7 @@ private:
             y = p - y;
         }
 
-        CryptoPP::ECPPoint point;
-        point.x = x;
-        point.y = y;
-
-        return point;
+        return CryptoPP::ECPPoint(x, y);
     }
 };
 

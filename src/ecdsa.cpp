@@ -116,11 +116,7 @@ CryptoPP::ECPPoint decompressPoint(
         y = p - y;
     }
 
-    CryptoPP::ECPPoint point;
-    point.x = x;
-    point.y = y;
-
-    return point;
+    return CryptoPP::ECPPoint(x, y);
 }
 
 /**
@@ -148,6 +144,7 @@ CryptoPP::ECPPoint parsePublicKey(
         }
         point.x.Decode(key + 1, coordSize);
         point.y.Decode(key + 1 + coordSize, coordSize);
+        point.identity = false;
     } else {
         throw std::invalid_argument("Invalid public key length");
     }
@@ -1034,6 +1031,31 @@ bool recoverWithId(
 }
 
 // =============================================================================
+// Signature Utility Conversions
+// =============================================================================
+
+Result<CompactSignature> derToCompact(const ByteVector& der) {
+    try {
+        SignatureData sig = SignatureData::fromDER(der.data(), der.size());
+        ByteVector compact = sig.toCompact(32);
+        if (compact.size() != 64) {
+            return Result<CompactSignature>::fail(Error::INVALID_SIGNATURE);
+        }
+
+        CompactSignature out{};
+        std::memcpy(out.data(), compact.data(), out.size());
+        return Result<CompactSignature>::success(std::move(out));
+    } catch (...) {
+        return Result<CompactSignature>::fail(Error::INVALID_SIGNATURE);
+    }
+}
+
+ByteVector compactToDer(const CompactSignature& compact) {
+    SignatureData sig = SignatureData::fromCompact(compact.data(), compact.size(), 32);
+    return sig.toDER();
+}
+
+// =============================================================================
 // C++ Wrapper Functions
 // =============================================================================
 
@@ -1120,6 +1142,32 @@ bool p256Verify(
     const CompactSignature& signature
 ) {
     return verifyCompact(Curve::P256, publicKey.data(), publicKey.size(),
+                         messageHash.data(), messageHash.size(),
+                         signature.data(), signature.size());
+}
+
+Result<P384Signature> p384Sign(
+    const P384PrivateKey& privateKey,
+    const std::array<uint8_t, 48>& messageHash
+) {
+    P384Signature signature;
+    size_t sigLen = signature.size();
+    int recoveryId;
+
+    if (signCompact(Curve::P384, privateKey.data(), privateKey.size(),
+                    messageHash.data(), messageHash.size(),
+                    signature.data(), &sigLen, &recoveryId)) {
+        return Result<P384Signature>::success(std::move(signature));
+    }
+    return Result<P384Signature>::fail(Error::INVALID_SIGNATURE);
+}
+
+bool p384Verify(
+    const ByteVector& publicKey,
+    const std::array<uint8_t, 48>& messageHash,
+    const P384Signature& signature
+) {
+    return verifyCompact(Curve::P384, publicKey.data(), publicKey.size(),
                          messageHash.data(), messageHash.size(),
                          signature.data(), signature.size());
 }

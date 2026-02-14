@@ -1229,6 +1229,7 @@ int32_t hd_secp256k1_verify(
             CryptoPP::ECP::Point point;
             point.x.Decode(public_key + 1, 32);
             point.y.Decode(public_key + 33, 32);
+            point.identity = false;
             key.Initialize(CryptoPP::ASN1::secp256k1(), point);
         } else {
             return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);

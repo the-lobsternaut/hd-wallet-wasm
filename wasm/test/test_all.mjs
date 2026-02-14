@@ -115,6 +115,12 @@ async function runTests() {
     console.log('\n\x1b[1mCrypto Tests:\x1b[0m');
     await import('./test_crypto.mjs');
 
+    console.log('\n\x1b[1mAPI Surface Tests:\x1b[0m');
+    await import('./test_api_surface.mjs');
+
+    console.log('\n\x1b[1mAligned Surface Tests:\x1b[0m');
+    await import('./test_aligned_surface.mjs');
+
     console.log('\n\x1b[1mIsomorphic Tests:\x1b[0m');
     await import('./test_isomorphic.mjs');
 

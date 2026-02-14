@@ -66,11 +66,7 @@ CryptoPP::ECPPoint decompressPoint(
         y = p - y;
     }
 
-    CryptoPP::ECPPoint point;
-    point.x = x;
-    point.y = y;
-
-    return point;
+    return CryptoPP::ECPPoint(x, y);
 }
 
 /**
@@ -98,6 +94,7 @@ CryptoPP::ECPPoint parsePublicKey(
         }
         point.x.Decode(key + 1, coordSize);
         point.y.Decode(key + 1 + coordSize, coordSize);
+        point.identity = false;
     } else {
         throw std::invalid_argument("Invalid public key length");
     }

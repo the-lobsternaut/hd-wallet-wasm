@@ -330,10 +330,24 @@ int32_t hd_aligned_sign_batch(
         if (curve == hd_wallet::Curve::SECP256K1) {
             auto sigResult = ecdsa::secp256k1SignRecoverable(privKey, hash);
             if (sigResult.ok()) {
-                // RecoverableSignature is 65 bytes: R(32) || S(32) || V(1)
-                std::memcpy(results[i].signature_data, sigResult.value.data(), 64);
-                results[i].recovery_id = static_cast<int8_t>(sigResult.value[64]);
-                results[i].error = aligned::Error::OK;
+                // RecoverableSignature wire format is V(1) || R(32) || S(32).
+                const uint8_t recoveryByte = sigResult.value[0];
+                int recoveryId = -1;
+                if (recoveryByte >= 27 && recoveryByte <= 30) {
+                    recoveryId = static_cast<int>(recoveryByte - 27);
+                } else if (recoveryByte >= 31 && recoveryByte <= 34) {
+                    recoveryId = static_cast<int>(recoveryByte - 31);
+                }
+
+                if (recoveryId < 0 || recoveryId > 3) {
+                    std::memset(results[i].signature_data, 0, 64);
+                    results[i].recovery_id = -1;
+                    results[i].error = aligned::Error::INVALID_SIGNATURE;
+                } else {
+                    std::memcpy(results[i].signature_data, sigResult.value.data() + 1, 64);
+                    results[i].recovery_id = static_cast<int8_t>(recoveryId);
+                    results[i].error = aligned::Error::OK;
+                }
             } else {
                 std::memset(results[i].signature_data, 0, 64);
                 results[i].recovery_id = -1;

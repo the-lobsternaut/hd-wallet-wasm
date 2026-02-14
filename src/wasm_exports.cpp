@@ -58,129 +58,49 @@ extern "C" int32_t hd_ecdh(
 #endif
 
 #include <cstring>
+#include <array>
 #include <vector>
 #include <string>
+
+namespace hd_wallet::ecdsa {
+using CompactSignature = std::array<uint8_t, 64>;
+using P384PrivateKey = std::array<uint8_t, 48>;
+using P384Signature = std::array<uint8_t, 96>;
+
+Result<CompactSignature> secp256k1Sign(
+    const Bytes32& privateKey,
+    const Bytes32& messageHash
+);
+Result<CompactSignature> p256Sign(
+    const Bytes32& privateKey,
+    const Bytes32& messageHash
+);
+Result<P384Signature> p384Sign(
+    const P384PrivateKey& privateKey,
+    const std::array<uint8_t, 48>& messageHash
+);
+
+Result<CompactSignature> derToCompact(const ByteVector& der);
+bool secp256k1Verify(
+    const ByteVector& publicKey,
+    const Bytes32& messageHash,
+    const CompactSignature& signature
+);
+bool p256Verify(
+    const ByteVector& publicKey,
+    const Bytes32& messageHash,
+    const CompactSignature& signature
+);
+bool p384Verify(
+    const ByteVector& publicKey,
+    const std::array<uint8_t, 48>& messageHash,
+    const P384Signature& signature
+);
+} // namespace hd_wallet::ecdsa
 
 namespace hd_wallet {
 
 using Error = hd_wallet::Error;
-
-// =============================================================================
-// RFC 6979 Deterministic Nonce Generation
-// =============================================================================
-
-namespace {
-
-/**
- * RFC 6979 deterministic k generation for ECDSA
- * This eliminates the need for random number generation during signing,
- * preventing nonce-reuse attacks that could leak private keys.
- */
-template<typename HashType>
-CryptoPP::Integer generateDeterministicK(
-    const CryptoPP::Integer& privateKey,
-    const uint8_t* hash,
-    size_t hashLen,
-    const CryptoPP::Integer& order
-) {
-    size_t qLen = order.ByteCount();
-    size_t hLen = HashType::DIGESTSIZE;
-
-    CryptoPP::SecByteBlock v(hLen);
-    std::memset(v.data(), 0x01, hLen);
-    CryptoPP::SecByteBlock k(hLen);
-    std::memset(k.data(), 0x00, hLen);
-
-    // Encode private key as fixed-length big-endian
-    CryptoPP::SecByteBlock x(qLen);
-    privateKey.Encode(x.data(), qLen);
-
-    // K = HMAC_K(V || 0x00 || int2octets(x) || bits2octets(h1))
-    CryptoPP::HMAC<HashType> hmac;
-
-    // SECURITY FIX [VULN-02]: Use SecByteBlock instead of std::vector to ensure
-    // the private key material in hmacInput is securely wiped on destruction.
-    CryptoPP::SecByteBlock hmacInput(hLen + 1 + qLen + hashLen);
-    size_t pos = 0;
-    std::memcpy(hmacInput.data() + pos, v.data(), hLen); pos += hLen;
-    hmacInput[pos++] = 0x00;
-    std::memcpy(hmacInput.data() + pos, x.data(), qLen); pos += qLen;
-    std::memcpy(hmacInput.data() + pos, hash, hashLen); pos += hashLen;
-
-    hmac.SetKey(k.data(), k.size());
-    hmac.CalculateDigest(k.data(), hmacInput.data(), pos);
-
-    // V = HMAC_K(V)
-    hmac.SetKey(k.data(), k.size());
-    hmac.CalculateDigest(v.data(), v.data(), v.size());
-
-    // K = HMAC_K(V || 0x01 || int2octets(x) || bits2octets(h1))
-    pos = 0;
-    std::memcpy(hmacInput.data() + pos, v.data(), hLen); pos += hLen;
-    hmacInput[pos++] = 0x01;
-    std::memcpy(hmacInput.data() + pos, x.data(), qLen); pos += qLen;
-    std::memcpy(hmacInput.data() + pos, hash, hashLen); pos += hashLen;
-
-    hmac.SetKey(k.data(), k.size());
-    hmac.CalculateDigest(k.data(), hmacInput.data(), hmacInput.size());
-
-    // V = HMAC_K(V)
-    hmac.SetKey(k.data(), k.size());
-    hmac.CalculateDigest(v.data(), v.data(), v.size());
-
-    // Generate k candidates until we get a valid one
-    while (true) {
-        CryptoPP::SecByteBlock t;
-        t.resize(0);
-
-        while (t.size() < qLen) {
-            // V = HMAC_K(V)
-            hmac.SetKey(k.data(), k.size());
-            hmac.CalculateDigest(v.data(), v.data(), v.size());
-            size_t oldSize = t.size();
-            t.Grow(oldSize + v.size());
-            std::memcpy(t.data() + oldSize, v.data(), v.size());
-        }
-
-        CryptoPP::Integer candidate(t.data(), qLen);
-
-        // Valid k: 1 <= k < order
-        if (candidate >= 1 && candidate < order) {
-            // Securely wipe sensitive data
-            std::memset(x.data(), 0, x.size());
-            return candidate;
-        }
-
-        // K = HMAC_K(V || 0x00)
-        std::memcpy(hmacInput.data(), v.data(), hLen);
-        hmacInput[hLen] = 0x00;
-
-        hmac.SetKey(k.data(), k.size());
-        hmac.CalculateDigest(k.data(), hmacInput.data(), hLen + 1);
-
-        // V = HMAC_K(V)
-        hmac.SetKey(k.data(), k.size());
-        hmac.CalculateDigest(v.data(), v.data(), v.size());
-    }
-}
-
-/**
- * Securely wipe a CryptoPP::Integer
- *
- * SECURITY FIX [VULN-03]: Previous implementation encoded to a temp buffer
- * and wiped the temp, not the Integer's internal storage. Now we directly
- * access the Integer's word array via IsZero() pattern and overwrite in-place.
- */
-inline void secureWipeInteger(CryptoPP::Integer& val) {
-    // Set to zero — this overwrites the internal SecBlock<word> storage
-    // and uses CryptoPP's own secure memory management
-    val = CryptoPP::Integer::Zero();
-    // Additionally, assign a new zero to force any lazy/cached state clear
-    CryptoPP::Integer zero(0L);
-    val.swap(zero);
-}
-
-} // anonymous namespace
 
 // =============================================================================
 // Hash Functions
@@ -394,68 +314,23 @@ int32_t hd_secp256k1_sign(
     }
 
     try {
-        // Get curve parameters
-        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
-        params.Initialize(CryptoPP::ASN1::secp256k1());
-        const CryptoPP::ECP& ec = params.GetCurve();
-        const CryptoPP::Integer& n = params.GetGroupOrder();
-        const CryptoPP::Integer halfN = n >> 1;
-
-        // Parse private key
-        CryptoPP::Integer d(private_key, 32);
-
-        // Validate private key range
-        if (d <= 0 || d >= n) {
-            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
-        }
-
-        // Hash message with SHA-256 (standard for secp256k1 ECDSA)
-        uint8_t msgHash[32];
+        Bytes32 msgHash{};
         CryptoPP::SHA256 sha;
-        sha.CalculateDigest(msgHash, message, message_len);
+        sha.CalculateDigest(msgHash.data(), message, message_len);
 
-        // Generate deterministic k using RFC 6979
-        CryptoPP::Integer k = generateDeterministicK<CryptoPP::SHA256>(d, msgHash, 32, n);
+        Bytes32 privateKey{};
+        std::memcpy(privateKey.data(), private_key, privateKey.size());
 
-        // Compute R = k * G
-        CryptoPP::ECPPoint R = ec.ScalarMultiply(params.GetSubgroupGenerator(), k);
-
-        // r = R.x mod n
-        CryptoPP::Integer r = R.x % n;
-        if (r.IsZero()) {
-            secureWipeInteger(d);
-            secureWipeInteger(k);
-            return static_cast<int32_t>(Error::INTERNAL);
+        auto signResult = ecdsa::secp256k1Sign(privateKey, msgHash);
+        if (!signResult.ok()) {
+            return static_cast<int32_t>(Error::INVALID_SIGNATURE);
         }
 
-        // z = hash (interpreted as integer)
-        CryptoPP::Integer z(msgHash, 32);
+        std::memcpy(signature_out, signResult.value.data(), signResult.value.size());
 
-        // s = k^-1 * (z + r*d) mod n
-        CryptoPP::Integer kInv = k.InverseMod(n);
-        CryptoPP::Integer s = (kInv * (z + r * d)) % n;
-
-        if (s.IsZero()) {
-            secureWipeInteger(d);
-            secureWipeInteger(k);
-            return static_cast<int32_t>(Error::INTERNAL);
-        }
-
-        // Low-S normalization (BIP-62/BIP-146)
-        if (s > halfN) {
-            s = n - s;
-        }
-
-        // Encode as compact R||S (64 bytes)
-        std::memset(signature_out, 0, 64);
-        r.Encode(signature_out, 32);
-        s.Encode(signature_out + 32, 32);
-
-        // Secure cleanup
-        secureWipeInteger(d);
-        secureWipeInteger(k);
-        secureWipeInteger(kInv);
-        std::memset(msgHash, 0, sizeof(msgHash));
+        // Securely clear stack buffers.
+        std::memset(msgHash.data(), 0, msgHash.size());
+        std::memset(privateKey.data(), 0, privateKey.size());
 
         return 64;
     } catch (...) {
@@ -469,82 +344,35 @@ int32_t hd_secp256k1_verify(
     const uint8_t* signature, size_t signature_len,
     const uint8_t* public_key, size_t public_key_len
 ) {
+    if (message == nullptr || signature == nullptr || public_key == nullptr) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+    if (public_key_len != 33 && public_key_len != 65) {
+        return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+    }
+
     try {
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PublicKey pubKey;
+        // Hash message (SHA-256) to match signing path.
+        Bytes32 msgHash{};
+        CryptoPP::SHA256 sha;
+        sha.CalculateDigest(msgHash.data(), message, message_len);
 
-        // Only support uncompressed public key for simplicity
-        if (public_key_len == 65 && public_key[0] == 0x04) {
-            CryptoPP::ECP::Point point;
-            point.x.Decode(public_key + 1, 32);
-            point.y.Decode(public_key + 33, 32);
-            pubKey.Initialize(CryptoPP::ASN1::secp256k1(), point);
-        } else if (public_key_len == 33) {
-            // Compressed public key - need to decompress
-            CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
-            params.Initialize(CryptoPP::ASN1::secp256k1());
-            const auto& curve = params.GetCurve();
-
-            CryptoPP::Integer x(public_key + 1, 32);
-            // secp256k1: y^2 = x^3 + 7
-            CryptoPP::Integer a = params.GetCurve().GetA();
-            CryptoPP::Integer b = params.GetCurve().GetB();
-            CryptoPP::Integer p = curve.GetField().GetModulus();
-
-            CryptoPP::Integer y2 = (x*x*x + a*x + b) % p;
-            CryptoPP::Integer y = CryptoPP::ModularSquareRoot(y2, p);
-
-            bool yOdd = (public_key[0] == 0x03);
-            if (y.IsOdd() != yOdd) {
-                y = p - y;
-            }
-
-            CryptoPP::ECP::Point point(x, y);
-            pubKey.Initialize(CryptoPP::ASN1::secp256k1(), point);
+        // Accept compact (64-byte) or DER signatures.
+        ecdsa::CompactSignature compactSig{};
+        if (signature_len == compactSig.size()) {
+            std::memcpy(compactSig.data(), signature, compactSig.size());
         } else {
-            return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+            ByteVector derSig(signature, signature + signature_len);
+            auto compactResult = ecdsa::derToCompact(derSig);
+            if (!compactResult.ok()) {
+                return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+            }
+            compactSig = compactResult.value;
         }
 
-        // Check if signature is already DER-encoded
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::Verifier verifier(pubKey);
-        if (signature_len > 64 && signature[0] == 0x30) {
-            // Already DER encoded
-            return verifier.VerifyMessage(message, message_len, signature, signature_len) ? 1 : 0;
-        }
-
-        // Convert R||S (64 bytes) to DER format
-        // Uses fixed-size buffer to avoid timing side channels
-        if (signature_len != 64) {
-            return static_cast<int32_t>(Error::INVALID_SIGNATURE);
-        }
-
-        // Max DER signature: 2 (header) + 2 (R tag+len) + 33 (R) + 2 (S tag+len) + 33 (S) = 72
-        uint8_t derSig[72];
-        size_t pos = 0;
-
-        derSig[pos++] = 0x30; // SEQUENCE
-        derSig[pos++] = 0;    // length placeholder (filled at end)
-
-        // R component
-        derSig[pos++] = 0x02; // INTEGER
-        uint8_t rPad = (signature[0] >> 7); // 1 if high bit set, 0 otherwise
-        derSig[pos++] = 32 + rPad;
-        derSig[pos] = 0;      // padding byte (only meaningful if rPad==1)
-        pos += rPad;
-        std::memcpy(derSig + pos, signature, 32);
-        pos += 32;
-
-        // S component
-        derSig[pos++] = 0x02; // INTEGER
-        uint8_t sPad = (signature[32] >> 7);
-        derSig[pos++] = 32 + sPad;
-        derSig[pos] = 0;
-        pos += sPad;
-        std::memcpy(derSig + pos, signature + 32, 32);
-        pos += 32;
-
-        derSig[1] = static_cast<uint8_t>(pos - 2);
-
-        return verifier.VerifyMessage(message, message_len, derSig, pos) ? 1 : 0;
+        ByteVector publicKeyVec(public_key, public_key + public_key_len);
+        bool valid = ecdsa::secp256k1Verify(publicKeyVec, msgHash, compactSig);
+        return valid ? 1 : 0;
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
     }
@@ -681,68 +509,23 @@ int32_t hd_p256_sign(
     }
 
     try {
-        // Get curve parameters
-        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
-        params.Initialize(CryptoPP::ASN1::secp256r1());
-        const CryptoPP::ECP& ec = params.GetCurve();
-        const CryptoPP::Integer& n = params.GetGroupOrder();
-        const CryptoPP::Integer halfN = n >> 1;
-
-        // Parse private key
-        CryptoPP::Integer d(private_key, 32);
-
-        // Validate private key range
-        if (d <= 0 || d >= n) {
-            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
-        }
-
-        // Hash message with SHA-256
-        uint8_t msgHash[32];
+        Bytes32 msgHash{};
         CryptoPP::SHA256 sha;
-        sha.CalculateDigest(msgHash, message, message_len);
+        sha.CalculateDigest(msgHash.data(), message, message_len);
 
-        // Generate deterministic k using RFC 6979
-        CryptoPP::Integer k = generateDeterministicK<CryptoPP::SHA256>(d, msgHash, 32, n);
+        Bytes32 privateKey{};
+        std::memcpy(privateKey.data(), private_key, privateKey.size());
 
-        // Compute R = k * G
-        CryptoPP::ECPPoint R = ec.ScalarMultiply(params.GetSubgroupGenerator(), k);
-
-        // r = R.x mod n
-        CryptoPP::Integer r = R.x % n;
-        if (r.IsZero()) {
-            secureWipeInteger(d);
-            secureWipeInteger(k);
-            return static_cast<int32_t>(Error::INTERNAL);
+        auto signResult = ecdsa::p256Sign(privateKey, msgHash);
+        if (!signResult.ok()) {
+            return static_cast<int32_t>(Error::INVALID_SIGNATURE);
         }
 
-        // z = hash (interpreted as integer)
-        CryptoPP::Integer z(msgHash, 32);
+        std::memcpy(signature_out, signResult.value.data(), signResult.value.size());
 
-        // s = k^-1 * (z + r*d) mod n
-        CryptoPP::Integer kInv = k.InverseMod(n);
-        CryptoPP::Integer s = (kInv * (z + r * d)) % n;
-
-        if (s.IsZero()) {
-            secureWipeInteger(d);
-            secureWipeInteger(k);
-            return static_cast<int32_t>(Error::INTERNAL);
-        }
-
-        // Low-S normalization for signature malleability protection
-        if (s > halfN) {
-            s = n - s;
-        }
-
-        // Encode as compact R||S (64 bytes)
-        std::memset(signature_out, 0, 64);
-        r.Encode(signature_out, 32);
-        s.Encode(signature_out + 32, 32);
-
-        // Secure cleanup
-        secureWipeInteger(d);
-        secureWipeInteger(k);
-        secureWipeInteger(kInv);
-        std::memset(msgHash, 0, sizeof(msgHash));
+        // Securely clear stack buffers.
+        std::memset(msgHash.data(), 0, msgHash.size());
+        std::memset(privateKey.data(), 0, privateKey.size());
 
         return 64;
     } catch (...) {
@@ -756,39 +539,24 @@ int32_t hd_p256_verify(
     const uint8_t* public_key, size_t public_key_len,
     const uint8_t* signature
 ) {
+    if (message == nullptr || public_key == nullptr || signature == nullptr) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+    if (public_key_len != 33 && public_key_len != 65) {
+        return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+    }
+
     try {
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PublicKey pubKey;
+        Bytes32 msgHash{};
+        CryptoPP::SHA256 sha;
+        sha.CalculateDigest(msgHash.data(), message, message_len);
 
-        if (public_key_len == 65 && public_key[0] == 0x04) {
-            CryptoPP::ECP::Point point;
-            point.x.Decode(public_key + 1, 32);
-            point.y.Decode(public_key + 33, 32);
-            pubKey.Initialize(CryptoPP::ASN1::secp256r1(), point);
-        } else {
-            return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
-        }
+        ecdsa::CompactSignature compactSig{};
+        std::memcpy(compactSig.data(), signature, compactSig.size());
 
-        // Convert R||S to DER
-        std::vector<uint8_t> derSig;
-        derSig.push_back(0x30);
-        derSig.push_back(0);
-
-        derSig.push_back(0x02);
-        bool rPad = (signature[0] & 0x80) != 0;
-        derSig.push_back(rPad ? 33 : 32);
-        if (rPad) derSig.push_back(0);
-        derSig.insert(derSig.end(), signature, signature + 32);
-
-        derSig.push_back(0x02);
-        bool sPad = (signature[32] & 0x80) != 0;
-        derSig.push_back(sPad ? 33 : 32);
-        if (sPad) derSig.push_back(0);
-        derSig.insert(derSig.end(), signature + 32, signature + 64);
-
-        derSig[1] = derSig.size() - 2;
-
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::Verifier verifier(pubKey);
-        return verifier.VerifyMessage(message, message_len, derSig.data(), derSig.size()) ? 0 : static_cast<int32_t>(Error::INVALID_SIGNATURE);
+        ByteVector publicKeyVec(public_key, public_key + public_key_len);
+        bool valid = ecdsa::p256Verify(publicKeyVec, msgHash, compactSig);
+        return valid ? 0 : static_cast<int32_t>(Error::INVALID_SIGNATURE);
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
     }
@@ -833,68 +601,23 @@ int32_t hd_p384_sign(
     }
 
     try {
-        // Get curve parameters
-        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> params;
-        params.Initialize(CryptoPP::ASN1::secp384r1());
-        const CryptoPP::ECP& ec = params.GetCurve();
-        const CryptoPP::Integer& n = params.GetGroupOrder();
-        const CryptoPP::Integer halfN = n >> 1;
-
-        // Parse private key (48 bytes for P-384)
-        CryptoPP::Integer d(private_key, 48);
-
-        // Validate private key range
-        if (d <= 0 || d >= n) {
-            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
-        }
-
-        // Hash message with SHA-384
-        uint8_t msgHash[48];
+        std::array<uint8_t, 48> msgHash{};
         CryptoPP::SHA384 sha;
-        sha.CalculateDigest(msgHash, message, message_len);
+        sha.CalculateDigest(msgHash.data(), message, message_len);
 
-        // Generate deterministic k using RFC 6979 with SHA-384
-        CryptoPP::Integer k = generateDeterministicK<CryptoPP::SHA384>(d, msgHash, 48, n);
+        ecdsa::P384PrivateKey privateKey{};
+        std::memcpy(privateKey.data(), private_key, privateKey.size());
 
-        // Compute R = k * G
-        CryptoPP::ECPPoint R = ec.ScalarMultiply(params.GetSubgroupGenerator(), k);
-
-        // r = R.x mod n
-        CryptoPP::Integer r = R.x % n;
-        if (r.IsZero()) {
-            secureWipeInteger(d);
-            secureWipeInteger(k);
-            return static_cast<int32_t>(Error::INTERNAL);
+        auto signResult = ecdsa::p384Sign(privateKey, msgHash);
+        if (!signResult.ok()) {
+            return static_cast<int32_t>(Error::INVALID_SIGNATURE);
         }
 
-        // z = hash (interpreted as integer)
-        CryptoPP::Integer z(msgHash, 48);
+        std::memcpy(signature_out, signResult.value.data(), signResult.value.size());
 
-        // s = k^-1 * (z + r*d) mod n
-        CryptoPP::Integer kInv = k.InverseMod(n);
-        CryptoPP::Integer s = (kInv * (z + r * d)) % n;
-
-        if (s.IsZero()) {
-            secureWipeInteger(d);
-            secureWipeInteger(k);
-            return static_cast<int32_t>(Error::INTERNAL);
-        }
-
-        // Low-S normalization for signature malleability protection
-        if (s > halfN) {
-            s = n - s;
-        }
-
-        // Encode as compact R||S (96 bytes)
-        std::memset(signature_out, 0, 96);
-        r.Encode(signature_out, 48);
-        s.Encode(signature_out + 48, 48);
-
-        // Secure cleanup
-        secureWipeInteger(d);
-        secureWipeInteger(k);
-        secureWipeInteger(kInv);
-        std::memset(msgHash, 0, sizeof(msgHash));
+        // Securely clear stack buffers.
+        std::memset(msgHash.data(), 0, msgHash.size());
+        std::memset(privateKey.data(), 0, privateKey.size());
 
         return 96;
     } catch (...) {
@@ -908,39 +631,24 @@ int32_t hd_p384_verify(
     const uint8_t* public_key, size_t public_key_len,
     const uint8_t* signature
 ) {
+    if (message == nullptr || public_key == nullptr || signature == nullptr) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+    if (public_key_len != 49 && public_key_len != 97) {
+        return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+    }
+
     try {
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA384>::PublicKey pubKey;
+        std::array<uint8_t, 48> msgHash{};
+        CryptoPP::SHA384 sha;
+        sha.CalculateDigest(msgHash.data(), message, message_len);
 
-        if (public_key_len == 97 && public_key[0] == 0x04) {
-            CryptoPP::ECP::Point point;
-            point.x.Decode(public_key + 1, 48);
-            point.y.Decode(public_key + 49, 48);
-            pubKey.Initialize(CryptoPP::ASN1::secp384r1(), point);
-        } else {
-            return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
-        }
+        ecdsa::P384Signature compactSig{};
+        std::memcpy(compactSig.data(), signature, compactSig.size());
 
-        // Convert R||S to DER
-        std::vector<uint8_t> derSig;
-        derSig.push_back(0x30);
-        derSig.push_back(0);
-
-        derSig.push_back(0x02);
-        bool rPad = (signature[0] & 0x80) != 0;
-        derSig.push_back(rPad ? 49 : 48);
-        if (rPad) derSig.push_back(0);
-        derSig.insert(derSig.end(), signature, signature + 48);
-
-        derSig.push_back(0x02);
-        bool sPad = (signature[48] & 0x80) != 0;
-        derSig.push_back(sPad ? 49 : 48);
-        if (sPad) derSig.push_back(0);
-        derSig.insert(derSig.end(), signature + 48, signature + 96);
-
-        derSig[1] = derSig.size() - 2;
-
-        CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA384>::Verifier verifier(pubKey);
-        return verifier.VerifyMessage(message, message_len, derSig.data(), derSig.size()) ? 0 : static_cast<int32_t>(Error::INVALID_SIGNATURE);
+        ByteVector publicKeyVec(public_key, public_key + public_key_len);
+        bool valid = ecdsa::p384Verify(publicKeyVec, msgHash, compactSig);
+        return valid ? 0 : static_cast<int32_t>(Error::INVALID_SIGNATURE);
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
     }
