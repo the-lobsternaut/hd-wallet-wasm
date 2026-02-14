@@ -450,6 +450,32 @@ body:has(.modal.active) .nav-bar {
   background: var(--white-10);
 }
 
+.password-input-wrap {
+  position: relative;
+}
+.password-input-wrap .glass-input {
+  padding-right: 48px;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--white-40);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+.password-toggle:hover {
+  color: var(--white-80);
+}
+
 .glass-textarea {
   resize: vertical;
   min-height: 80px;

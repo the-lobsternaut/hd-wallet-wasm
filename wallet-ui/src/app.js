@@ -3643,6 +3643,19 @@ function setupLoginHandlers() {
     updatePasswordStrength(e.target.value);
   });
 
+  // Password show/hide toggle
+  $('toggle-password-vis')?.addEventListener('click', () => {
+    const pw = $('wallet-password');
+    const btn = $('toggle-password-vis');
+    if (!pw || !btn) return;
+    const showing = pw.type === 'text';
+    pw.type = showing ? 'password' : 'text';
+    btn.querySelector('.eye-open').style.display = showing ? '' : 'none';
+    btn.querySelector('.eye-closed').style.display = showing ? 'none' : '';
+    btn.title = showing ? 'Show password' : 'Hide password';
+    pw.focus();
+  });
+
   $('wallet-username')?.addEventListener('input', () => {
     const pw = $('wallet-password');
     if (pw) updatePasswordStrength(pw.value);
