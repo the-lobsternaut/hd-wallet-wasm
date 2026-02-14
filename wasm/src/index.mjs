@@ -2784,7 +2784,7 @@ function createModule(wasm) {
  * @example
  * buildSigningPath(60);          // "m/44'/60'/0'/0/0" (Ethereum)
  * buildSigningPath(0, '0', '1'); // "m/44'/0'/0'/0/1"  (Bitcoin, 2nd key)
- * buildSigningPath(9999);        // "m/44'/9999'/0'/0/0" (OrbPro marketplace)
+ * buildSigningPath(1957);        // "m/44'/1957'/0'/0/0" (Space Data Network)
  */
 export function buildSigningPath(coinType, account = '0', index = '0') {
   return `m/44'/${coinType}'/${account}'/0/${index}`;
@@ -2804,7 +2804,7 @@ export function buildSigningPath(coinType, account = '0', index = '0') {
  *
  * @example
  * buildEncryptionPath(60);          // "m/44'/60'/0'/1/0" (Ethereum)
- * buildEncryptionPath(9999, '0', '3'); // "m/44'/9999'/0'/1/3" (OrbPro, 4th plugin key)
+ * buildEncryptionPath(1957, '0', '3'); // "m/44'/1957'/0'/1/3" (SDN, 4th plugin key)
  */
 export function buildEncryptionPath(coinType, account = '0', index = '0') {
   return `m/44'/${coinType}'/${account}'/1/${index}`;
@@ -2860,7 +2860,7 @@ export function getSigningKey(hdRoot, coinType, account = '0', index = '0') {
  * const wallet = await createHDWallet();
  * const seed = wallet.mnemonic.toSeed(mnemonic);
  * const root = wallet.hdkey.fromSeed(seed);
- * const { privateKey, publicKey } = getEncryptionKey(root, 9999, '0', '0');
+ * const { privateKey, publicKey } = getEncryptionKey(root, 1957, '0', '0');
  * // Use publicKey for ECIES encryption, privateKey for decryption
  * const shared = wallet.curves.secp256k1.ecdh(privateKey, otherPublicKey);
  */
@@ -2884,8 +2884,8 @@ export function getEncryptionKey(hdRoot, coinType, account = '0', index = '0') {
  * @enum {number}
  */
 export const WellKnownCoinType = Object.freeze({
-  /** OrbPro marketplace plugin encryption (unofficial) */
-  ORBPRO_MARKETPLACE: 9999,
+  /** Space Data Network identity (1957 = Sputnik launch year) */
+  SDN: 1957,
   /** Bitcoin */
   BITCOIN: 0,
   /** Ethereum */

@@ -1,7 +1,10 @@
 /**
  * HD Wallet WASI Implementation
  *
- * Minimal, exception-free implementation for WASI runtimes (Go/wazero, etc.)
+ * DEPRECATED: This standalone WASI build uses TweetNaCl primitives without the
+ * full Crypto++ security hardening. Prefer the Emscripten WASI target
+ * (hd_wallet_wasm_wasi in the main CMakeLists.txt) for production use.
+ *
  * Provides: BIP-39 mnemonics, SLIP-10 Ed25519, X25519 ECDH
  */
 
@@ -33,12 +36,23 @@ void hd_dealloc(void* ptr) {
     free(ptr);
 }
 
+void hd_secure_dealloc(void* ptr, uint32_t size) {
+    if (ptr && size > 0) {
+        hd_secure_wipe(ptr, size);
+    }
+    free(ptr);
+}
+
 void hd_secure_wipe(void* ptr, uint32_t size) {
     if (ptr && size > 0) {
         volatile uint8_t* p = static_cast<volatile uint8_t*>(ptr);
         while (size--) {
             *p++ = 0;
         }
+        // Compiler barrier: prevent optimizer from removing the writes
+#if defined(__GNUC__) || defined(__clang__)
+        __asm__ __volatile__("" ::: "memory");
+#endif
     }
 }
 
@@ -48,7 +62,24 @@ void hd_secure_wipe(void* ptr, uint32_t size) {
 
 void hd_inject_entropy(const uint8_t* data, uint32_t len) {
     if (len > 64) len = 64;
-    memcpy(entropy_pool, data, len);
+
+    // HMAC-based mixing: pool = HMAC-SHA512(data, pool || 0x00)
+    // This prevents a single weak injection from overwriting good entropy.
+    uint8_t input[65];
+    memcpy(input, entropy_pool, 64);
+    input[64] = 0x00;
+    uint8_t mixed[64];
+    crypto_hmac_sha512(mixed, data, len, input, 65);
+    memcpy(entropy_pool, mixed, 64);
+
+    // Second update for additional mixing: pool = HMAC-SHA512(data, pool || 0x01)
+    memcpy(input, entropy_pool, 64);
+    input[64] = 0x01;
+    crypto_hmac_sha512(mixed, data, len, input, 65);
+    memcpy(entropy_pool, mixed, 64);
+
+    hd_secure_wipe(mixed, sizeof(mixed));
+    hd_secure_wipe(input, sizeof(input));
     entropy_available = 2; // SUFFICIENT
 }
 
@@ -56,28 +87,27 @@ int32_t hd_get_entropy_status() {
     return entropy_available;
 }
 
-// Get random bytes from entropy pool (mixing with counter)
+// Get random bytes from entropy pool using HMAC-DRBG-style extraction
+// with backtracking resistance (pool state updated after each extraction).
 static void get_random_bytes(uint8_t* out, size_t len) {
-    static uint64_t counter = 0;
-    uint8_t buf[64];
-    uint8_t hash_input[64 + 8];
+    uint8_t V[64];
+    memcpy(V, entropy_pool, 64);
 
     while (len > 0) {
-        // Combine entropy pool with counter
-        memcpy(hash_input, entropy_pool, 64);
-        memcpy(hash_input + 64, &counter, 8);
-
-        // Hash to get random bytes
-        crypto_sha512(buf, hash_input, sizeof(hash_input));
-        counter++;
+        // V = HMAC-SHA512(entropy_pool, V) — extract random output
+        crypto_hmac_sha512(V, entropy_pool, 64, V, 64);
 
         size_t copy = len < 64 ? len : 64;
-        memcpy(out, buf, copy);
+        memcpy(out, V, copy);
         out += copy;
         len -= copy;
     }
 
-    hd_secure_wipe(buf, sizeof(buf));
+    // Backtracking resistance: update pool state so past outputs
+    // cannot be recovered if pool is later compromised
+    crypto_hmac_sha512(entropy_pool, entropy_pool, 64, V, 64);
+
+    hd_secure_wipe(V, sizeof(V));
 }
 
 // ============================================================================

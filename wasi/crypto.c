@@ -12,6 +12,16 @@
 #include <string.h>
 #include <stdlib.h>
 
+// Secure wipe with compiler barrier to prevent dead-store elimination.
+// Used to clear sensitive intermediate buffers (keys, scalars, HMAC state).
+static void secure_wipe(void *ptr, size_t size) {
+    volatile unsigned char *p = (volatile unsigned char *)ptr;
+    while (size--) { *p++ = 0; }
+#if defined(__GNUC__) || defined(__clang__)
+    __asm__ __volatile__("" ::: "memory");
+#endif
+}
+
 // ============================================================================
 // SHA-256 Implementation
 // ============================================================================
@@ -279,12 +289,20 @@ void crypto_hmac_sha512(
     memcpy(inner_buf, ipad, 128);
     memcpy(inner_buf + 128, data, data_len);
     crypto_sha512(inner, inner_buf, 128 + data_len);
+    secure_wipe(inner_buf, 128 + data_len);
     free(inner_buf);
 
     // Outer hash: H(opad || inner) - fixed 192 bytes
     memcpy(buf, opad, 128);
     memcpy(buf + 128, inner, 64);
     crypto_sha512(out, buf, 128 + 64);
+
+    // Wipe all sensitive intermediate state
+    secure_wipe(k, sizeof(k));
+    secure_wipe(ipad, sizeof(ipad));
+    secure_wipe(opad, sizeof(opad));
+    secure_wipe(inner, sizeof(inner));
+    secure_wipe(buf, sizeof(buf));
 }
 
 // ============================================================================
@@ -334,6 +352,9 @@ void crypto_pbkdf2_sha512(
         block_num++;
     }
 
+    secure_wipe(U, sizeof(U));
+    secure_wipe(T, sizeof(T));
+    secure_wipe(salt_block, salt_len + 4);
     free(salt_block);
 }
 
@@ -542,6 +563,8 @@ void crypto_ed25519_pubkey(uint8_t *pk, const uint8_t *seed) {
 
     scalarbase(p, d);
     pack(pk, p);
+
+    secure_wipe(d, sizeof(d));
 }
 
 static const u64 L[32] = {
@@ -625,7 +648,14 @@ void crypto_ed25519_sign(
 
     // Copy signature and free
     for (i = 0; i < 64; i++) sig[i] = sm[i];
+    secure_wipe(sm, mlen + 64);
     free(sm);
+
+    // Wipe secret scalar and intermediate values
+    secure_wipe(d, sizeof(d));
+    secure_wipe(h, sizeof(h));
+    secure_wipe(r, sizeof(r));
+    secure_wipe(x, sizeof(x));
 }
 
 static int unpackneg(gf r[4], const uint8_t p[32]) {
@@ -753,6 +783,9 @@ static void x25519_core(uint8_t *q, const uint8_t *n, const uint8_t *p) {
     inv25519(x+32, x+32);
     M(x+16, x+16, x+32);
     pack25519(q, x+16);
+
+    secure_wipe(z, sizeof(z));
+    secure_wipe(x, sizeof(x));
 }
 
 void crypto_x25519_pubkey(uint8_t *pk, const uint8_t *sk) {
@@ -761,5 +794,13 @@ void crypto_x25519_pubkey(uint8_t *pk, const uint8_t *sk) {
 
 int crypto_x25519_shared(uint8_t *shared, const uint8_t *sk, const uint8_t *pk) {
     x25519_core(shared, sk, pk);
+
+    // Reject low-order/identity points: if the shared secret is all zeros,
+    // the peer sent a small-subgroup public key (malicious or buggy).
+    uint8_t zero_check = 0;
+    for (int i = 0; i < 32; i++) zero_check |= shared[i];
+    if (zero_check == 0) {
+        return -1; // Reject: shared secret is the identity point
+    }
     return 0;
 }

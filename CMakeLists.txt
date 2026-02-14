@@ -506,7 +506,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     # Target: Pure WASI module (for Go/wazero, Rust/wasmtime, Python/wasmer)
     # This build disables C++ exceptions for true WASI compatibility
     # =========================================================================
-    # WASI sources: minimal set without exception-using code
+    # WASI sources: hardened set with full Crypto++ security features
     set(HD_WALLET_WASI_SOURCES
       src/utils.cpp
       src/secure_memory.cpp
@@ -520,15 +520,25 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/eddsa.cpp
       src/ecdh.cpp
       src/wasi_bridge.cpp
+      src/coins/coin.cpp
+      src/coins/bitcoin.cpp
+      src/coins/ethereum.cpp
+      src/coins/solana.cpp
     )
 
-    # WASI exports: core functions only (no aligned, keyring, key_manager, hw, coins, tx)
+    # Add OpenSSL wrapper to WASI when FIPS enabled
+    if(HD_WALLET_USE_OPENSSL)
+      list(APPEND HD_WALLET_WASI_SOURCES src/crypto_openssl.c)
+    endif()
+
+    # WASI exports: core + coin address functions (no aligned, keyring, key_manager, hw, tx)
     set(WASI_EXPORTED_FUNCTIONS
       # Memory Management
       "_malloc"
       "_free"
       "_hd_alloc"
       "_hd_dealloc"
+      "_hd_secure_dealloc"
       "_hd_secure_wipe"
       # Module Info
       "_hd_get_version"
@@ -600,6 +610,9 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       # EdDSA Signing (Ed25519)
       "_hd_ed25519_sign"
       "_hd_ed25519_verify"
+      "_hd_ed25519_pubkey_from_seed"
+      # SLIP-10 Ed25519 Derivation
+      "_hd_slip10_ed25519_derive_path"
       # ECDSA Signing (P-256/P-384)
       "_hd_p256_sign"
       "_hd_p256_verify"
@@ -610,6 +623,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_ecdh_p256"
       "_hd_ecdh_p384"
       "_hd_ecdh_x25519"
+      "_hd_x25519_pubkey"
       # Hash Functions
       "_hd_hash_sha256"
       "_hd_hash_sha512"
@@ -642,6 +656,10 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_decode_hex"
       "_hd_encode_base64"
       "_hd_decode_base64"
+      # Coin Address Generation
+      "_hd_btc_p2wpkh_address"
+      "_hd_eth_address"
+      "_hd_sol_address"
     )
     string(JOIN "," WASI_EXPORTED_FUNCS_STR ${WASI_EXPORTED_FUNCTIONS})
 
@@ -654,8 +672,17 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       ${WASM_COMPILE_OPTIONS}
       -fignore-exceptions
       -DHD_WALLET_NO_EXCEPTIONS=1
+      -DHD_WALLET_ENABLE_BITCOIN=1
+      -DHD_WALLET_ENABLE_ETHEREUM=1
+      -DHD_WALLET_ENABLE_SOLANA=1
+    )
+    target_include_directories(hd_wallet_wasm_wasi PRIVATE
+      $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
     target_link_libraries(hd_wallet_wasm_wasi PRIVATE cryptopp)
+    if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
+      target_link_libraries(hd_wallet_wasm_wasi PRIVATE "${OPENSSL_FIPS_LIB}")
+    endif()
     set_target_properties(hd_wallet_wasm_wasi PROPERTIES
       OUTPUT_NAME "hd-wallet-wasi"
       SUFFIX ".wasm"

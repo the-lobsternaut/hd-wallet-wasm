@@ -482,7 +482,18 @@ const result = wallet.utils.aesGcm.decrypt(
   </script>
   <script type="module">
     import { createWalletUI } from './src/app.js';
-    createWalletUI();
+    const opts = {};
+    if (typeof window.__sdnOnLogin === 'function') {
+      opts.onLogin = window.__sdnOnLogin;
+    }
+    if (window.__sdnAutoOpen === true) {
+      opts.autoOpenWallet = true;
+    }
+    createWalletUI(document.body, opts).then(ui => {
+      if (typeof window.__sdnWalletReady === 'function') {
+        window.__sdnWalletReady(ui);
+      }
+    });
   </script>
 </body>
 </html>

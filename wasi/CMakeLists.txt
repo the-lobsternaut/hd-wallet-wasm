@@ -1,6 +1,25 @@
 cmake_minimum_required(VERSION 3.16)
 project(hd_wallet_wasi C CXX)
 
+# ===========================================================================
+# DEPRECATED: This build uses TweetNaCl primitives without full Crypto++
+# security hardening. For production use, prefer the Emscripten WASI target
+# (hd_wallet_wasm_wasi) in the main CMakeLists.txt, which includes:
+#   - Crypto++ with constant-time operations and audited primitives
+#   - HMAC-DRBG entropy pool with backtracking resistance
+#   - MaskedKey XOR-masking for private keys in memory
+#   - SecureAllocator with auto-wipe on deallocation
+#   - Optional OpenSSL FIPS 140-3 mode (Certificate #4282)
+#
+# Build the preferred target:
+#   emcmake cmake -B build-wasi -S . -DHD_WALLET_BUILD_WASM=ON
+#   cmake --build build-wasi --target hd_wallet_wasm_wasi
+# ===========================================================================
+message(WARNING
+  "wasi/CMakeLists.txt builds a DEPRECATED standalone WASI module without "
+  "Crypto++ security hardening or FIPS support. Use the Emscripten WASI target "
+  "(hd_wallet_wasm_wasi in the main CMakeLists.txt) for production.")
+
 # This CMakeLists builds a pure WASI module using wasi-sdk
 # Designed for Go/wazero, Rust/wasmtime, Python/wasmer integration
 #
@@ -35,6 +54,7 @@ set(WASI_EXPORTS
   # Memory
   hd_alloc
   hd_dealloc
+  hd_secure_dealloc
   hd_secure_wipe
   # Entropy
   hd_inject_entropy

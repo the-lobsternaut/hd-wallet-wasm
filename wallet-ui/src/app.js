@@ -2378,10 +2378,10 @@ function login(keys) {
   state.addresses = deriveAllAddressesFromHD();
   state.selectedCrypto = 'btc';
 
-  // Fire onLogin callback with SDN identity (coin type 9999)
+  // Fire onLogin callback with SDN identity (coin type 1957 — Sputnik)
   if (_onLoginCallback && state.hdRoot) {
     try {
-      const sdnSigning = getSigningKey(state.hdRoot, 9999, 0, 0);
+      const sdnSigning = getSigningKey(state.hdRoot, 1957, 0, 0);
       const sdnPubKey = ed25519.getPublicKey(sdnSigning.privateKey);
       const xpub = state.hdRoot.toXpub();
       _onLoginCallback({
@@ -3371,11 +3371,16 @@ function parseAndDisplayVCF(vcfText) {
   if (!resultEl || !fieldsEl) return;
 
   if (photoEl) {
-    photoEl.innerHTML = photo
-      ? `<img src="${photo}" alt="Contact photo">`
-      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;opacity:0.3">
+    const fallbackSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;opacity:0.3">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         </svg>`;
+    if (photo) {
+      photoEl.innerHTML = `<img src="${photo}" alt="Contact photo">`;
+      const img = photoEl.querySelector('img');
+      if (img) img.onerror = () => { photoEl.innerHTML = fallbackSvg; };
+    } else {
+      photoEl.innerHTML = fallbackSvg;
+    }
   }
 
   let html = '';
@@ -4187,6 +4192,7 @@ function setupMainAppHandlers() {
     const img = document.createElement('img');
     img.src = dataUrl;
     img.alt = 'Photo';
+    img.onerror = () => { img.remove(); resetPhotoPreview(); };
     preview.appendChild(img);
     const removeBtn = $('vcard-photo-remove');
     if (removeBtn) removeBtn.style.display = '';
@@ -5363,7 +5369,7 @@ export async function init(rootElement, options = {}) {
  * @param {Node}   [rootElement]  - Optional root element for DOM queries
  * @param {Object} [options]      - Options passed to init()
  * @param {Function} [options.onLogin] - Callback fired after successful login with
- *   `{ xpub, signingPublicKey, sign(message) }` for SDN identity (coin type 9999)
+ *   `{ xpub, signingPublicKey, sign(message) }` for SDN identity (coin type 1957)
  * @returns {Promise<{openLogin: Function, openAccount: Function, destroy: Function}>}
  */
 export async function createWalletUI(rootElement, options = {}) {
