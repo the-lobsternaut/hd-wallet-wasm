@@ -207,6 +207,10 @@ async function p384GenerateKeyPairAsync() {
 // Integration callback — set via options.onLogin in createWalletUI / init
 let _onLoginCallback = null;
 
+// When false, login() will NOT auto-open the Account modal after authentication.
+// Set via options.openAccountAfterLogin in createWalletUI / init (default: true).
+let _openAccountAfterLogin = true;
+
 const state = {
   initialized: false,
   loggedIn: false,
@@ -2508,7 +2512,9 @@ function login(keys) {
   updateAdversarialSecurity();
 
   // Open Account modal so user can see the wallet they just loaded
-  $('keys-modal')?.classList.add('active');
+  if (_openAccountAfterLogin) {
+    $('keys-modal')?.classList.add('active');
+  }
 
   // Resolve names and update title
   clearNameCache();
@@ -5267,10 +5273,11 @@ function setupHomepageHandlers() {
 // =============================================================================
 
 export async function init(rootElement, options = {}) {
-  const { autoOpenWallet = false, onLogin = null } = typeof rootElement === 'object' && !(rootElement instanceof Node)
+  const { autoOpenWallet = false, onLogin = null, openAccountAfterLogin = true } = typeof rootElement === 'object' && !(rootElement instanceof Node)
     ? (options = rootElement, {}) : options;
   if (rootElement && rootElement instanceof Node) _root = rootElement;
   if (typeof onLogin === 'function') _onLoginCallback = onLogin;
+  _openAccountAfterLogin = openAccountAfterLogin;
 
   // Inject modal HTML if not already present in the DOM
   if (!document.getElementById('keys-modal')) {
@@ -5383,6 +5390,9 @@ export async function init(rootElement, options = {}) {
  * @param {Object} [options]      - Options passed to init()
  * @param {Function} [options.onLogin] - Callback fired after successful login with
  *   `{ xpub, signingPublicKey, sign(message) }` for SDN identity (coin type 1957)
+ * @param {boolean}  [options.openAccountAfterLogin=true] - When false, the Account
+ *   modal will NOT auto-open after login. Useful for integrations that handle
+ *   post-login UX themselves (e.g. challenge-response auth flows).
  * @returns {Promise<{openLogin: Function, openAccount: Function, destroy: Function}>}
  */
 export async function createWalletUI(rootElement, options = {}) {

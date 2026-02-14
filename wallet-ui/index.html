@@ -489,6 +489,9 @@ const result = wallet.utils.aesGcm.decrypt(
     if (window.__sdnAutoOpen === true) {
       opts.autoOpenWallet = true;
     }
+    if (window.__sdnOpenAccountAfterLogin === false) {
+      opts.openAccountAfterLogin = false;
+    }
     createWalletUI(document.body, opts).then(ui => {
       if (typeof window.__sdnWalletReady === 'function') {
         window.__sdnWalletReady(ui);

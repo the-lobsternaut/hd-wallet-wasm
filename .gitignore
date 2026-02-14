@@ -4,6 +4,7 @@ build-native/
 build-wasm/
 build-wasi/
 build-wasi-pure/
+build-wasi-hardened/
 cmake-build-*/
 .cache/
 
@@ -24,6 +25,8 @@ cmake-build-*/
 *.dylib
 *.wasm
 *.js.mem
+*.pyc
+__pycache__/
 
 # Output directories
 wasm/dist/
@@ -34,6 +37,7 @@ Thumbs.db
 
 # Test artifacts
 test_data/
+test/dart/.dart_tool/pub/
 
 # NPM
 node_modules/
