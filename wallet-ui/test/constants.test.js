@@ -9,7 +9,8 @@ import {
 
 describe('cryptoConfig', () => {
   it('has all expected networks', () => {
-    const expected = ['btc', 'eth', 'sol', 'ltc', 'bch', 'doge', 'atom', 'algo', 'dot', 'ada'];
+    // The demo UI currently enables BTC/ETH/SOL only. (Other configs are kept commented out.)
+    const expected = ['btc', 'eth', 'sol'];
     for (const key of expected) {
       expect(cryptoConfig).toHaveProperty(key);
     }
@@ -33,7 +34,6 @@ describe('cryptoConfig', () => {
     expect(cryptoConfig.btc.formatBalance(100000000)).toBe('1.00000000 BTC');
     expect(cryptoConfig.eth.formatBalance(1e18)).toBe('1.000000 ETH');
     expect(cryptoConfig.sol.formatBalance(1e9)).toBe('1.0000 SOL');
-    expect(cryptoConfig.ada.formatBalance(1e6)).toBe('1.000000 ADA');
   });
 });
 
@@ -42,7 +42,6 @@ describe('coinTypeToConfig', () => {
     expect(coinTypeToConfig[0].symbol).toBe('BTC');
     expect(coinTypeToConfig[60].symbol).toBe('ETH');
     expect(coinTypeToConfig[501].symbol).toBe('SOL');
-    expect(coinTypeToConfig[1815].symbol).toBe('ADA');
   });
 
   it('includes key field with original key name', () => {

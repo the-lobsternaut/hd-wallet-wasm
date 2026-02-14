@@ -5,7 +5,7 @@ This directory contains a comprehensive Python test suite for the hd-wallet-wasm
 ## Prerequisites
 
 - Python 3.10 or later
-- The WASM module built at `../../build-wasm/wasm/hd-wallet.wasm`
+- The WASI WASM module built at `../../build-wasi/wasm/hd-wallet-wasi.wasm`
 
 ## Installation
 

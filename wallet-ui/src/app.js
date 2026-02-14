@@ -132,7 +132,6 @@ function bindInfoHandlers() {
 
 function setTruncatedValue(el, value) {
   if (!el) return;
-  el.dataset.fullValue = value;
   el.textContent = middleTruncate(value, 17, 17);
 }
 
@@ -143,6 +142,23 @@ function middleTruncate(str, startChars, endChars) {
 
 function toBase64(arr) {
   return btoa(String.fromCharCode(...arr));
+}
+
+function base64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function bytesToBase64(bytes) {
+  // Avoid spreading large arrays into String.fromCharCode.
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
 // =============================================================================
@@ -162,6 +178,26 @@ async function hkdf(ikm, salt, info, length) {
     length * 8
   );
   return new Uint8Array(derived);
+}
+
+async function aesGcmEncryptJson(keyBytes, obj, aadStr) {
+  if (!(keyBytes instanceof Uint8Array)) throw new Error('Invalid AES key');
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const alg = { name: 'AES-GCM', iv };
+  if (aadStr) alg.additionalData = new TextEncoder().encode(aadStr);
+  const plaintext = new TextEncoder().encode(JSON.stringify(obj));
+  const ciphertext = await crypto.subtle.encrypt(alg, cryptoKey, plaintext);
+  return { iv, ciphertext: new Uint8Array(ciphertext) };
+}
+
+async function aesGcmDecryptJson(keyBytes, iv, ciphertextBytes, aadStr) {
+  if (!(keyBytes instanceof Uint8Array)) throw new Error('Invalid AES key');
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const alg = { name: 'AES-GCM', iv };
+  if (aadStr) alg.additionalData = new TextEncoder().encode(aadStr);
+  const plaintext = await crypto.subtle.decrypt(alg, cryptoKey, ciphertextBytes);
+  return JSON.parse(new TextDecoder().decode(plaintext));
 }
 
 // =============================================================================
@@ -332,49 +368,52 @@ async function deriveKeysFromPassword(username, password) {
   const initialHash = await sha256(new Uint8Array([...usernameSalt, ...passwordBytes]));
   const masterKey = await hkdf(initialHash, usernameSalt, encoder.encode('master-key'), 32);
 
-  state.encryptionKey = await hkdf(masterKey, new Uint8Array(0), encoder.encode('buffer-encryption-key'), 32);
-  state.encryptionIV = await hkdf(masterKey, new Uint8Array(0), encoder.encode('buffer-encryption-iv'), 16);
-
   // Create 64-byte seed for HD wallet (password-based, not BIP39)
   const hdSeed = await hkdf(masterKey, new Uint8Array(0), encoder.encode('hd-wallet-seed'), 64);
-  state.masterSeed = hdSeed;
-  state.hdRoot = state.hdWalletModule.hdkey.fromSeed(hdSeed);
-  state.mnemonic = null; // Not available for password-derived wallets
-  console.log('HD wallet initialized from password, hdRoot:', !!state.hdRoot);
 
-  const keys = deriveKeysFromHDRoot(state.hdRoot);
-  // Also derive auxiliary keys for encryption / key agreement
-  keys.x25519 = generateKeyPair(Curve.X25519);
-  keys.p256 = await p256GenerateKeyPairAsync();
-  keys.p384 = await p384GenerateKeyPairAsync();
-
-  return keys;
+  try {
+    // Derive session keys from the master seed so "remember wallet" can unlock without
+    // storing the user password/seed phrase at rest.
+    return await deriveKeysFromMasterSeed(hdSeed);
+  } finally {
+    // Best-effort JS-layer cleanup (strings cannot be wiped).
+    passwordBytes.fill(0);
+    initialHash.fill(0);
+    masterKey.fill(0);
+    hdSeed.fill(0);
+  }
 }
 
 async function deriveKeysFromSeed(seedPhrase) {
+  const encoder = new TextEncoder();
   const seed = state.hdWalletModule.mnemonic.toSeed(seedPhrase);
+  const seedBytes = seed instanceof Uint8Array ? seed : new Uint8Array(seed);
+
+  try {
+    return await deriveKeysFromMasterSeed(seedBytes);
+  } finally {
+    // Don't retain the seed phrase in JS state.
+    // (Seed phrase strings can't be wiped; we just avoid storing them.)
+    seedBytes.fill(0);
+  }
+}
+
+async function deriveKeysFromMasterSeed(masterSeedBytes) {
   const encoder = new TextEncoder();
 
-  const masterKey = await hkdf(
-    new Uint8Array(seed.slice(0, 32)),
-    new Uint8Array(0),
-    encoder.encode('wallet-master'),
-    32
-  );
+  // Copy seed into state; callers can wipe their input buffer.
+  state.masterSeed = new Uint8Array(masterSeedBytes);
+  state.hdRoot = state.hdWalletModule.hdkey.fromSeed(state.masterSeed);
+  state.mnemonic = null;
 
-  state.encryptionKey = await hkdf(masterKey, new Uint8Array(0), encoder.encode('buffer-encryption-key'), 32);
-  state.encryptionIV = await hkdf(masterKey, new Uint8Array(0), encoder.encode('buffer-encryption-iv'), 16);
-
-  state.masterSeed = new Uint8Array(seed);
-  state.hdRoot = state.hdWalletModule.hdkey.fromSeed(new Uint8Array(seed));
-  state.mnemonic = seedPhrase;
-  console.log('HD wallet initialized from seed phrase, hdRoot:', !!state.hdRoot);
+  // Session encryption key for local encrypted blobs (PKI, etc).
+  state.encryptionKey = await hkdf(state.masterSeed, new Uint8Array(0), encoder.encode('buffer-encryption-key'), 32);
+  state.encryptionIV = await hkdf(state.masterSeed, new Uint8Array(0), encoder.encode('buffer-encryption-iv'), 16);
 
   const keys = deriveKeysFromHDRoot(state.hdRoot);
   keys.x25519 = generateKeyPair(Curve.X25519);
   keys.p256 = await p256GenerateKeyPairAsync();
   keys.p384 = await p384GenerateKeyPairAsync();
-
   return keys;
 }
 
@@ -2195,7 +2234,14 @@ function savePKIKeys() {
     return;
   }
 
-  const data = {
+  // SECURITY: Never persist private keys in plaintext localStorage.
+  // Persist encrypted only when a session encryption key exists (i.e., after wallet login).
+  if (!(state.encryptionKey instanceof Uint8Array) || state.encryptionKey.length < 16) {
+    console.warn('Skipping PKI key persistence: session encryption key not available (login required)');
+    return;
+  }
+
+  const plaintext = {
     algorithm: state.pki.algorithm,
     alice: {
       publicKey: toHexCompact(state.pki.alice.publicKey),
@@ -2208,43 +2254,76 @@ function savePKIKeys() {
     savedAt: new Date().toISOString(),
   };
 
-  if (state.encryptionKey && state.encryptionIV) {
-    data.encryptionKey = toHexCompact(state.encryptionKey);
-    data.encryptionIV = toHexCompact(state.encryptionIV);
-  }
-
-  try {
-    localStorage.setItem(PKI_STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.warn('Failed to save PKI keys to localStorage:', e);
-  }
+  aesGcmEncryptJson(state.encryptionKey, plaintext, 'wallet-ui|pki-keys')
+    .then(({ iv, ciphertext }) => {
+      const stored = {
+        v: 1,
+        iv: bytesToBase64(iv),
+        ciphertext: bytesToBase64(ciphertext),
+      };
+      localStorage.setItem(PKI_STORAGE_KEY, JSON.stringify(stored));
+    })
+    .catch((e) => {
+      console.warn('Failed to encrypt+save PKI keys to localStorage:', e);
+    });
 }
 
-function loadPKIKeys() {
+async function loadPKIKeys() {
   try {
     const stored = localStorage.getItem(PKI_STORAGE_KEY);
     if (!stored) return false;
 
     const data = JSON.parse(stored);
-    if (!data.alice || !data.bob || !data.algorithm) {
+    const hasEncryptedShape = data && typeof data === 'object' && typeof data.iv === 'string' && typeof data.ciphertext === 'string';
+
+    // Legacy plaintext format (insecure): refuse to load until logged in, then upgrade.
+    const hasLegacyPlaintextShape = data?.alice?.privateKey && data?.bob?.privateKey && data?.algorithm;
+
+    if (!hasEncryptedShape && !hasLegacyPlaintextShape) {
       console.warn('Invalid PKI data in localStorage');
       return false;
     }
 
-    state.pki.algorithm = data.algorithm;
+    if (!(state.encryptionKey instanceof Uint8Array) || state.encryptionKey.length < 16) {
+      // Not logged in yet; don't load private keys.
+      return false;
+    }
+
+    let plaintext;
+    if (hasEncryptedShape) {
+      const iv = base64ToBytes(data.iv);
+      const ciphertext = base64ToBytes(data.ciphertext);
+      plaintext = await aesGcmDecryptJson(state.encryptionKey, iv, ciphertext, 'wallet-ui|pki-keys');
+    } else {
+      // Legacy plaintext: load and immediately re-encrypt on next save.
+      plaintext = data;
+      // Upgrade-in-place.
+      try {
+        const { iv, ciphertext } = await aesGcmEncryptJson(state.encryptionKey, plaintext, 'wallet-ui|pki-keys');
+        localStorage.setItem(PKI_STORAGE_KEY, JSON.stringify({
+          v: 1,
+          iv: bytesToBase64(iv),
+          ciphertext: bytesToBase64(ciphertext),
+        }));
+      } catch (e) {
+        console.warn('Failed to upgrade legacy plaintext PKI storage:', e);
+      }
+    }
+
+    if (!plaintext?.alice || !plaintext?.bob || !plaintext?.algorithm) {
+      console.warn('Invalid decrypted PKI data');
+      return false;
+    }
+
+    state.pki.algorithm = plaintext.algorithm;
     state.pki.alice = {
-      publicKey: hexToBytes(data.alice.publicKey),
-      privateKey: hexToBytes(data.alice.privateKey),
+      publicKey: hexToBytes(plaintext.alice.publicKey),
+      privateKey: hexToBytes(plaintext.alice.privateKey),
     };
     state.pki.bob = {
-      publicKey: hexToBytes(data.bob.publicKey),
-      privateKey: hexToBytes(data.bob.privateKey),
+      publicKey: hexToBytes(plaintext.bob.publicKey),
+      privateKey: hexToBytes(plaintext.bob.privateKey),
     };
-
-    if (data.encryptionKey && data.encryptionIV) {
-      state.encryptionKey = hexToBytes(data.encryptionKey);
-      state.encryptionIV = hexToBytes(data.encryptionIV);
-    }
 
     // Update UI
     const alicePublicKey = $('alice-public-key');
@@ -2257,11 +2336,11 @@ function loadPKIKeys() {
     const pkiClearKeys = $('pki-clear-keys');
 
     const pkiAlgorithm = $('pki-algorithm');
-    if (pkiAlgorithm) pkiAlgorithm.value = data.algorithm;
-    if (alicePublicKey) alicePublicKey.textContent = data.alice.publicKey;
-    if (alicePrivateKey) alicePrivateKey.textContent = data.alice.privateKey;
-    if (bobPublicKey) bobPublicKey.textContent = data.bob.publicKey;
-    if (bobPrivateKey) bobPrivateKey.textContent = data.bob.privateKey;
+    if (pkiAlgorithm) pkiAlgorithm.value = plaintext.algorithm;
+    if (alicePublicKey) alicePublicKey.textContent = plaintext.alice.publicKey;
+    if (alicePrivateKey) alicePrivateKey.textContent = plaintext.alice.privateKey;
+    if (bobPublicKey) bobPublicKey.textContent = plaintext.bob.publicKey;
+    if (bobPrivateKey) bobPrivateKey.textContent = plaintext.bob.privateKey;
     if (pkiParties) pkiParties.style.display = 'grid';
     if (pkiDemo) pkiDemo.style.display = 'block';
     if (pkiSecurity) pkiSecurity.style.display = 'block';
@@ -2279,6 +2358,13 @@ function clearPKIKeys() {
     localStorage.removeItem(PKI_STORAGE_KEY);
   } catch (e) {
     console.warn('Failed to clear PKI keys:', e);
+  }
+
+  try {
+    if (state.pki?.alice?.privateKey instanceof Uint8Array) state.pki.alice.privateKey.fill(0);
+    if (state.pki?.bob?.privateKey instanceof Uint8Array) state.pki.bob.privateKey.fill(0);
+  } catch {
+    // ignore
   }
 
   state.pki.alice = null;
@@ -2386,7 +2472,10 @@ function login(keys) {
   if (_onLoginCallback && state.hdRoot) {
     try {
       const sdnSigning = getSigningKey(state.hdRoot, 1957, 0, 0);
-      const sdnPubKey = ed25519.getPublicKey(sdnSigning.privateKey);
+      const sdnPrivKey = sdnSigning.privateKey;
+      const sdnPubKey = ed25519.getPublicKey(sdnPrivKey);
+      // Don't keep derived private key bytes around longer than needed.
+      if (sdnPrivKey instanceof Uint8Array) sdnPrivKey.fill(0);
       const xpub = state.hdRoot.toXpub();
       _onLoginCallback({
         xpub,
@@ -2395,7 +2484,12 @@ function login(keys) {
           const msgBytes = typeof message === 'string'
             ? new TextEncoder().encode(message)
             : message;
-          return ed25519.sign(msgBytes, sdnSigning.privateKey);
+          const signing = getSigningKey(state.hdRoot, 1957, 0, 0);
+          try {
+            return ed25519.sign(msgBytes, signing.privateKey);
+          } finally {
+            if (signing?.privateKey instanceof Uint8Array) signing.privateKey.fill(0);
+          }
         },
       });
     } catch (err) {
@@ -2444,14 +2538,12 @@ function login(keys) {
     }
     populateAccountAddressDropdown();
     if (xprvEl) {
-      setTruncatedValue(xprvEl, state.hdRoot.toXprv() || 'N/A');
+      xprvEl.textContent = 'Hidden (click reveal)';
       xprvEl.dataset.revealed = 'false';
     }
-    if (seedEl && state.mnemonic) {
-      seedEl.textContent = state.mnemonic;
+    if (seedEl) {
+      seedEl.textContent = 'Not retained by the app';
       seedEl.dataset.revealed = 'false';
-    } else if (seedEl) {
-      seedEl.textContent = 'Not available (derived from password)';
     }
 
     // Load persisted wallets and active accounts
@@ -2504,8 +2596,14 @@ function login(keys) {
     if (pkiSecurity) pkiSecurity.style.display = 'block';
     const pkiClearKeys = $('pki-clear-keys');
     if (pkiClearKeys) pkiClearKeys.style.display = 'inline-flex';
-  } else if (!loadPKIKeys()) {
-    generatePKIKeyPairs();
+  } else {
+    // PKI persistence is encrypted and requires the session key (available only after login).
+    // Kick off an async load attempt; if it fails, generate fresh keys.
+    loadPKIKeys().then((ok) => {
+      if (!ok) generatePKIKeyPairs();
+    }).catch(() => {
+      generatePKIKeyPairs();
+    });
   }
 
   // Update wallet addresses and balances
@@ -2532,6 +2630,26 @@ function logout() {
   const titleEl = $('account-title');
   if (titleEl) titleEl.textContent = 'Account';
   state.loggedIn = false;
+
+  // Best-effort wipe of JS buffers (strings are not wipeable).
+  const wipe = (u8) => {
+    if (u8 instanceof Uint8Array) u8.fill(0);
+  };
+  try {
+    wipe(state.wallet?.x25519?.privateKey);
+    wipe(state.wallet?.ed25519?.privateKey);
+    wipe(state.wallet?.secp256k1?.privateKey);
+    wipe(state.wallet?.p256?.privateKey);
+    wipe(state.encryptionKey);
+    wipe(state.encryptionIV);
+    wipe(state.masterSeed);
+    wipe(state.pki?.alice?.privateKey);
+    wipe(state.pki?.bob?.privateKey);
+    state.hdRoot?.wipe?.();
+  } catch {
+    // ignore
+  }
+
   state.wallet = { x25519: null, ed25519: null, secp256k1: null, p256: null };
   state.encryptionKey = null;
   state.encryptionIV = null;
@@ -2592,7 +2710,7 @@ async function exportWallet(format) {
   switch (format) {
     case 'mnemonic':
       if (!state.mnemonic) {
-        alert('Seed phrase not available. This wallet was derived from a password.');
+        alert('Seed phrase not available. For security, the app does not retain the mnemonic after login.');
         return;
       }
       data = state.mnemonic;
@@ -3675,9 +3793,7 @@ function setupLoginHandlers() {
     const usePasskey = rememberMethod.password === 'passkey';
     const pin = $('pin-input-password')?.value;
 
-    console.log('Login clicked, username:', username, 'password length:', password?.length);
     if (!username || !password || password.length < 24) {
-      console.log('Login validation failed');
       return;
     }
 
@@ -3691,16 +3807,18 @@ function setupLoginHandlers() {
     btn.textContent = 'Logging in...';
 
     try {
-      console.log('Calling deriveKeysFromPassword...');
       const keys = await deriveKeysFromPassword(username, password);
-      console.log('Keys derived, hdRoot after derivation:', !!state.hdRoot);
+
+      // Best-effort: don't keep the password in the input field after login.
+      const pwEl = $('wallet-password');
+      if (pwEl) pwEl.value = '';
 
       if (rememberWallet) {
         const walletData = {
-          type: 'password',
+          type: 'masterSeed',
+          source: 'password',
           username,
-          password,
-          masterSeed: Array.from(state.masterSeed)
+          masterSeed: Array.from(state.masterSeed),
         };
 
         if (usePasskey) {
@@ -3729,7 +3847,6 @@ function setupLoginHandlers() {
       }
 
       login(keys);
-      console.log('Login complete, hdRoot:', !!state.hdRoot);
     } catch (err) {
       console.error('Login error:', err);
       alert('Error: ' + err.message);
@@ -3794,11 +3911,15 @@ function setupLoginHandlers() {
     try {
       const keys = await deriveKeysFromSeed(phrase);
 
+      // Best-effort: don't keep the mnemonic in the textarea after login.
+      const seedEl = $('seed-phrase');
+      if (seedEl) seedEl.value = '';
+
       if (rememberWallet) {
         const walletData = {
-          type: 'seed',
-          seedPhrase: phrase,
-          masterSeed: Array.from(state.masterSeed)
+          type: 'masterSeed',
+          source: 'seed',
+          masterSeed: Array.from(state.masterSeed),
         };
 
         if (usePasskey) {
@@ -3851,12 +3972,27 @@ function setupLoginHandlers() {
       const walletData = await WalletStorage.retrieveWithPIN(pin);
 
       let keys;
-      if (walletData.type === 'password') {
+      const storedSeed = walletData.masterSeed || walletData.seed || walletData.hdSeed;
+      if (storedSeed) {
+        keys = await deriveKeysFromMasterSeed(new Uint8Array(storedSeed));
+      } else if (walletData.type === 'password') {
+        // Legacy format: stored password/seedPhrase (deprecated). Unlock, then upgrade storage.
         keys = await deriveKeysFromPassword(walletData.username, walletData.password);
+        await WalletStorage.storeWithPIN(pin, {
+          type: 'masterSeed',
+          source: 'password',
+          username: walletData.username,
+          masterSeed: Array.from(state.masterSeed),
+        });
       } else if (walletData.type === 'seed') {
         keys = await deriveKeysFromSeed(walletData.seedPhrase);
+        await WalletStorage.storeWithPIN(pin, {
+          type: 'masterSeed',
+          source: 'seed',
+          masterSeed: Array.from(state.masterSeed),
+        });
       } else {
-        throw new Error('Unknown wallet type');
+        throw new Error('Unknown stored wallet format');
       }
 
       login(keys);
@@ -3880,12 +4016,34 @@ function setupLoginHandlers() {
       const walletData = await WalletStorage.retrieveWithPasskey();
 
       let keys;
-      if (walletData.type === 'password') {
+      const storedSeed = walletData.masterSeed || walletData.seed || walletData.hdSeed;
+      if (storedSeed) {
+        keys = await deriveKeysFromMasterSeed(new Uint8Array(storedSeed));
+      } else if (walletData.type === 'password') {
         keys = await deriveKeysFromPassword(walletData.username, walletData.password);
+        await WalletStorage.storeWithPasskey({
+          type: 'masterSeed',
+          source: 'password',
+          username: walletData.username,
+          masterSeed: Array.from(state.masterSeed),
+        }, {
+          rpName: 'HD Wallet',
+          userName: walletData.username || 'wallet-user',
+          userDisplayName: walletData.username || 'Wallet User'
+        });
       } else if (walletData.type === 'seed') {
         keys = await deriveKeysFromSeed(walletData.seedPhrase);
+        await WalletStorage.storeWithPasskey({
+          type: 'masterSeed',
+          source: 'seed',
+          masterSeed: Array.from(state.masterSeed),
+        }, {
+          rpName: 'HD Wallet',
+          userName: 'seed-wallet',
+          userDisplayName: 'Seed Phrase Wallet'
+        });
       } else {
-        throw new Error('Unknown wallet type');
+        throw new Error('Unknown stored wallet format');
       }
 
       login(keys);
@@ -4331,7 +4489,23 @@ function setupMainAppHandlers() {
       const targetEl = $(targetId);
       if (targetEl) {
         const isRevealed = targetEl.dataset.revealed === 'true';
-        targetEl.dataset.revealed = isRevealed ? 'false' : 'true';
+        const nextRevealed = !isRevealed;
+        targetEl.dataset.revealed = nextRevealed ? 'true' : 'false';
+
+        if (nextRevealed) {
+          if (targetId === 'wallet-xprv') {
+            targetEl.textContent = state.hdRoot?.toXprv?.() || 'N/A';
+          } else if (targetId === 'wallet-seed-phrase') {
+            targetEl.textContent = state.mnemonic || 'Not retained by the app';
+          }
+        } else {
+          if (targetId === 'wallet-xprv') {
+            targetEl.textContent = 'Hidden (click reveal)';
+          } else if (targetId === 'wallet-seed-phrase') {
+            targetEl.textContent = 'Not retained by the app';
+          }
+        }
+
         btn.innerHTML = isRevealed
           ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
           : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
@@ -4346,7 +4520,28 @@ function setupMainAppHandlers() {
       const targetEl = $(targetId);
       if (targetEl) {
         try {
-          await navigator.clipboard.writeText(targetEl.dataset.fullValue || targetEl.textContent);
+          let value = '';
+          if (targetId === 'wallet-xpub' || targetId === 'wallet-tab-xpub') {
+            value = state.hdRoot?.toXpub?.() || '';
+          } else if (targetId === 'wallet-xprv') {
+            if (targetEl.dataset.revealed !== 'true') {
+              alert('Reveal the xprv first to copy it.');
+              return;
+            }
+            if (!confirm('Warning: copying your master private key (xprv) is extremely sensitive. Continue?')) {
+              return;
+            }
+            value = state.hdRoot?.toXprv?.() || '';
+          } else if (targetId === 'wallet-seed-phrase') {
+            alert('Seed phrase not available. For security, the app does not retain the mnemonic after login.');
+            return;
+          } else {
+            value = targetEl.textContent || '';
+          }
+          if (!value) {
+            throw new Error('Nothing to copy');
+          }
+          await navigator.clipboard.writeText(value);
           btn.classList.add('copied');
           setTimeout(() => btn.classList.remove('copied'), 1500);
         } catch (err) {
@@ -4962,26 +5157,250 @@ function setupTrustHandlers() {
   // Encryption Tab Handlers (ECIES: ECDH + HKDF + AES-256-GCM)
   // =========================================================================
 
+  const MESSAGING_KEY_CONFIG_KEY = 'hd-wallet-messaging-key-config-v1';
+  const messagingKeyDefaults = Object.freeze({
+    btc: { path: "m/44'/0'/0'/1/0", algorithm: 'secp256k1', publicKeyFormat: 'compressed' },
+    eth: { path: "m/44'/60'/0'/1/0", algorithm: 'secp256k1', publicKeyFormat: 'uncompressed' },
+    sol: { path: "m/44'/501'/0'/1/0", algorithm: 'x25519', publicKeyFormat: 'raw' },
+  });
+
+  const wipeBytes = (u8) => {
+    if (u8 instanceof Uint8Array) u8.fill(0);
+  };
+
+  function getMessagingKeyType() {
+    const v = $('messaging-key-type')?.value;
+    return v === 'eth' || v === 'sol' ? v : 'btc';
+  }
+
+  function getMessagingDefaultPath(keyType = getMessagingKeyType()) {
+    return messagingKeyDefaults[keyType]?.path || messagingKeyDefaults.btc.path;
+  }
+
+  function getMessagingHDPath(keyType = getMessagingKeyType()) {
+    const el = $('messaging-hd-path');
+    const raw = el?.value || '';
+    const path = raw.trim();
+    return path || getMessagingDefaultPath(keyType);
+  }
+
+  function setMessagingRecipientPlaceholder(keyType = getMessagingKeyType()) {
+    const input = $('encrypt-recipient-pubkey');
+    if (!input) return;
+    if (keyType === 'sol') {
+      input.placeholder = "Paste recipient's X25519 public key (hex, 32 bytes)";
+      return;
+    }
+    if (keyType === 'eth') {
+      input.placeholder = "Paste recipient's secp256k1 public key (hex, 65 bytes preferred)";
+      return;
+    }
+    input.placeholder = "Paste recipient's secp256k1 public key (hex, 33 bytes preferred)";
+  }
+
+  function loadMessagingKeyConfig() {
+    try {
+      const raw = localStorage.getItem(MESSAGING_KEY_CONFIG_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return {
+        keyType: parsed.keyType,
+        path: parsed.path,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function saveMessagingKeyConfig(keyType, path) {
+    try {
+      localStorage.setItem(MESSAGING_KEY_CONFIG_KEY, JSON.stringify({ keyType, path }));
+    } catch {
+      // ignore
+    }
+  }
+
+  function initMessagingKeyControls() {
+    const keyTypeEl = $('messaging-key-type');
+    const pathEl = $('messaging-hd-path');
+    const resetBtn = $('messaging-hd-path-default');
+    if (!keyTypeEl || !pathEl) return;
+
+    const saved = loadMessagingKeyConfig();
+    const hasSaved = !!saved;
+    if (saved?.keyType === 'btc' || saved?.keyType === 'eth' || saved?.keyType === 'sol') {
+      keyTypeEl.value = saved.keyType;
+    } else {
+      keyTypeEl.value = 'btc';
+    }
+
+    if (typeof saved?.path === 'string' && saved.path.trim()) {
+      pathEl.value = saved.path.trim();
+    } else if (hasSaved || !pathEl.value?.trim()) {
+      pathEl.value = getMessagingDefaultPath(keyTypeEl.value);
+    }
+
+    setMessagingRecipientPlaceholder(keyTypeEl.value);
+
+    const onChange = () => {
+      const keyType = getMessagingKeyType();
+      const path = getMessagingHDPath(keyType);
+      saveMessagingKeyConfig(keyType, path);
+      setMessagingRecipientPlaceholder(keyType);
+      if (state.hdRoot) updateEncryptionTab();
+    };
+
+    keyTypeEl.addEventListener('change', () => {
+      const prev = pathEl.value?.trim();
+      const prevDefaults = Object.values(messagingKeyDefaults).map(v => v.path);
+      const nextKeyType = getMessagingKeyType();
+      const nextDefault = getMessagingDefaultPath(nextKeyType);
+      // If user hasn't customized, keep the path in sync with key type.
+      if (!prev || prevDefaults.includes(prev)) {
+        pathEl.value = nextDefault;
+      }
+      onChange();
+    });
+    pathEl.addEventListener('input', onChange);
+    resetBtn?.addEventListener('click', () => {
+      const keyType = getMessagingKeyType();
+      pathEl.value = getMessagingDefaultPath(keyType);
+      onChange();
+    });
+  }
+
+  function hexToBytesStrict(hex, expectedLen = null) {
+    if (typeof hex !== 'string') throw new Error('Expected hex string');
+    const cleaned = hex.trim().toLowerCase().replace(/^0x/, '');
+    if (!cleaned) throw new Error('Empty hex string');
+    if (cleaned.length % 2 !== 0) throw new Error('Invalid hex length');
+    if (!/^[0-9a-f]+$/.test(cleaned)) throw new Error('Invalid hex string');
+    const bytes = new Uint8Array(cleaned.length / 2);
+    for (let i = 0; i < cleaned.length; i += 2) {
+      bytes[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
+    }
+    if (expectedLen !== null && bytes.length !== expectedLen) {
+      throw new Error(`Expected ${expectedLen} bytes, got ${bytes.length}`);
+    }
+    return bytes;
+  }
+
+  function deriveKeyMaterialForMessaging(w, keyType, path) {
+    if (!state.hdRoot || !w) throw new Error('HD wallet not initialized');
+    const derived = deriveHDKey(path);
+    try {
+      if (keyType === 'sol') {
+        const priv = derived.privateKey();
+        const pub = w.curves.x25519.publicKey(priv);
+        return { algorithm: 'x25519', privateKey: priv, publicKey: pub, path };
+      }
+
+      const priv = derived.privateKey();
+      const pubCompressed = derived.publicKey();
+      if (keyType === 'eth') {
+        const pub = derived.publicKeyUncompressed();
+        return { algorithm: 'secp256k1', privateKey: priv, publicKey: pub, path };
+      }
+      return { algorithm: 'secp256k1', privateKey: priv, publicKey: pubCompressed, path };
+    } finally {
+      derived.wipe();
+    }
+  }
+
+  function deriveMessagingPublicKey(w, keyType, path) {
+    if (!state.hdRoot || !w) throw new Error('HD wallet not initialized');
+    const derived = deriveHDKey(path);
+    try {
+      if (keyType === 'sol') {
+        const priv = derived.privateKey();
+        try {
+          return w.curves.x25519.publicKey(priv);
+        } finally {
+          wipeBytes(priv);
+        }
+      }
+      if (keyType === 'eth') {
+        return derived.publicKeyUncompressed();
+      }
+      return derived.publicKey();
+    } finally {
+      derived.wipe();
+    }
+  }
+
+  function normalizeSecp256k1PublicKeyBytes(publicKey) {
+    if (!(publicKey instanceof Uint8Array)) throw new Error('Invalid public key');
+    // Ethereum public keys are sometimes provided as raw 64-byte x||y without the 0x04 prefix.
+    if (publicKey.length === 64) {
+      const out = new Uint8Array(65);
+      out[0] = 0x04;
+      out.set(publicKey, 1);
+      return out;
+    }
+    if (publicKey.length !== 33 && publicKey.length !== 65) {
+      throw new Error('secp256k1 public key must be 33 (compressed) or 65 (uncompressed) bytes');
+    }
+    return publicKey;
+  }
+
+  function normalizeRecipientPublicKeyForAlgorithm(algorithm, publicKey) {
+    if (algorithm === 'x25519') {
+      if (!(publicKey instanceof Uint8Array) || publicKey.length !== 32) {
+        throw new Error('X25519 public key must be 32 bytes');
+      }
+      return publicKey;
+    }
+    return normalizeSecp256k1PublicKeyBytes(publicKey);
+  }
+
+  function eciesInfoForAlgorithm(algorithm) {
+    const infoStr = algorithm === 'x25519'
+      ? 'ecies-x25519-aes256gcm'
+      : 'ecies-secp256k1-aes256gcm';
+    return new TextEncoder().encode(infoStr);
+  }
+
+  function envelopeAlgorithmParameters(keyType, algorithm) {
+    if (algorithm === 'x25519') return 'x25519';
+    // secp256k1 modes
+    return keyType === 'eth' ? 'secp256k1-uncompressed' : 'secp256k1-compressed';
+  }
+
   function updateEncryptionTab() {
-    if (!state.hdRoot || !state.hdWalletModule) return;
-    const coin = $('hd-coin')?.value || '0';
-    const account = $('hd-account')?.value || '0';
-    const index = $('hd-index')?.value || '0';
-    const encPath = buildEncryptionPath(coin, account, index);
-    const encKey = deriveHDKey(encPath);
-    const pubKey = encKey.publicKey();
-    const pubHex = toHexCompact(pubKey);
+    const w = state.hdWalletModule;
+    if (!state.hdRoot || !w) return;
+
+    const keyType = getMessagingKeyType();
+    const path = getMessagingHDPath(keyType);
 
     const senderPubEl = $('encrypt-sender-pubkey');
     const senderPathEl = $('encrypt-sender-path');
-    if (senderPubEl) senderPubEl.textContent = pubHex;
-    if (senderPathEl) senderPathEl.textContent = encPath;
-
+    const senderAlgoEl = $('encrypt-sender-algo');
     const encryptBtn = $('encrypt-btn');
-    if (encryptBtn) encryptBtn.disabled = false;
+
+    if (senderPathEl) senderPathEl.textContent = path;
+    const baseAlgo = messagingKeyDefaults[keyType]?.algorithm || '--';
+    if (senderAlgoEl) {
+      senderAlgoEl.textContent = baseAlgo === '--'
+        ? '--'
+        : envelopeAlgorithmParameters(keyType, baseAlgo);
+    }
+    if (encryptBtn) encryptBtn.disabled = true;
+
+    try {
+      const publicKey = deriveMessagingPublicKey(w, keyType, path);
+      if (senderPubEl) senderPubEl.textContent = toHexCompact(publicKey);
+      if (encryptBtn) encryptBtn.disabled = false;
+    } catch (e) {
+      if (senderPubEl) senderPubEl.textContent = '--';
+      if (senderAlgoEl) senderAlgoEl.textContent = 'invalid path';
+    }
   }
 
-  // Update encryption tab when it becomes active or HD controls change
+  initMessagingKeyControls();
+
+  // Update encryption tab when it becomes active
   $qa('.modal-tab[data-modal-tab="messaging-tab-content"]').forEach(tab => {
     tab.addEventListener('click', () => {
       if (state.hdRoot) updateEncryptionTab();
@@ -5055,7 +5474,10 @@ function setupTrustHandlers() {
   // Encrypt button
   $('encrypt-btn')?.addEventListener('click', () => {
     const w = state.hdWalletModule;
-    if (!w || !state.hdRoot) return;
+    if (!w || !state.hdRoot) {
+      alert('Please login first.');
+      return;
+    }
 
     const recipientHex = $('encrypt-recipient-pubkey')?.value?.trim();
     const plainStr = $('encrypt-plaintext')?.value;
@@ -5065,56 +5487,64 @@ function setupTrustHandlers() {
     }
 
     try {
-      const coin = $('hd-coin')?.value || '0';
-      const account = $('hd-account')?.value || '0';
-      const index = $('hd-index')?.value || '0';
-      const encPath = buildEncryptionPath(coin, account, index);
-      const senderKey = deriveHDKey(encPath);
-      const senderPriv = senderKey.privateKey();
-      const senderPub = senderKey.publicKey();
+      const keyType = getMessagingKeyType();
+      const path = getMessagingHDPath(keyType);
+      const { algorithm, privateKey: senderPriv, publicKey: senderPub } = deriveKeyMaterialForMessaging(w, keyType, path);
 
-      // Parse recipient public key from hex
-      const recipientPub = new Uint8Array(recipientHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+      let shared = null;
+      let aesKey = null;
+      try {
+        // Parse recipient public key from hex
+        const recipientPubRaw = hexToBytesStrict(recipientHex);
+        const recipientPub = normalizeRecipientPublicKeyForAlgorithm(algorithm, recipientPubRaw);
 
-      // 1. ECDH shared secret
-      const shared = w.curves.secp256k1.ecdh(senderPriv, recipientPub);
+        // 1. ECDH shared secret
+        shared = algorithm === 'x25519'
+          ? w.curves.x25519.ecdh(senderPriv, recipientPub)
+          : w.curves.secp256k1.ecdh(senderPriv, recipientPub);
 
-      // 2. HKDF: derive 32-byte AES key from shared secret
-      const salt = w.utils.getRandomBytes(32);
-      const info = new TextEncoder().encode('ecies-secp256k1-aes256gcm');
-      const aesKey = w.utils.hkdf(shared, salt, info, 32);
+        // 2. HKDF: derive 32-byte AES key from shared secret
+        const salt = w.utils.getRandomBytes(32);
+        const info = eciesInfoForAlgorithm(algorithm);
+        aesKey = w.utils.hkdf(shared, salt, info, 32);
 
-      // 3. AES-256-GCM encrypt
-      const iv = w.utils.generateIv();
-      const plaintext = new TextEncoder().encode(plainStr);
-      const { ciphertext, tag } = w.utils.aesGcm.encrypt(aesKey, plaintext, iv);
+        // 3. AES-256-GCM encrypt
+        const iv = w.utils.generateIv();
+        const plaintext = new TextEncoder().encode(plainStr);
+        const { ciphertext, tag } = w.utils.aesGcm.encrypt(aesKey, plaintext, iv);
 
-      // Display field-level results
-      $('encrypt-out-ciphertext').textContent = toHexCompact(ciphertext);
-      $('encrypt-out-tag').textContent = toHexCompact(tag);
-      $('encrypt-out-iv').textContent = toHexCompact(iv);
-      $('encrypt-out-salt').textContent = toHexCompact(salt);
-      $('encrypt-out-sender-pub').textContent = toHexCompact(senderPub);
-      // Build EME (Encrypted Message Envelope) standard object
-      currentEME = new EMET(
-        Array.from(ciphertext),             // ENCRYPTED_BLOB
-        toHexCompact(senderPub),            // EPHEMERAL_PUBLIC_KEY
-        null,                               // MAC (not used, tag covers it)
-        null,                               // NONCE (we use IV field instead)
-        toHexCompact(tag),                  // TAG
-        toHexCompact(iv),                   // IV
-        toHexCompact(salt),                 // SALT
-        null,                               // PUBLIC_KEY_IDENTIFIER
-        'aes-256-gcm',                      // CIPHER_SUITE
-        'hkdf-sha256',                      // KDF_PARAMETERS
-        'secp256k1',                        // ENCRYPTION_ALGORITHM_PARAMETERS
-      );
+        // Display field-level results
+        $('encrypt-out-ciphertext').textContent = toHexCompact(ciphertext);
+        $('encrypt-out-tag').textContent = toHexCompact(tag);
+        $('encrypt-out-iv').textContent = toHexCompact(iv);
+        $('encrypt-out-salt').textContent = toHexCompact(salt);
+        $('encrypt-out-sender-pub').textContent = toHexCompact(senderPub);
 
-      updateBundleDisplay();
+        // Build EME (Encrypted Message Envelope) standard object
+        currentEME = new EMET(
+          Array.from(ciphertext),                    // ENCRYPTED_BLOB
+          toHexCompact(senderPub),                   // EPHEMERAL_PUBLIC_KEY
+          null,                                      // MAC (not used, tag covers it)
+          null,                                      // NONCE (we use IV field instead)
+          toHexCompact(tag),                         // TAG
+          toHexCompact(iv),                          // IV
+          toHexCompact(salt),                        // SALT
+          null,                                      // PUBLIC_KEY_IDENTIFIER
+          'aes-256-gcm',                             // CIPHER_SUITE
+          'hkdf-sha256',                             // KDF_PARAMETERS
+          envelopeAlgorithmParameters(keyType, algorithm), // ENCRYPTION_ALGORITHM_PARAMETERS
+        );
 
-      // Switch to result step
-      $('encrypt-step-compose').style.display = 'none';
-      $('encrypt-step-result').style.display = 'block';
+        updateBundleDisplay();
+
+        // Switch to result step
+        $('encrypt-step-compose').style.display = 'none';
+        $('encrypt-step-result').style.display = 'block';
+      } finally {
+        wipeBytes(senderPriv);
+        wipeBytes(shared);
+        wipeBytes(aesKey);
+      }
     } catch (err) {
       console.error('Encryption failed:', err);
       alert('Encryption failed: ' + err.message);
@@ -5167,7 +5597,10 @@ function setupTrustHandlers() {
   // Decrypt button
   $('decrypt-btn')?.addEventListener('click', () => {
     const w = state.hdWalletModule;
-    if (!w || !state.hdRoot) return;
+    if (!w || !state.hdRoot) {
+      alert('Please login first.');
+      return;
+    }
 
     const payloadStr = $('decrypt-payload')?.value?.trim();
     if (!payloadStr) {
@@ -5177,44 +5610,63 @@ function setupTrustHandlers() {
 
     try {
       const payload = parseEMEPayload(payloadStr);
-      const fromHex = (h) => new Uint8Array(h.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-
-      const senderPub = fromHex(payload.EPHEMERAL_PUBLIC_KEY);
-      const tag = fromHex(payload.TAG);
-      const iv = fromHex(payload.IV);
-      const salt = fromHex(payload.SALT);
+      const senderPubRaw = hexToBytesStrict(payload.EPHEMERAL_PUBLIC_KEY, null);
+      const tag = hexToBytesStrict(payload.TAG, 16);
+      const iv = hexToBytesStrict(payload.IV, 12);
+      const salt = hexToBytesStrict(payload.SALT, 32);
 
       // ENCRYPTED_BLOB can be a number array (from EMET) or hex string
       let ciphertext;
       if (Array.isArray(payload.ENCRYPTED_BLOB)) {
         ciphertext = new Uint8Array(payload.ENCRYPTED_BLOB);
       } else {
-        ciphertext = fromHex(payload.ENCRYPTED_BLOB);
+        ciphertext = hexToBytesStrict(payload.ENCRYPTED_BLOB, null);
       }
 
-      const coin = $('hd-coin')?.value || '0';
-      const account = $('hd-account')?.value || '0';
-      const index = $('hd-index')?.value || '0';
-      const encPath = buildEncryptionPath(coin, account, index);
-      const recipientKey = deriveHDKey(encPath);
-      const recipientPriv = recipientKey.privateKey();
+      const keyType = getMessagingKeyType();
+      const path = getMessagingHDPath(keyType);
 
-      // 1. ECDH shared secret (using sender's public key)
-      const shared = w.curves.secp256k1.ecdh(recipientPriv, senderPub);
+      // Prefer payload algorithm; fall back to current UI selection.
+      const algoParams = typeof payload.ENCRYPTION_ALGORITHM_PARAMETERS === 'string'
+        ? payload.ENCRYPTION_ALGORITHM_PARAMETERS.toLowerCase()
+        : '';
+      const algorithm = algoParams.includes('x25519')
+        ? 'x25519'
+        : (messagingKeyDefaults[keyType]?.algorithm || 'secp256k1');
 
-      // 2. HKDF: derive same AES key
-      const info = new TextEncoder().encode('ecies-secp256k1-aes256gcm');
-      const aesKey = w.utils.hkdf(shared, salt, info, 32);
+      const senderPub = normalizeRecipientPublicKeyForAlgorithm(algorithm, senderPubRaw);
 
-      // 3. AES-256-GCM decrypt
-      const decrypted = w.utils.aesGcm.decrypt(aesKey, ciphertext, tag, iv);
-      const decStr = new TextDecoder().decode(decrypted);
+      // Derive recipient private key from configured path.
+      const derived = deriveHDKey(path);
+      const recipientPriv = derived.privateKey();
+      derived.wipe();
 
-      $('decrypt-result-value').textContent = decStr;
+      let shared = null;
+      let aesKey = null;
+      try {
+        // 1. ECDH shared secret (using sender's public key)
+        shared = algorithm === 'x25519'
+          ? w.curves.x25519.ecdh(recipientPriv, senderPub)
+          : w.curves.secp256k1.ecdh(recipientPriv, senderPub);
 
-      // Switch to result step
-      $('decrypt-step-input').style.display = 'none';
-      $('decrypt-step-result').style.display = 'block';
+        // 2. HKDF: derive same AES key
+        const info = eciesInfoForAlgorithm(algorithm);
+        aesKey = w.utils.hkdf(shared, salt, info, 32);
+
+        // 3. AES-256-GCM decrypt
+        const decrypted = w.utils.aesGcm.decrypt(aesKey, ciphertext, tag, iv);
+        const decStr = new TextDecoder().decode(decrypted);
+
+        $('decrypt-result-value').textContent = decStr;
+
+        // Switch to result step
+        $('decrypt-step-input').style.display = 'none';
+        $('decrypt-step-result').style.display = 'block';
+      } finally {
+        wipeBytes(recipientPriv);
+        wipeBytes(shared);
+        wipeBytes(aesKey);
+      }
     } catch (err) {
       console.error('Decryption failed:', err);
       alert('Decryption failed: ' + err.message);
@@ -5302,8 +5754,9 @@ export async function init(rootElement, options = {}) {
     if (status) status.textContent = 'Loading HD wallet module...';
     state.hdWalletModule = await initHDWallet();
 
-    // Load saved PKI keys if available
-    const hasSavedKeys = loadPKIKeys();
+    // Load saved PKI keys if available.
+    // (If not logged in yet, this will return false since encrypted keys require the session key.)
+    const hasSavedKeys = await loadPKIKeys();
 
     state.initialized = true;
 

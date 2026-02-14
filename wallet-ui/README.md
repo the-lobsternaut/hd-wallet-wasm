@@ -39,9 +39,24 @@ wallet-ui/
 │   ├── address-derivation.js   # Multi-chain address generation
 │   └── constants.js            # Coin configs, explorer URLs, path helpers
 ├── styles/
-│   └── main.css                # Glass morphism styles
+│   ├── main.css                # Standalone demo site styles (global)
+│   └── widget.css              # Namespaced embed styles (scoped to #hd-wallet-ui-container)
 ├── package.json
 └── vite.config.js
+```
+
+## Embedding (Avoiding CSS Collisions)
+
+If you're integrating the modal UI into an existing webpage, use the namespaced stylesheet export:
+
+```js
+import 'hd-wallet-ui/styles';
+```
+
+For the standalone demo site styling, use:
+
+```js
+import 'hd-wallet-ui/styles/demo';
 ```
 
 ## Usage Examples

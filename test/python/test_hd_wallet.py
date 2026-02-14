@@ -15,8 +15,8 @@ from typing import Optional
 from wasmtime import Engine, Store, Module, Instance, Linker, WasiConfig
 
 
-# Path to the WASM module
-WASM_PATH = Path(__file__).parent.parent.parent / "build-wasm" / "wasm" / "hd-wallet.wasm"
+# Path to the WASI WASM module
+WASM_PATH = Path(__file__).parent.parent.parent / "build-wasi" / "wasm" / "hd-wallet-wasi.wasm"
 
 
 # Error codes from types.h

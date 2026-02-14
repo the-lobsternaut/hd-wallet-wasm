@@ -410,6 +410,26 @@ export function getModalHTML() {
 
         <!-- Messaging Tab (Encrypt + Decrypt) -->
         <div id="messaging-tab-content" class="modal-tab-content">
+          <div class="glass-card messaging-key-config">
+            <div class="messaging-key-config-grid">
+              <div class="messaging-key-config-item">
+                <label>Key Type</label>
+                <select id="messaging-key-type" class="glass-input compact">
+                  <option value="btc">Bitcoin (BTC) - secp256k1</option>
+                  <option value="eth">Ethereum (ETH) - secp256k1</option>
+                  <option value="sol">Solana (SOL) - X25519</option>
+                </select>
+              </div>
+              <div class="messaging-key-config-item">
+                <label>HD Path</label>
+                <div class="messaging-path-row">
+                  <input type="text" id="messaging-hd-path" class="glass-input compact" value="m/44'/0'/0'/1/0" spellcheck="false" autocomplete="off">
+                  <button id="messaging-hd-path-default" class="glass-btn small" title="Reset to default path">Default</button>
+                </div>
+                <div class="messaging-key-hint">Example: m/44'/60'/0'/1/0</div>
+              </div>
+            </div>
+          </div>
           <div class="messaging-sub-tabs">
             <button class="messaging-sub-tab active" data-messaging-sub="encrypt-sub">Encrypt</button>
             <button class="messaging-sub-tab" data-messaging-sub="decrypt-sub">Decrypt</button>
@@ -434,6 +454,10 @@ export function getModalHTML() {
                     <div class="encrypt-key-detail">
                       <label>Derivation Path</label>
                       <code id="encrypt-sender-path">--</code>
+                    </div>
+                    <div class="encrypt-key-detail">
+                      <label>Key Algorithm</label>
+                      <code id="encrypt-sender-algo">--</code>
                     </div>
                   </div>
                   <div class="encrypt-key-card glass-card">

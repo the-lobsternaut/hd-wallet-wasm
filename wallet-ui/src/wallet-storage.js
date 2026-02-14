@@ -22,7 +22,15 @@ const ENCRYPTED_DATA_KEY = `${STORAGE_PREFIX}encrypted`;
 const PASSKEY_CREDENTIAL_KEY = `${STORAGE_PREFIX}passkey_credential`;
 
 // Version for future migrations
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
+
+// AES-GCM standard IV size (96-bit)
+const AES_GCM_IV_LENGTH = 12;
+
+// 6-digit PINs have low entropy; PBKDF2 must be expensive to slow offline brute force.
+// (This is still not a substitute for rate-limiting when an attacker can query online.)
+const PIN_PBKDF2_ITERATIONS = 600000;
+const LEGACY_PIN_PBKDF2_ITERATIONS = 100000;
 
 // =============================================================================
 // Storage Method Enum
@@ -113,9 +121,9 @@ async function hkdfDerive(inputKeyMaterial, salt, info, length) {
 }
 
 /**
- * Derive encryption key and IV from key material
+ * Derive encryption key from key material (HKDF).
  */
-async function deriveKeyAndIV(keyMaterial, context) {
+async function deriveEncryptionKey(keyMaterial, context) {
   const salt = new TextEncoder().encode(`wallet-storage-v${STORAGE_VERSION}`);
 
   const encryptionKey = await hkdfDerive(
@@ -125,13 +133,27 @@ async function deriveKeyAndIV(keyMaterial, context) {
     32
   );
 
+  return encryptionKey;
+}
+
+/**
+ * Legacy: v1/v2 storage used a deterministic IV derived via HKDF.
+ * This exists only to decrypt and upgrade old stored blobs.
+ */
+async function deriveLegacyKeyAndIV(keyMaterial, context, version) {
+  const salt = new TextEncoder().encode(`wallet-storage-v${version}`);
+  const encryptionKey = await hkdfDerive(
+    keyMaterial,
+    salt,
+    `${context}-encryption-key`,
+    32
+  );
   const iv = await hkdfDerive(
     keyMaterial,
     salt,
     `${context}-encryption-iv`,
-    12 // AES-GCM standard IV size
+    AES_GCM_IV_LENGTH
   );
-
   return { encryptionKey, iv };
 }
 
@@ -143,7 +165,7 @@ async function deriveKeyAndIV(keyMaterial, context) {
  * Derive key material from a 6-digit PIN
  * Uses PBKDF2 for additional security against brute-force attacks
  */
-async function deriveKeyFromPIN(pin, storedSalt) {
+async function deriveKeyFromPIN(pin, storedSalt, iterations = PIN_PBKDF2_ITERATIONS) {
   if (!/^\d{6}$/.test(pin)) {
     throw new Error('PIN must be exactly 6 digits');
   }
@@ -169,7 +191,7 @@ async function deriveKeyFromPIN(pin, storedSalt) {
       name: 'PBKDF2',
       hash: 'SHA-256',
       salt: salt,
-      iterations: 100000 // High iteration count for brute-force resistance
+      iterations
     },
     keyMaterial,
     256
@@ -303,11 +325,9 @@ export async function registerPasskey(options = {}) {
     keyMaterial = new Uint8Array(prfResult);
     hasPRF = true;
   } else {
-    // PRF not supported - derive key from credential ID
-    // This is less secure but provides fallback functionality
-    const rawId = new Uint8Array(credential.rawId);
-    const hash = await crypto.subtle.digest('SHA-256', rawId);
-    keyMaterial = new Uint8Array(hash);
+    // SECURITY: Never derive encryption keys from public credential IDs.
+    // Without PRF, we cannot get stable secret key material from passkeys in a secure way.
+    throw new Error('Passkey PRF extension is required for secure wallet encryption on this device/browser');
   }
 
   return {
@@ -365,10 +385,7 @@ export async function authenticatePasskey(credentialId) {
     keyMaterial = new Uint8Array(prfResult);
     hasPRF = true;
   } else {
-    // Fallback: derive from credential ID
-    const rawId = new Uint8Array(assertion.rawId);
-    const hash = await crypto.subtle.digest('SHA-256', rawId);
-    keyMaterial = new Uint8Array(hash);
+    throw new Error('Passkey PRF extension is required for secure wallet decryption on this device/browser');
   }
 
   return { keyMaterial, hasPRF };
@@ -381,9 +398,10 @@ export async function authenticatePasskey(credentialId) {
 /**
  * Encrypt data using AES-256-GCM
  */
-async function encryptData(data, encryptionKey, iv) {
+async function encryptData(data, encryptionKey, aad) {
   const encoder = new TextEncoder();
   const plaintext = encoder.encode(JSON.stringify(data));
+  const iv = generateRandomBytes(AES_GCM_IV_LENGTH);
 
   const cryptoKey = await crypto.subtle.importKey(
     'raw',
@@ -393,19 +411,22 @@ async function encryptData(data, encryptionKey, iv) {
     ['encrypt']
   );
 
+  const alg = { name: 'AES-GCM', iv };
+  if (aad) alg.additionalData = aad;
+
   const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    alg,
     cryptoKey,
     plaintext
   );
 
-  return new Uint8Array(ciphertext);
+  return { iv, ciphertext: new Uint8Array(ciphertext) };
 }
 
 /**
  * Decrypt data using AES-256-GCM
  */
-async function decryptData(ciphertext, encryptionKey, iv) {
+async function decryptData(ciphertext, encryptionKey, iv, aad) {
   const cryptoKey = await crypto.subtle.importKey(
     'raw',
     encryptionKey,
@@ -414,8 +435,11 @@ async function decryptData(ciphertext, encryptionKey, iv) {
     ['decrypt']
   );
 
+  const alg = { name: 'AES-GCM', iv };
+  if (aad) alg.additionalData = aad;
+
   const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
+    alg,
     cryptoKey,
     ciphertext
   );
@@ -427,6 +451,12 @@ async function decryptData(ciphertext, encryptionKey, iv) {
 // =============================================================================
 // High-Level Storage API
 // =============================================================================
+
+function getAadForMethod(method) {
+  // Small AAD to bind ciphertexts to this module + method.
+  // (Replay protection against localStorage rollback is not achievable without an external monotonic anchor.)
+  return new TextEncoder().encode(`wallet-storage|v${STORAGE_VERSION}|${method}`);
+}
 
 /**
  * Get storage metadata
@@ -477,14 +507,16 @@ export function getStorageMethod() {
 export async function storeWithPIN(pin, walletData) {
   // Derive key from PIN
   const { keyMaterial, salt } = await deriveKeyFromPIN(pin);
-  const { encryptionKey, iv } = await deriveKeyAndIV(keyMaterial, 'pin');
+  const encryptionKey = await deriveEncryptionKey(keyMaterial, 'pin');
 
   // Encrypt wallet data
-  const ciphertext = await encryptData(walletData, encryptionKey, iv);
+  const aad = getAadForMethod(StorageMethod.PIN);
+  const { ciphertext, iv } = await encryptData(walletData, encryptionKey, aad);
 
   // Store encrypted data
   const encryptedData = {
     ciphertext: arrayBufferToBase64(ciphertext),
+    iv: arrayBufferToBase64(iv),
     salt: arrayBufferToBase64(salt)
   };
   localStorage.setItem(ENCRYPTED_DATA_KEY, JSON.stringify(encryptedData));
@@ -520,13 +552,37 @@ export async function retrieveWithPIN(pin) {
   const encryptedData = JSON.parse(encryptedJson);
   const salt = base64ToUint8Array(encryptedData.salt);
   const ciphertext = base64ToUint8Array(encryptedData.ciphertext);
+  const iv = encryptedData.iv ? base64ToUint8Array(encryptedData.iv) : null;
 
   // Derive key from PIN with stored salt
-  const { keyMaterial } = await deriveKeyFromPIN(pin, salt);
-  const { encryptionKey, iv } = await deriveKeyAndIV(keyMaterial, 'pin');
+  const { keyMaterial } = await deriveKeyFromPIN(pin, salt, iv ? PIN_PBKDF2_ITERATIONS : LEGACY_PIN_PBKDF2_ITERATIONS);
+  const aad = getAadForMethod(StorageMethod.PIN);
 
   try {
-    return await decryptData(ciphertext, encryptionKey, iv);
+    let walletData;
+    if (iv) {
+      const encryptionKey = await deriveEncryptionKey(keyMaterial, 'pin');
+      walletData = await decryptData(ciphertext, encryptionKey, iv, aad);
+    } else {
+      // Legacy v1/v2 deterministic-IV storage. Decrypt and upgrade in-place.
+      const legacyVersion = metadata.version || 2;
+      const { encryptionKey: legacyKey, iv: legacyIv } = await deriveLegacyKeyAndIV(keyMaterial, 'pin', legacyVersion);
+      walletData = await decryptData(ciphertext, legacyKey, legacyIv);
+
+      // Upgrade stored blob to v3 (random IV) after successful decrypt.
+      const newKey = await deriveEncryptionKey(keyMaterial, 'pin');
+      const { ciphertext: newCt, iv: newIv } = await encryptData(walletData, newKey, aad);
+      localStorage.setItem(ENCRYPTED_DATA_KEY, JSON.stringify({
+        ciphertext: arrayBufferToBase64(newCt),
+        iv: arrayBufferToBase64(newIv),
+        salt: arrayBufferToBase64(salt)
+      }));
+      localStorage.setItem(METADATA_KEY, JSON.stringify({
+        ...metadata,
+        version: STORAGE_VERSION
+      }));
+    }
+    return walletData;
   } catch (e) {
     throw new Error('Invalid PIN or corrupted data');
   }
@@ -540,14 +596,43 @@ export async function retrieveWithPIN(pin) {
  * @returns {Promise<boolean>}
  */
 export async function storeWithPasskey(walletData, options = {}) {
-  // Register passkey and get key material
-  const { credentialId, keyMaterial, hasPRF } = await registerPasskey(options);
+  // Prefer reusing an existing stored passkey credential to avoid creating duplicates.
+  let credentialId = null;
+  let keyMaterial = null;
+  let hasPRF = false;
+
+  try {
+    const existing = localStorage.getItem(PASSKEY_CREDENTIAL_KEY);
+    if (existing) {
+      const parsed = JSON.parse(existing);
+      if (parsed?.id) {
+        credentialId = parsed.id;
+        const auth = await authenticatePasskey(credentialId);
+        keyMaterial = auth.keyMaterial;
+        hasPRF = auth.hasPRF;
+      }
+    }
+  } catch {
+    // Ignore and fall back to registration below.
+  }
+
+  if (!keyMaterial) {
+    const reg = await registerPasskey(options);
+    credentialId = reg.credentialId;
+    keyMaterial = reg.keyMaterial;
+    hasPRF = reg.hasPRF;
+  }
+
+  if (!hasPRF) {
+    throw new Error('Passkey PRF extension is required to store wallet data securely');
+  }
 
   // Derive encryption key
-  const { encryptionKey, iv } = await deriveKeyAndIV(keyMaterial, 'passkey');
+  const encryptionKey = await deriveEncryptionKey(keyMaterial, 'passkey');
 
   // Encrypt wallet data
-  const ciphertext = await encryptData(walletData, encryptionKey, iv);
+  const aad = getAadForMethod(StorageMethod.PASSKEY);
+  const { ciphertext, iv } = await encryptData(walletData, encryptionKey, aad);
 
   // Store credential info
   const credentialData = {
@@ -558,7 +643,8 @@ export async function storeWithPasskey(walletData, options = {}) {
 
   // Store encrypted data
   const encryptedData = {
-    ciphertext: arrayBufferToBase64(ciphertext)
+    ciphertext: arrayBufferToBase64(ciphertext),
+    iv: arrayBufferToBase64(iv)
   };
   localStorage.setItem(ENCRYPTED_DATA_KEY, JSON.stringify(encryptedData));
 
@@ -584,6 +670,9 @@ export async function retrieveWithPasskey() {
   if (!metadata || metadata.method !== StorageMethod.PASSKEY) {
     throw new Error('No passkey-encrypted wallet found');
   }
+  if (!metadata.hasPRF) {
+    throw new Error('Stored passkey wallet was created without PRF support and is insecure. Please forget it and use PIN storage.');
+  }
 
   const credentialJson = localStorage.getItem(PASSKEY_CREDENTIAL_KEY);
   if (!credentialJson) {
@@ -599,15 +688,41 @@ export async function retrieveWithPasskey() {
 
   const encryptedData = JSON.parse(encryptedJson);
   const ciphertext = base64ToUint8Array(encryptedData.ciphertext);
+  const iv = encryptedData.iv ? base64ToUint8Array(encryptedData.iv) : null;
 
   // Authenticate with passkey and get key material
-  const { keyMaterial } = await authenticatePasskey(credentialData.id);
+  const { keyMaterial, hasPRF } = await authenticatePasskey(credentialData.id);
+  if (!hasPRF) {
+    throw new Error('Passkey PRF extension is required to decrypt wallet data securely');
+  }
 
   // Derive encryption key
-  const { encryptionKey, iv } = await deriveKeyAndIV(keyMaterial, 'passkey');
+  const aad = getAadForMethod(StorageMethod.PASSKEY);
 
   try {
-    return await decryptData(ciphertext, encryptionKey, iv);
+    let walletData;
+    if (iv) {
+      const encryptionKey = await deriveEncryptionKey(keyMaterial, 'passkey');
+      walletData = await decryptData(ciphertext, encryptionKey, iv, aad);
+    } else {
+      // Legacy v1/v2 deterministic-IV storage. Decrypt and upgrade in-place.
+      const legacyVersion = metadata.version || 2;
+      const { encryptionKey: legacyKey, iv: legacyIv } = await deriveLegacyKeyAndIV(keyMaterial, 'passkey', legacyVersion);
+      walletData = await decryptData(ciphertext, legacyKey, legacyIv);
+
+      const newKey = await deriveEncryptionKey(keyMaterial, 'passkey');
+      const { ciphertext: newCt, iv: newIv } = await encryptData(walletData, newKey, aad);
+      localStorage.setItem(ENCRYPTED_DATA_KEY, JSON.stringify({
+        ciphertext: arrayBufferToBase64(newCt),
+        iv: arrayBufferToBase64(newIv)
+      }));
+      localStorage.setItem(METADATA_KEY, JSON.stringify({
+        ...metadata,
+        version: STORAGE_VERSION,
+        hasPRF: true
+      }));
+    }
+    return walletData;
   } catch (e) {
     throw new Error('Passkey authentication failed or data corrupted');
   }
@@ -636,7 +751,7 @@ export function migrateStorage() {
   if (getStorageMetadata() !== null) return;
   if (!oldPinWallet && !oldPasskeyCredential) return;
 
-  console.log('Migrating wallet storage from v1 to v2...');
+  console.log('Migrating wallet storage from legacy format...');
 
   if (oldPasskeyCredential && oldPasskeyWallet) {
     // Migrate passkey storage
@@ -656,7 +771,9 @@ export function migrateStorage() {
       localStorage.setItem(METADATA_KEY, JSON.stringify({
         method: StorageMethod.PASSKEY,
         timestamp: credential.timestamp || wallet.timestamp || Date.now(),
-        version: STORAGE_VERSION,
+        // Preserve legacy version so decrypt can derive the correct legacy HKDF salt/IV,
+        // then upgrade in-place on first successful retrieval.
+        version: credential.version || wallet.version || 2,
         hasPRF: credential.hasPRF || false
       }));
 

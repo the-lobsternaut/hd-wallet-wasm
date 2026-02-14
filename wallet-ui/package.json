@@ -8,20 +8,25 @@
   "exports": {
     ".": "./src/app.js",
     "./lib": "./src/lib.js",
-    "./styles": "./styles/main.css"
+    "./styles": "./styles/widget.css",
+    "./styles/demo": "./styles/main.css"
   },
   "files": [
     "src/",
     "styles/"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build:wasm": "emcmake cmake -B ../build-wasm -S .. -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON && cmake --build ../build-wasm --target hd_wallet_wasm_npm -j8",
+    "build:widget-css": "node scripts/build-widget-css.mjs",
     "dev": "vite",
     "dev:full": "npm run build:wasm && vite",
     "build": "npm run build:wasm && vite build",
     "build:docs": "npm run build:wasm && vite build --outDir ../docs --emptyOutDir",
     "preview": "vite preview",
+    "prepack": "npm run build:widget-css",
     "test": "vitest run",
     "test:watch": "vitest"
   },
