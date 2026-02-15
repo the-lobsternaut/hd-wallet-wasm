@@ -31,18 +31,22 @@ namespace bip39 {
 // Wordlist Functions
 // =============================================================================
 
+bool isSupportedLanguage(Language lang) {
+    return lang == Language::ENGLISH;
+}
+
 const char* const* getWordlist(Language lang) {
-    switch (lang) {
-        case Language::ENGLISH:
-            return ENGLISH_WORDLIST;
-        default:
-            // For now, only English is fully implemented
-            // Other languages would be added in separate .inc files
-            return ENGLISH_WORDLIST;
+    if (!isSupportedLanguage(lang)) {
+        return nullptr;
     }
+    return ENGLISH_WORDLIST;
 }
 
 int32_t findWord(const std::string& word, Language lang) {
+    if (!isSupportedLanguage(lang)) {
+        return -1;
+    }
+
     const char* const* wordlist = getWordlist(lang);
     if (!wordlist) return -1;
 
@@ -242,6 +246,10 @@ Result<std::string> generateMnemonic(size_t word_count, Language lang) {
 }
 
 Result<std::string> entropyToMnemonic(const ByteVector& entropy, Language lang) {
+    if (!isSupportedLanguage(lang)) {
+        return Result<std::string>::fail(Error::NOT_SUPPORTED);
+    }
+
     if (!isValidEntropyLength(entropy.size())) {
         return Result<std::string>::fail(Error::INVALID_ENTROPY_LENGTH);
     }
@@ -279,6 +287,10 @@ Result<std::string> entropyToMnemonic(const ByteVector& entropy, Language lang) 
 }
 
 Result<ByteVector> mnemonicToEntropy(const std::string& mnemonic, Language lang) {
+    if (!isSupportedLanguage(lang)) {
+        return Result<ByteVector>::fail(Error::NOT_SUPPORTED);
+    }
+
     std::string normalized = normalizeMnemonic(mnemonic);
     std::vector<std::string> words = splitMnemonic(normalized);
 
@@ -582,6 +594,14 @@ int32_t hd_mnemonic_suggest_word(
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 int32_t hd_mnemonic_check_word(const char* word, int32_t language) {
+    if (!word) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    if (language < 0 || language > static_cast<int32_t>(Language::ENGLISH)) {
+        return static_cast<int32_t>(Error::NOT_SUPPORTED);
+    }
+
     return findWord(word, static_cast<Language>(language));
 }
 

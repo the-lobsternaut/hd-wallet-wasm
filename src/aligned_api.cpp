@@ -238,7 +238,16 @@ int32_t hd_aligned_derive_batch(
     aligned::DerivedKeyEntry* results,
     uint32_t results_capacity
 ) {
-    if (!request || !results || results_capacity == 0) {
+    if (!request) {
+        return static_cast<int32_t>(hd_wallet::Error::INVALID_ARGUMENT);
+    }
+
+    // Zero count is a valid request: derive zero keys, return zero.
+    if (request->count == 0) {
+        return 0;
+    }
+
+    if (!results || results_capacity == 0) {
         return static_cast<int32_t>(hd_wallet::Error::INVALID_ARGUMENT);
     }
 

@@ -9,7 +9,7 @@
  * - Generate mnemonic phrases (12, 15, 18, 21, or 24 words)
  * - Validate mnemonic phrases
  * - Convert mnemonic to seed
- * - Support for multiple wordlists (English default)
+ * - Support for English wordlist
  * - Word suggestion/autocomplete
  *
  * @note In WASI environments, entropy must be injected before mnemonic generation.
@@ -55,6 +55,8 @@ constexpr size_t checksumBitsForWords(size_t word_count) {
 
 /**
  * Supported wordlist languages
+ * - ENGLISH is currently compiled and supported.
+ * - Other language codes are reserved and currently return NOT_SUPPORTED.
  */
 enum class Language : uint8_t {
   ENGLISH = 0,

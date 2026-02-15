@@ -393,6 +393,27 @@ int32_t hd_btc_detect_address_type(
   int32_t network
 );
 
+/**
+ * Decode a Bitcoin address into its type, payload hash, and detected network.
+ *
+ * For Base58Check addresses (P2PKH/P2SH), the payload is the 20-byte hash.
+ * For Bech32/Bech32m addresses (P2WPKH/P2WSH/P2TR), the payload is the witness program.
+ *
+ * @param address Address string
+ * @param type_out Output: BitcoinAddressType value
+ * @param hash_out Output buffer for payload bytes
+ * @param hash_len In/out: input max size, output actual size
+ * @param network_out Output: Network value (MAINNET/TESTNET)
+ */
+HD_WALLET_C_EXPORT HD_WALLET_EXPORT
+int32_t hd_btc_decode_address(
+  const char* address,
+  int32_t* type_out,
+  uint8_t* hash_out,
+  size_t* hash_len,
+  int32_t* network_out
+);
+
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT
 int32_t hd_btc_sign_message(
   const char* message,

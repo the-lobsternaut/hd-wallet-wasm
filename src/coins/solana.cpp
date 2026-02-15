@@ -104,15 +104,320 @@ bool isSolanaTokenProgram(const std::string& address) {
 
 namespace {
 
+// =============================================================================
+// Ed25519 on-curve check for PDA validation
+//
+// PDAs must NOT be valid Ed25519 public keys (must be "off curve").
+// We cannot rely on Crypto++ exceptions in WASM (-fignore-exceptions),
+// so we implement the curve check mathematically.
+//
+// Ed25519 uses the twisted Edwards curve: -x^2 + y^2 = 1 + d*x^2*y^2
+// where p = 2^255 - 19, d = -121665/121666 mod p
+//
+// A 32-byte encoding represents a point by encoding y (255 bits) and
+// the sign of x (1 bit). To check if it's on the curve, we:
+// 1. Decode y from the 32 bytes
+// 2. Compute x^2 = (y^2 - 1) / (d*y^2 + 1) mod p
+// 3. Try to compute x = sqrt(x^2) mod p
+// 4. If sqrt exists, the point is on-curve; otherwise, off-curve
+// =============================================================================
+
+// Simple modular arithmetic using 4 x 64-bit limbs for p = 2^255 - 19
+// We use schoolbook multiplication with 128-bit intermediates.
+
+// p = 2^255 - 19 in little-endian 64-bit limbs
+static const uint64_t P[4] = {
+    0xFFFFFFFFFFFFFFEDULL, 0xFFFFFFFFFFFFFFFFULL,
+    0xFFFFFFFFFFFFFFFFULL, 0x7FFFFFFFFFFFFFFFULL
+};
+
+// d = -121665/121666 mod p (from RFC 8032)
+// d = 37095705934669439343138083508754565189542113879843219016388785533085940283555
+static const uint64_t D[4] = {
+    0x75EB4DCA135978A3ULL, 0x00700A4D4141D8ABULL,
+    0x8CC740797779E898ULL, 0x52036CBC148B6262ULL
+};
+
+// Compare two 256-bit numbers (4 x 64-bit LE limbs)
+// Returns: -1 if a < b, 0 if equal, 1 if a > b
+static int cmp256(const uint64_t a[4], const uint64_t b[4]) {
+    for (int i = 3; i >= 0; i--) {
+        if (a[i] < b[i]) return -1;
+        if (a[i] > b[i]) return 1;
+    }
+    return 0;
+}
+
+// Subtract: r = a - b mod p (assumes a, b < p)
+static void sub_mod_p(uint64_t r[4], const uint64_t a[4], const uint64_t b[4]) {
+    __int128 borrow = 0;
+    for (int i = 0; i < 4; i++) {
+        __int128 diff = static_cast<__int128>(a[i]) - static_cast<__int128>(b[i]) - borrow;
+        r[i] = static_cast<uint64_t>(diff);
+        borrow = (diff < 0) ? 1 : 0;
+    }
+    if (borrow) {
+        // Add p back
+        __int128 carry = 0;
+        for (int i = 0; i < 4; i++) {
+            __int128 s = static_cast<__int128>(r[i]) + static_cast<__int128>(P[i]) + carry;
+            r[i] = static_cast<uint64_t>(s);
+            carry = s >> 64;
+        }
+    }
+}
+
+// Add: r = a + b mod p
+static void add_mod_p(uint64_t r[4], const uint64_t a[4], const uint64_t b[4]) {
+    __int128 carry = 0;
+    for (int i = 0; i < 4; i++) {
+        __int128 s = static_cast<__int128>(a[i]) + static_cast<__int128>(b[i]) + carry;
+        r[i] = static_cast<uint64_t>(s);
+        carry = s >> 64;
+    }
+    // Reduce if >= p
+    if (carry || cmp256(r, P) >= 0) {
+        __int128 borrow = 0;
+        for (int i = 0; i < 4; i++) {
+            __int128 diff = static_cast<__int128>(r[i]) - static_cast<__int128>(P[i]) - borrow;
+            r[i] = static_cast<uint64_t>(diff);
+            borrow = (diff < 0) ? 1 : 0;
+        }
+    }
+}
+
+// Multiply: r = a * b mod p using schoolbook with 128-bit intermediates
+static void mul_mod_p(uint64_t r[4], const uint64_t a[4], const uint64_t b[4]) {
+    // Full 512-bit product in 8 limbs
+    __int128 t[8] = {};
+    for (int i = 0; i < 4; i++) {
+        __int128 carry = 0;
+        for (int j = 0; j < 4; j++) {
+            __int128 prod = static_cast<__int128>(a[i]) * static_cast<__int128>(b[j]) + t[i + j] + carry;
+            t[i + j] = prod & 0xFFFFFFFFFFFFFFFFULL;
+            carry = prod >> 64;
+        }
+        t[i + 4] += carry;
+    }
+
+    // Barrett-style reduction mod p = 2^255 - 19
+    // Since p = 2^255 - 19, we have: x mod p = (x_lo + 19 * x_hi * 2) mod p
+    // where x = x_lo + x_hi * 2^255
+    //
+    // More precisely: for a 512-bit number stored in t[0..7],
+    // split at bit 255: low part = t[0..3] with t[3] masked to 63 bits,
+    // high part = (t[3] >> 63) | (t[4] << 1) | ...
+    // Then result = low + 19 * high (mod p), repeating until < p.
+
+    uint64_t lo[4], hi[4];
+    lo[0] = static_cast<uint64_t>(t[0]);
+    lo[1] = static_cast<uint64_t>(t[1]);
+    lo[2] = static_cast<uint64_t>(t[2]);
+    lo[3] = static_cast<uint64_t>(t[3]) & 0x7FFFFFFFFFFFFFFFULL;
+
+    // high = full_product >> 255
+    uint64_t bit63_of_t3 = static_cast<uint64_t>(t[3]) >> 63;
+    hi[0] = (static_cast<uint64_t>(t[4]) << 1) | bit63_of_t3;
+    hi[1] = (static_cast<uint64_t>(t[5]) << 1) | (static_cast<uint64_t>(t[4]) >> 63);
+    hi[2] = (static_cast<uint64_t>(t[6]) << 1) | (static_cast<uint64_t>(t[5]) >> 63);
+    hi[3] = (static_cast<uint64_t>(t[7]) << 1) | (static_cast<uint64_t>(t[6]) >> 63);
+
+    // Multiply hi by 19 and add to lo
+    __int128 carry = 0;
+    for (int i = 0; i < 4; i++) {
+        __int128 prod = static_cast<__int128>(hi[i]) * 19 + static_cast<__int128>(lo[i]) + carry;
+        lo[i] = static_cast<uint64_t>(prod);
+        carry = prod >> 64;
+    }
+
+    // One more reduction step if needed (carry from the multiply-add)
+    // carry * 2^256 mod p = carry * 19 * 2 (since 2^256 = 2 * 2^255 = 2 * (p+19) = 2p + 38)
+    // Actually 2^256 mod p = 38
+    uint64_t c = static_cast<uint64_t>(carry) * 38;
+    // But also check if lo[3] >= 2^63 (meaning >= 2^255)
+    uint64_t over = lo[3] >> 63;
+    lo[3] &= 0x7FFFFFFFFFFFFFFFULL;
+    c += over * 19;
+
+    carry = 0;
+    __int128 s = static_cast<__int128>(lo[0]) + c;
+    lo[0] = static_cast<uint64_t>(s);
+    carry = s >> 64;
+    for (int i = 1; i < 4; i++) {
+        s = static_cast<__int128>(lo[i]) + carry;
+        lo[i] = static_cast<uint64_t>(s);
+        carry = s >> 64;
+    }
+
+    // Final reduction
+    if (carry || cmp256(lo, P) >= 0) {
+        __int128 borrow = 0;
+        for (int i = 0; i < 4; i++) {
+            __int128 diff = static_cast<__int128>(lo[i]) - static_cast<__int128>(P[i]) - borrow;
+            lo[i] = static_cast<uint64_t>(diff);
+            borrow = (diff < 0) ? 1 : 0;
+        }
+    }
+
+    r[0] = lo[0]; r[1] = lo[1]; r[2] = lo[2]; r[3] = lo[3];
+}
+
+// Square: r = a^2 mod p
+static void sqr_mod_p(uint64_t r[4], const uint64_t a[4]) {
+    mul_mod_p(r, a, a);
+}
+
+// Power: r = base^exp mod p (exp as byte array, big-endian, exp_len bytes)
+static void pow_mod_p(uint64_t r[4], const uint64_t base[4], const uint8_t* exp, size_t exp_len) {
+    // r = 1
+    r[0] = 1; r[1] = 0; r[2] = 0; r[3] = 0;
+    uint64_t tmp[4];
+    std::memcpy(tmp, base, sizeof(tmp));
+
+    for (int i = static_cast<int>(exp_len) - 1; i >= 0; i--) {
+        uint8_t byte = exp[i];
+        for (int bit = 0; bit < 8; bit++) {
+            if (byte & 1) {
+                mul_mod_p(r, r, tmp);
+            }
+            sqr_mod_p(tmp, tmp);
+            byte >>= 1;
+        }
+    }
+}
+
+// Decode 32 bytes (little-endian) into 4 x 64-bit limbs
+static void decode256(uint64_t out[4], const uint8_t* bytes) {
+    for (int i = 0; i < 4; i++) {
+        out[i] = 0;
+        for (int j = 0; j < 8; j++) {
+            out[i] |= static_cast<uint64_t>(bytes[i * 8 + j]) << (8 * j);
+        }
+    }
+}
+
+// Check if a 32-byte value is a valid Ed25519 public key (on the curve)
+// Returns true if ON curve, false if off curve
+bool isOnEd25519Curve(const uint8_t* bytes) {
+    // Ed25519 point encoding: 32 bytes, little-endian y coordinate
+    // with the sign of x in the top bit of the last byte
+
+    // Extract y (clear the sign bit)
+    uint8_t y_bytes[32];
+    std::memcpy(y_bytes, bytes, 32);
+    y_bytes[31] &= 0x7F;  // Clear sign bit
+
+    uint64_t y[4];
+    decode256(y, y_bytes);
+
+    // Check y < p
+    if (cmp256(y, P) >= 0) {
+        return false;
+    }
+
+    // Compute y^2 mod p
+    uint64_t y2[4];
+    sqr_mod_p(y2, y);
+
+    // Compute u = y^2 - 1 mod p
+    uint64_t one[4] = {1, 0, 0, 0};
+    uint64_t u[4];
+    sub_mod_p(u, y2, one);
+
+    // Compute v = d * y^2 + 1 mod p
+    uint64_t dy2[4];
+    mul_mod_p(dy2, D, y2);
+    uint64_t v[4];
+    add_mod_p(v, dy2, one);
+
+    // Compute v^{-1} = v^{p-2} mod p
+    // p - 2 = 2^255 - 21
+    uint8_t p_minus_2[32];
+    std::memcpy(p_minus_2, P, 32);
+    // Subtract 2 from P (little-endian): P[0] = 0xFFFFFFFFFFFFFFED, so P-2 has [0] = 0xFFFFFFFFFFFFFFEB
+    // We need the byte representation
+    for (int i = 0; i < 32; i++) {
+        p_minus_2[i] = reinterpret_cast<const uint8_t*>(P)[i];
+    }
+    // Subtract 2 from the little-endian number
+    uint16_t borrow = 2;
+    for (int i = 0; i < 32 && borrow; i++) {
+        uint16_t val = p_minus_2[i];
+        if (val >= borrow) {
+            p_minus_2[i] = static_cast<uint8_t>(val - borrow);
+            borrow = 0;
+        } else {
+            p_minus_2[i] = static_cast<uint8_t>(256 + val - borrow);
+            borrow = 1;
+        }
+    }
+
+    uint64_t v_inv[4];
+    pow_mod_p(v_inv, v, p_minus_2, 32);
+
+    // x^2 = u * v^{-1} mod p
+    uint64_t x2[4];
+    mul_mod_p(x2, u, v_inv);
+
+    // Check if x^2 is zero (valid: x = 0)
+    if (x2[0] == 0 && x2[1] == 0 && x2[2] == 0 && x2[3] == 0) {
+        // x = 0 is on curve if the sign bit is 0
+        return (bytes[31] & 0x80) == 0;
+    }
+
+    // Compute candidate x = x2^{(p+3)/8} mod p
+    // (p+3)/8 = (2^255 - 19 + 3) / 8 = (2^255 - 16) / 8 = 2^252 - 2
+    uint8_t exp_bytes[32] = {};
+    // 2^252 - 2 in little-endian bytes
+    // 2^252 = 1 << 252 = byte 31 has bit 4 set (252 = 31*8 + 4)
+    // Actually: 252/8 = 31 remainder 4, so byte[31] bit 4
+    // But we have 32 bytes. 252 = 31*8+4 means byte index 31, bit 4
+    exp_bytes[31] = 0x10;  // 2^252
+    // Subtract 2
+    borrow = 2;
+    for (int i = 0; i < 32 && borrow; i++) {
+        uint16_t val = exp_bytes[i];
+        if (val >= borrow) {
+            exp_bytes[i] = static_cast<uint8_t>(val - borrow);
+            borrow = 0;
+        } else {
+            exp_bytes[i] = static_cast<uint8_t>(256 + val - borrow);
+            borrow = 1;
+        }
+    }
+
+    uint64_t x[4];
+    pow_mod_p(x, x2, exp_bytes, 32);
+
+    // Verify: x^2 == x2 mod p?
+    uint64_t x_sq[4];
+    sqr_mod_p(x_sq, x);
+    if (cmp256(x_sq, x2) == 0) {
+        return true;  // On curve
+    }
+
+    // Try x * sqrt(-1) mod p
+    // sqrt(-1) mod p = 2^{(p-1)/4} mod p
+    // = 19681161376707505956807079304988542015446066515923890162744021073123829784752
+    static const uint64_t SQRT_M1[4] = {
+        0xC4EE1B274A0EA0B0ULL, 0x2F431806AD2FE478ULL,
+        0x2B4D00993DFBD7A7ULL, 0x2B8324804FC1DF0BULL
+    };
+
+    uint64_t x_alt[4];
+    mul_mod_p(x_alt, x, SQRT_M1);
+    sqr_mod_p(x_sq, x_alt);
+    if (cmp256(x_sq, x2) == 0) {
+        return true;  // On curve
+    }
+
+    return false;  // Off curve
+}
+
 // Check if a point is NOT on the Ed25519 curve
 // PDAs must NOT be valid public keys
 bool isOffCurve(const uint8_t* bytes) {
-  try {
-    CryptoPP::ed25519::Verifier verifier(bytes);
-    return false;  // On curve
-  } catch (...) {
-    return true;  // Off curve (valid PDA)
-  }
+    return !isOnEd25519Curve(bytes);
 }
 
 }  // namespace

@@ -205,10 +205,12 @@ Result<BitcoinAddressType> detectBitcoinAddressType(
     if (decoded.value.second.size() == 20) {
       return Result<BitcoinAddressType>::success(BitcoinAddressType::P2WPKH);
     } else if (decoded.value.second.size() == 32) {
-      // Could be P2WSH (v0) or P2TR (v1) - need to check witness version
-      // Since we decode after removing version, check address length
-      // P2TR addresses are bc1p..., P2WSH are bc1q... with 32-byte hash
-      if (lower_address[3 + std::strlen(params.bech32_hrp)] == 'p') {
+      // Could be P2WSH (v0) or P2TR (v1) - check witness version
+      // The witness version is encoded as the first data character after the separator.
+      // In bech32 charset, 'q' = 0 (v0/P2WSH), 'p' = 1 (v1/P2TR).
+      // The character is at index strlen(bech32_hrp) + 1 (right after "bc1" or "tb1").
+      size_t wit_ver_idx = std::strlen(params.bech32_hrp) + 1;
+      if (wit_ver_idx < lower_address.size() && lower_address[wit_ver_idx] == 'p') {
         return Result<BitcoinAddressType>::success(BitcoinAddressType::P2TR);
       }
       return Result<BitcoinAddressType>::success(BitcoinAddressType::P2WSH);
@@ -933,6 +935,107 @@ int32_t hd_btc_detect_address_type(const char* address, int32_t network) {
   if (!result.ok()) return -1;
 
   return static_cast<int32_t>(result.value);
+}
+
+HD_WALLET_C_EXPORT HD_WALLET_EXPORT
+int32_t hd_btc_decode_address(
+  const char* address,
+  int32_t* type_out,
+  uint8_t* hash_out,
+  size_t* hash_len,
+  int32_t* network_out
+) {
+  if (!address || !type_out || !hash_out || !hash_len || !network_out) {
+    return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+  }
+
+  std::string addr(address);
+  if (addr.empty()) {
+    return static_cast<int32_t>(Error::INVALID_ADDRESS);
+  }
+
+  // Detect network from HRP (Bech32) or version byte (Base58Check).
+  const BitcoinParams* params = nullptr;
+  Network net = Network::MAINNET;
+
+  std::string lower = addr;
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+  if (lower.rfind("bc1", 0) == 0) {
+    params = &BITCOIN_MAINNET;
+    net = Network::MAINNET;
+  } else if (lower.rfind("tb1", 0) == 0) {
+    params = &BITCOIN_TESTNET;
+    net = Network::TESTNET;
+  } else {
+    auto decoded = base58CheckDecode(addr);
+    if (!decoded.ok() || decoded.value.empty()) {
+      return static_cast<int32_t>(Error::INVALID_ADDRESS);
+    }
+
+    uint8_t version = decoded.value[0];
+    if (version == BITCOIN_MAINNET.p2pkh_version || version == BITCOIN_MAINNET.p2sh_version) {
+      params = &BITCOIN_MAINNET;
+      net = Network::MAINNET;
+    } else if (version == BITCOIN_TESTNET.p2pkh_version || version == BITCOIN_TESTNET.p2sh_version) {
+      params = &BITCOIN_TESTNET;
+      net = Network::TESTNET;
+    } else {
+      return static_cast<int32_t>(Error::INVALID_ADDRESS);
+    }
+  }
+
+  auto type = detectBitcoinAddressType(addr, *params);
+  if (!type.ok()) {
+    return static_cast<int32_t>(type.error);
+  }
+
+  ByteVector payload;
+  switch (type.value) {
+    case BitcoinAddressType::P2PKH:
+    case BitcoinAddressType::P2SH: {
+      auto decoded = base58CheckDecode(addr);
+      if (!decoded.ok() || decoded.value.size() < 21) {
+        return static_cast<int32_t>(Error::INVALID_ADDRESS);
+      }
+      payload.assign(decoded.value.begin() + 1, decoded.value.end());
+      break;
+    }
+
+    case BitcoinAddressType::P2WPKH:
+    case BitcoinAddressType::P2WSH: {
+      auto decoded = bech32Decode(addr);
+      if (!decoded.ok()) {
+        return static_cast<int32_t>(decoded.error);
+      }
+      payload = decoded.value.second;
+      break;
+    }
+
+    case BitcoinAddressType::P2TR: {
+      auto decoded = bech32mDecode(addr);
+      if (!decoded.ok()) {
+        return static_cast<int32_t>(decoded.error);
+      }
+      payload = decoded.value.second;
+      break;
+    }
+
+    default:
+      return static_cast<int32_t>(Error::INVALID_ADDRESS);
+  }
+
+  if (payload.size() > *hash_len) {
+    *hash_len = payload.size();
+    return static_cast<int32_t>(Error::OUT_OF_MEMORY);
+  }
+
+  std::copy(payload.begin(), payload.end(), hash_out);
+  *hash_len = payload.size();
+  *type_out = static_cast<int32_t>(type.value);
+  *network_out = static_cast<int32_t>(net);
+  return static_cast<int32_t>(Error::OK);
 }
 
 HD_WALLET_C_EXPORT HD_WALLET_EXPORT

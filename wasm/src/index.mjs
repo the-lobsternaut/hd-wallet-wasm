@@ -9,7 +9,7 @@
  * - Transaction building and signing
  *
  * @module hd-wallet-wasm
- * @version 0.2.0
+ * @version 1.3.0
  */
 
 // Import aligned API for batch operations
@@ -56,6 +56,8 @@ export const CoinType = Object.freeze({
 
 /**
  * BIP-39 wordlist languages
+ * - ENGLISH is supported in the default build.
+ * - Other locales are currently reserved and return NOT_SUPPORTED.
  * @readonly
  * @enum {number}
  */
@@ -122,6 +124,24 @@ export const BitcoinAddressType = Object.freeze({
   P2WPKH: 2,
   P2WSH: 3,
   P2TR: 4
+});
+
+/**
+ * Bitcoin transaction script types (matches C++ tx::ScriptType)
+ * @readonly
+ * @enum {number}
+ */
+export const BitcoinScriptType = Object.freeze({
+  UNKNOWN: 0,
+  P2PKH: 1,
+  P2SH: 2,
+  P2WPKH: 3,
+  P2WSH: 4,
+  P2TR: 5,
+  P2SH_P2WPKH: 6,
+  P2SH_P2WSH: 7,
+  NULLDATA: 8,
+  MULTISIG: 9
 });
 
 /**
@@ -416,9 +436,13 @@ function decodeBech32Fallback(str) {
  * @returns {number} Pointer to allocated memory
  */
 function allocAndCopy(wasm, data) {
-  const ptr = wasm._hd_alloc(data.length);
+  // Many C++ implementations assume pointers are non-null even when `len == 0`.
+  // Allocate a 1-byte placeholder in that case to avoid passing NULL into WASM.
+  const len = data.length;
+  const allocLen = len === 0 ? 1 : len;
+  const ptr = wasm._hd_alloc(allocLen);
   if (!ptr) throw new HDWalletError(ErrorCode.OUT_OF_MEMORY);
-  wasm.HEAPU8.set(data, ptr);
+  if (len > 0) wasm.HEAPU8.set(data, ptr);
   return ptr;
 }
 
@@ -1001,6 +1025,9 @@ function createModule(wasm) {
      */
     getWordlist(language = Language.ENGLISH) {
       const ptr = wasm._hd_mnemonic_get_wordlist(language);
+      if (!ptr) {
+        throw new HDWalletError(ErrorCode.NOT_SUPPORTED, 'Mnemonic wordlist not available for selected language');
+      }
       const json = readString(wasm, ptr);
       return JSON.parse(json);
     },
@@ -1016,7 +1043,8 @@ function createModule(wasm) {
       const prefixPtr = allocString(wasm, prefix);
       const outputPtr = wasm._hd_alloc(1024);
       try {
-        wasm._hd_mnemonic_suggest_word(prefixPtr, language, outputPtr, 1024, maxSuggestions);
+        const result = wasm._hd_mnemonic_suggest_word(prefixPtr, language, outputPtr, 1024, maxSuggestions);
+        checkResult(result);
         const text = readString(wasm, outputPtr);
         // C API returns newline-separated words
         return text ? text.split('\n').filter(w => w.length > 0) : [];
@@ -1267,6 +1295,39 @@ function createModule(wasm) {
       },
 
     /**
+     * Generic ECDH shared secret computation
+     *
+     * Performs ECDH key exchange on any supported curve by specifying
+     * the curve parameter. For convenience, use the curve-specific
+     * methods (e.g. curves.secp256k1.ecdh()) instead.
+     *
+     * @param {number} curve - Curve enum value (Curve.SECP256K1, Curve.P256, etc.)
+     * @param {Uint8Array} privateKey - Private key bytes
+     * @param {Uint8Array} publicKey - Other party's public key bytes
+     * @returns {Uint8Array} Shared secret bytes
+     */
+    ecdh(curve, privateKey, publicKey) {
+      const ecdhFn = requireWasmFunction(wasm, '_hd_ecdh');
+      const privPtr = allocAndCopy(wasm, privateKey);
+      const pubPtr = allocAndCopy(wasm, publicKey);
+      const secretSize = curve === Curve.P384 ? 48 : 32;
+      const secretPtr = wasm._hd_alloc(secretSize);
+      try {
+        const result = ecdhFn(curve, privPtr, privateKey.length, pubPtr, publicKey.length, secretPtr, secretSize);
+        if (result < 0) throw new HDWalletError(ErrorCode.INTERNAL, 'ECDH key exchange failed');
+        // result is the actual secret length on success
+        const actualLen = result > 0 ? result : secretSize;
+        return readBytes(wasm, secretPtr, actualLen);
+      } finally {
+        wasm._hd_secure_wipe(privPtr, privateKey.length);
+        wasm._hd_secure_wipe(secretPtr, secretSize);
+        wasm._hd_dealloc(privPtr);
+        wasm._hd_dealloc(pubPtr);
+        wasm._hd_dealloc(secretPtr);
+      }
+    },
+
+    /**
      * secp256k1 ECDSA operations
      */
     secp256k1: {
@@ -1304,12 +1365,14 @@ function createModule(wasm) {
         const keyPtr = allocAndCopy(wasm, privateKey);
         const sigPtr = wasm._hd_alloc(65);
         try {
-          const recoveryId = signRecoverableFn(msgPtr, message.length, keyPtr, sigPtr, 65);
-          if (recoveryId < 0) throw new HDWalletError(recoveryId);
-          return {
-            signature: readBytes(wasm, sigPtr, 64),
-            recoveryId
-          };
+          // C signature: int32_t hd_secp256k1_sign_recoverable(hash, hash_len, privkey, out_sig65)
+          // Returns 65 on success (bytes written), negative on error.
+          // out_sig65 = r[32] + s[32] + v[1], recovery ID is at byte[64].
+          const result = signRecoverableFn(msgPtr, message.length, keyPtr, sigPtr);
+          if (result < 0) throw new HDWalletError(result);
+          const signature = readBytes(wasm, sigPtr, 64);
+          const recoveryId = wasm.HEAPU8[sigPtr + 64];
+          return { signature, recoveryId };
         } finally {
           wasm._hd_secure_wipe(keyPtr, 32);
           wasm._hd_dealloc(msgPtr);
@@ -1349,12 +1412,17 @@ function createModule(wasm) {
       recover(message, signature, recoveryId) {
         const recoverFn = requireWasmFunction(wasm, '_hd_secp256k1_recover');
         const msgPtr = allocAndCopy(wasm, message);
-        const sigPtr = allocAndCopy(wasm, signature);
-        const pubPtr = wasm._hd_alloc(65);
+        // Build 65-byte sig buffer: r[32] + s[32] + v[1]
+        // C signature: int32_t hd_secp256k1_recover(hash, hash_len, sig65, out_pubkey33)
+        const sig65 = new Uint8Array(65);
+        sig65.set(signature.subarray(0, 64));
+        sig65[64] = recoveryId;
+        const sigPtr = allocAndCopy(wasm, sig65);
+        const pubPtr = wasm._hd_alloc(33);
         try {
-          const result = recoverFn(msgPtr, message.length, sigPtr, signature.length, recoveryId, pubPtr, 65);
-          checkResult(result);
-          return readBytes(wasm, pubPtr, 65);
+          const result = recoverFn(msgPtr, message.length, sigPtr, pubPtr);
+          if (result < 0) throw new HDWalletError(result);
+          return readBytes(wasm, pubPtr, 33);
         } finally {
           wasm._hd_dealloc(msgPtr);
           wasm._hd_dealloc(sigPtr);
@@ -1479,17 +1547,8 @@ function createModule(wasm) {
         const sigPtr = allocAndCopy(wasm, signature);
         const pubPtr = allocAndCopy(wasm, publicKey);
         try {
-          const callFive = () => verifyFn(msgPtr, message.length, pubPtr, publicKey.length, sigPtr) === 0;
-          const callSix = () => verifyFn(msgPtr, message.length, sigPtr, signature.length, pubPtr, publicKey.length) === 1;
-
-          if (p256VerifyAbi === null) {
-            // Probe both conventions once; prefer the variant that validates.
-            const validFive = callFive();
-            const validSix = callSix();
-            p256VerifyAbi = validFive && !validSix ? 'five' : (!validFive && validSix ? 'six' : 'five');
-            return p256VerifyAbi === 'five' ? validFive : validSix;
-          }
-          return p256VerifyAbi === 'five' ? callFive() : callSix();
+          // C: hd_p256_verify(message, message_len, public_key, public_key_len, signature)
+          return verifyFn(msgPtr, message.length, pubPtr, publicKey.length, sigPtr) === 0;
         } finally {
           wasm._hd_dealloc(msgPtr);
           wasm._hd_dealloc(sigPtr);
@@ -1541,17 +1600,8 @@ function createModule(wasm) {
         const sigPtr = allocAndCopy(wasm, signature);
         const pubPtr = allocAndCopy(wasm, publicKey);
         try {
-          const callFive = () => verifyFn(msgPtr, message.length, pubPtr, publicKey.length, sigPtr) === 0;
-          const callSix = () => verifyFn(msgPtr, message.length, sigPtr, signature.length, pubPtr, publicKey.length) === 1;
-
-          if (p384VerifyAbi === null) {
-            // Probe both conventions once; prefer the variant that validates.
-            const validFive = callFive();
-            const validSix = callSix();
-            p384VerifyAbi = validFive && !validSix ? 'five' : (!validFive && validSix ? 'six' : 'five');
-            return p384VerifyAbi === 'five' ? validFive : validSix;
-          }
-          return p384VerifyAbi === 'five' ? callFive() : callSix();
+          // C: hd_p384_verify(message, message_len, public_key, public_key_len, signature)
+          return verifyFn(msgPtr, message.length, pubPtr, publicKey.length, sigPtr) === 0;
         } finally {
           wasm._hd_dealloc(msgPtr);
           wasm._hd_dealloc(sigPtr);
@@ -1626,6 +1676,113 @@ function createModule(wasm) {
   };
 
   // ==========================================================================
+  // Generic Coin API
+  // ==========================================================================
+
+  /**
+   * Generic coin operations
+   *
+   * These functions dispatch to the appropriate coin-specific implementation
+   * based on the coin type parameter. Use the CoinType enum for the coinType
+   * argument (e.g. CoinType.BITCOIN, CoinType.ETHEREUM, CoinType.SOLANA).
+   *
+   * @type {Object}
+   */
+  const coin = {
+    /**
+     * Generate address from public key for any supported coin
+     * @param {number} coinType - CoinType enum value
+     * @param {Uint8Array} publicKey - Public key bytes
+     * @param {number} [network=Network.MAINNET] - Network
+     * @returns {string} Address string
+     */
+    addressFromPubkey(coinType, publicKey, network = Network.MAINNET) {
+      const fn = requireWasmFunction(wasm, '_hd_coin_address_from_pubkey');
+      const pubPtr = allocAndCopy(wasm, publicKey);
+      const outPtr = wasm._hd_alloc(128);
+      try {
+        const result = fn(coinType, network, pubPtr, publicKey.length, outPtr, 128);
+        checkResult(result);
+        return readString(wasm, outPtr);
+      } finally {
+        wasm._hd_dealloc(pubPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    /**
+     * Validate address for any supported coin
+     * @param {number} coinType - CoinType enum value
+     * @param {string} address - Address to validate
+     * @param {number} [network=Network.MAINNET] - Network
+     * @returns {boolean} True if valid
+     */
+    validateAddress(coinType, address, network = Network.MAINNET) {
+      const fn = requireWasmFunction(wasm, '_hd_coin_validate_address');
+      const addrPtr = allocString(wasm, address);
+      try {
+        return fn(coinType, network, addrPtr) === 0;
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+      }
+    },
+
+    /**
+     * Sign message for any supported coin
+     * @param {number} coinType - CoinType enum value
+     * @param {Uint8Array} message - Message bytes
+     * @param {Uint8Array} privateKey - Private key bytes
+     * @returns {Uint8Array} Signature bytes
+     */
+    signMessage(coinType, message, privateKey) {
+      const fn = requireWasmFunction(wasm, '_hd_coin_sign_message');
+      const msgPtr = allocAndCopy(wasm, message);
+      const keyPtr = allocAndCopy(wasm, privateKey);
+      const sigLenPtr = wasm._hd_alloc(4);
+      // Pre-allocate enough for the largest possible signature (65 bytes for ECDSA recoverable)
+      const maxSigLen = 128;
+      wasm.setValue(sigLenPtr, maxSigLen, 'i32');
+      const sigPtr = wasm._hd_alloc(maxSigLen);
+      try {
+        const result = fn(coinType, msgPtr, message.length, keyPtr, sigPtr, sigLenPtr);
+        checkResult(result);
+        const actualLen = wasm.getValue(sigLenPtr, 'i32');
+        return readBytes(wasm, sigPtr, actualLen);
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, privateKey.length);
+        wasm._hd_dealloc(msgPtr);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(sigPtr);
+        wasm._hd_dealloc(sigLenPtr);
+      }
+    },
+
+    /**
+     * Verify message signature for any supported coin
+     * @param {number} coinType - CoinType enum value
+     * @param {Uint8Array} message - Original message bytes
+     * @param {Uint8Array} signature - Signature bytes
+     * @param {Uint8Array} publicKey - Public key bytes
+     * @returns {boolean} True if signature is valid
+     */
+    verifyMessage(coinType, message, signature, publicKey) {
+      const fn = requireWasmFunction(wasm, '_hd_coin_verify_message');
+      const msgPtr = allocAndCopy(wasm, message);
+      const sigPtr = allocAndCopy(wasm, signature);
+      const pubPtr = allocAndCopy(wasm, publicKey);
+      try {
+        const result = fn(coinType, msgPtr, message.length, sigPtr, signature.length, pubPtr, publicKey.length);
+        if (result < 0 || result > 1) throw new HDWalletError(result);
+        return result === 1;
+      } finally {
+        wasm._hd_dealloc(msgPtr);
+        wasm._hd_dealloc(sigPtr);
+        wasm._hd_dealloc(pubPtr);
+      }
+    }
+  };
+
+  // ==========================================================================
   // Bitcoin API
   // ==========================================================================
 
@@ -1680,22 +1837,17 @@ function createModule(wasm) {
      * @param {string} address - Address to validate
      * @returns {boolean} True if valid
      */
-    validateAddress(address) {
+    validateAddress(address, network = Network.MAINNET) {
       const validateFn = requireWasmFunction(wasm, '_hd_btc_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
-        const result = validateFn(addrPtr);
+        const result = validateFn(addrPtr, network);
         return result === 0;
       } finally {
         wasm._hd_dealloc(addrPtr);
       }
     },
 
-    /**
-     * Decode Bitcoin address
-     * @param {string} address - Address to decode
-     * @returns {Object} { type, hash, network }
-     */
     decodeAddress(address) {
       const decodeFn = requireWasmFunction(wasm, '_hd_btc_decode_address');
       const addrPtr = allocString(wasm, address);
@@ -1722,21 +1874,61 @@ function createModule(wasm) {
       }
     },
 
-    /**
-     * Sign message (Bitcoin Signed Message format)
-     * @param {string} message - Message to sign
-     * @param {Uint8Array} privateKey - Private key
-     * @returns {string} Base64-encoded signature
-     */
-    signMessage(message, privateKey) {
+    detectAddressType(address, network = Network.MAINNET) {
+      const detectFn = requireWasmFunction(wasm, '_hd_btc_detect_address_type');
+      const addrPtr = allocString(wasm, address);
+      try {
+        return detectFn(addrPtr, network);
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+      }
+    },
+
+    toWIF(privateKey, compressed = true, network = Network.MAINNET) {
+      const toWifFn = requireWasmFunction(wasm, '_hd_btc_to_wif');
+      const keyPtr = allocAndCopy(wasm, privateKey);
+      const outPtr = wasm._hd_alloc(64);
+      try {
+        const result = toWifFn(keyPtr, compressed ? 1 : 0, network, outPtr, 64);
+        checkResult(result);
+        return readString(wasm, outPtr);
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, 32);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    fromWIF(wif) {
+      const fromWifFn = requireWasmFunction(wasm, '_hd_btc_from_wif');
+      const wifPtr = allocString(wasm, wif);
+      const keyPtr = wasm._hd_alloc(32);
+      const compressedPtr = wasm._hd_alloc(4);
+      try {
+        const result = fromWifFn(wifPtr, keyPtr, compressedPtr);
+        checkResult(result);
+        return {
+          privateKey: readBytes(wasm, keyPtr, 32),
+          compressed: wasm.getValue(compressedPtr, 'i32') === 1
+        };
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, 32);
+        wasm._hd_dealloc(wifPtr);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(compressedPtr);
+      }
+    },
+
+    signMessage(message, privateKey, compressed = true) {
       const signFn = requireWasmFunction(wasm, '_hd_btc_sign_message');
       const msgPtr = allocString(wasm, message);
       const keyPtr = allocAndCopy(wasm, privateKey);
-      const sigPtr = wasm._hd_alloc(256);
+      const sigPtr = wasm._hd_alloc(65);
       try {
-        const result = signFn(msgPtr, keyPtr, sigPtr, 256);
+        const result = signFn(msgPtr, keyPtr, compressed ? 1 : 0, sigPtr, 65);
         checkResult(result);
-        return readString(wasm, sigPtr);
+        const sigBytes = readBytes(wasm, sigPtr, 65);
+        return encodeBase64Fallback(sigBytes);
       } finally {
         wasm._hd_secure_wipe(keyPtr, 32);
         wasm._hd_dealloc(msgPtr);
@@ -1745,20 +1937,14 @@ function createModule(wasm) {
       }
     },
 
-    /**
-     * Verify signed message
-     * @param {string} message - Original message
-     * @param {string} signature - Base64-encoded signature
-     * @param {string} address - Expected address
-     * @returns {boolean} True if valid
-     */
-    verifyMessage(message, signature, address) {
+    verifyMessage(message, signature, address, network = Network.MAINNET) {
       const verifyFn = requireWasmFunction(wasm, '_hd_btc_verify_message');
+      const sigBytes = decodeBase64Fallback(signature);
       const msgPtr = allocString(wasm, message);
-      const sigPtr = allocString(wasm, signature);
+      const sigPtr = allocAndCopy(wasm, sigBytes);
       const addrPtr = allocString(wasm, address);
       try {
-        const result = verifyFn(msgPtr, sigPtr, addrPtr);
+        const result = verifyFn(msgPtr, sigPtr, sigBytes.length, addrPtr, network);
         return result === 1;
       } finally {
         wasm._hd_dealloc(msgPtr);
@@ -1771,51 +1957,114 @@ function createModule(wasm) {
      * Transaction builder
      */
     tx: {
-      create() {
-        const createFn = getWasmFunction(wasm, '_hd_btc_tx_create');
-        if (!createFn) throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
-
-        const handle = createFn();
-        if (!handle) throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
-
+      _makeTxObj(handle) {
         return {
           _handle: handle,
+          _inputCount: 0,
 
-          addInput(txid, vout, sequence = 0xffffffff) {
+          addInput(input) {
             const addInputFn = requireWasmFunction(wasm, '_hd_btc_tx_add_input');
-            const txidPtr = allocString(wasm, txid);
+            // Convert hex txid to 32-byte array
+            const txidHex = input.txid;
+            const txidBytes = new Uint8Array(32);
+            for (let i = 0; i < 32; i++) {
+              txidBytes[i] = parseInt(txidHex.substr(i * 2, 2), 16);
+            }
+            const txidPtr = allocAndCopy(wasm, txidBytes);
+            const pubPtr = input.pubkey ? allocAndCopy(wasm, input.pubkey) : 0;
             try {
-              const result = addInputFn(this._handle, txidPtr, vout, sequence);
+              const result = addInputFn(
+                this._handle, txidPtr, input.vout,
+                BigInt(input.amount), input.scriptType || 0,
+                pubPtr, input.sequence || 0xffffffff
+              );
               checkResult(result);
+              this._inputCount++;
             } finally {
               wasm._hd_dealloc(txidPtr);
+              if (pubPtr) wasm._hd_dealloc(pubPtr);
             }
             return this;
           },
 
-          addOutput(address, amount) {
+          addOutput(address, amount, network = Network.MAINNET) {
+            // Use address-based output helper: decode address to script internally
+            const addP2wpkhFn = getWasmFunction(wasm, '_hd_btc_tx_add_p2wpkh_output');
+            const addP2pkhFn = getWasmFunction(wasm, '_hd_btc_tx_add_p2pkh_output');
             const addOutputFn = requireWasmFunction(wasm, '_hd_btc_tx_add_output');
-            const addrPtr = allocString(wasm, address);
-            try {
-              const result = addOutputFn(this._handle, addrPtr, BigInt(amount));
-              checkResult(result);
-            } finally {
-              wasm._hd_dealloc(addrPtr);
+
+            // Decode the address to get the hash
+            const decodeFn = getWasmFunction(wasm, '_hd_btc_decode_address');
+            if (decodeFn) {
+              const addrPtr = allocString(wasm, address);
+              const typePtr = wasm._hd_alloc(4);
+              const hashPtr = wasm._hd_alloc(32);
+              const hashLenPtr = wasm._hd_alloc(4);
+              const networkPtr = wasm._hd_alloc(4);
+              try {
+                wasm.setValue(hashLenPtr, 32, 'i32');
+                const decResult = decodeFn(addrPtr, typePtr, hashPtr, hashLenPtr, networkPtr);
+                if (decResult === 0) {
+                  const addrType = wasm.getValue(typePtr, 'i32');
+                  const hashLen = wasm.getValue(hashLenPtr, 'i32');
+                  // P2WPKH = 2, P2PKH = 0
+                  if (addrType === 2 && addP2wpkhFn) {
+                    const result = addP2wpkhFn(this._handle, BigInt(amount), hashPtr);
+                    checkResult(result);
+                    return this;
+                  } else if (addrType === 0 && addP2pkhFn) {
+                    const result = addP2pkhFn(this._handle, BigInt(amount), hashPtr);
+                    checkResult(result);
+                    return this;
+                  }
+                  // For other types, build script manually
+                  const hash = readBytes(wasm, hashPtr, hashLen);
+                  let script;
+                  if (addrType === 2) { // P2WPKH: OP_0 <20-byte-hash>
+                    script = new Uint8Array([0x00, 0x14, ...hash]);
+                  } else if (addrType === 0) { // P2PKH: OP_DUP OP_HASH160 <20> <hash> OP_EQUALVERIFY OP_CHECKSIG
+                    script = new Uint8Array([0x76, 0xa9, 0x14, ...hash, 0x88, 0xac]);
+                  } else if (addrType === 1) { // P2SH: OP_HASH160 <20> <hash> OP_EQUAL
+                    script = new Uint8Array([0xa9, 0x14, ...hash, 0x87]);
+                  } else if (addrType === 3) { // P2WSH: OP_0 <32-byte-hash>
+                    script = new Uint8Array([0x00, 0x20, ...hash]);
+                  } else if (addrType === 4) { // P2TR: OP_1 <32-byte-key>
+                    script = new Uint8Array([0x51, 0x20, ...hash]);
+                  } else {
+                    throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'Unsupported address type');
+                  }
+                  const scriptPtr = allocAndCopy(wasm, script);
+                  try {
+                    const result = addOutputFn(this._handle, BigInt(amount), scriptPtr, script.length);
+                    checkResult(result);
+                  } finally {
+                    wasm._hd_dealloc(scriptPtr);
+                  }
+                  return this;
+                }
+              } finally {
+                wasm._hd_dealloc(addrPtr);
+                wasm._hd_dealloc(typePtr);
+                wasm._hd_dealloc(hashPtr);
+                wasm._hd_dealloc(hashLenPtr);
+                wasm._hd_dealloc(networkPtr);
+              }
             }
-            return this;
+            throw new HDWalletError(ErrorCode.NOT_SUPPORTED, 'Address decoding not available');
           },
 
-          sign(inputIndex, privateKey, redeemScript) {
-            const signInputFn = requireWasmFunction(wasm, '_hd_btc_tx_sign');
+          sign(privateKey) {
+            const signFn = requireWasmFunction(wasm, '_hd_btc_tx_sign');
             const keyPtr = allocAndCopy(wasm, privateKey);
-            const scriptPtr = redeemScript ? allocAndCopy(wasm, redeemScript) : 0;
             try {
-              const result = signInputFn(this._handle, inputIndex, keyPtr, scriptPtr, redeemScript?.length || 0);
-              checkResult(result);
+              // Sign all inputs
+              for (let i = 0; i < this._inputCount; i++) {
+                const result = signFn(this._handle, keyPtr, i);
+                checkResult(result);
+              }
             } finally {
               wasm._hd_secure_wipe(keyPtr, 32);
               wasm._hd_dealloc(keyPtr);
-              if (scriptPtr) wasm._hd_dealloc(scriptPtr);
             }
             return this;
           },
@@ -1826,7 +2075,7 @@ function createModule(wasm) {
             const sizePtr = wasm._hd_alloc(4);
             try {
               wasm.setValue(sizePtr, 65536, 'i32');
-              const result = serializeFn(this._handle, outPtr, sizePtr);
+              const result = serializeFn(this._handle, outPtr, 65536, sizePtr);
               checkResult(result);
               const size = wasm.getValue(sizePtr, 'i32');
               return readBytes(wasm, outPtr, size);
@@ -1837,9 +2086,15 @@ function createModule(wasm) {
           },
 
           getTxid() {
-            const getTxidFn = requireWasmFunction(wasm, '_hd_btc_tx_get_txid');
-            const ptr = getTxidFn(this._handle);
-            return readString(wasm, ptr);
+            const getTxidFn = requireWasmFunction(wasm, '_hd_btc_tx_get_txid_hex');
+            const outPtr = wasm._hd_alloc(128);
+            try {
+              const result = getTxidFn(this._handle, outPtr, 128);
+              checkResult(result);
+              return readString(wasm, outPtr);
+            } finally {
+              wasm._hd_dealloc(outPtr);
+            }
           },
 
           getSize() {
@@ -1852,6 +2107,21 @@ function createModule(wasm) {
             return getVsizeFn(this._handle);
           },
 
+          getWeight() {
+            const getWeightFn = requireWasmFunction(wasm, '_hd_btc_tx_get_weight');
+            return getWeightFn(this._handle);
+          },
+
+          getFee() {
+            const getFeeFn = requireWasmFunction(wasm, '_hd_btc_tx_get_fee');
+            return getFeeFn(this._handle);
+          },
+
+          validate() {
+            const validateFn = requireWasmFunction(wasm, '_hd_btc_tx_validate');
+            return validateFn(this._handle) === 0;
+          },
+
           destroy() {
             if (this._handle) {
               const destroyFn = requireWasmFunction(wasm, '_hd_btc_tx_destroy');
@@ -1860,6 +2130,26 @@ function createModule(wasm) {
             }
           }
         };
+      },
+
+      create() {
+        const createFn = getWasmFunction(wasm, '_hd_btc_tx_create');
+        if (!createFn) throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
+        const handle = createFn();
+        if (!handle) throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
+        return this._makeTxObj(handle);
+      },
+
+      parse(data) {
+        const parseFn = requireWasmFunction(wasm, '_hd_btc_tx_parse');
+        const dataPtr = allocAndCopy(wasm, data);
+        try {
+          const handle = parseFn(dataPtr, data.length);
+          if (!handle) throw new HDWalletError(ErrorCode.INVALID_TRANSACTION);
+          return this._makeTxObj(handle);
+        } finally {
+          wasm._hd_dealloc(dataPtr);
+        }
       }
     }
   };
@@ -1935,13 +2225,16 @@ function createModule(wasm) {
      */
     signMessage(message, privateKey) {
       const signFn = requireWasmFunction(wasm, '_hd_eth_sign_message');
-      const msgPtr = allocString(wasm, message);
+      const enc = new TextEncoder();
+      const msgBytes = typeof message === 'string' ? enc.encode(message) : message;
+      const msgPtr = allocAndCopy(wasm, msgBytes);
       const keyPtr = allocAndCopy(wasm, privateKey);
-      const sigPtr = wasm._hd_alloc(256);
+      const sigPtr = wasm._hd_alloc(65);
       try {
-        const result = signFn(msgPtr, keyPtr, sigPtr, 256);
+        const result = signFn(msgPtr, msgBytes.length, keyPtr, sigPtr, 65);
         checkResult(result);
-        return readString(wasm, sigPtr);
+        const sigBytes = readBytes(wasm, sigPtr, 65);
+        return '0x' + encodeHexFallback(sigBytes);
       } finally {
         wasm._hd_secure_wipe(keyPtr, 32);
         wasm._hd_dealloc(msgPtr);
@@ -1958,34 +2251,137 @@ function createModule(wasm) {
      */
     signTypedData(typedData, privateKey) {
       const signTypedDataFn = requireWasmFunction(wasm, '_hd_eth_sign_typed_data');
-      const jsonPtr = allocString(wasm, JSON.stringify(typedData));
+
+      // --- EIP-712 struct hash computation (data encoding, not crypto) ---
+      // keccak256 via WASM
+      function k256(data) {
+        const d = data instanceof Uint8Array ? data : new TextEncoder().encode(data);
+        const dPtr = allocAndCopy(wasm, d);
+        const hPtr = wasm._hd_alloc(32);
+        try {
+          const r = wasm._hd_hash_keccak256(dPtr, d.length, hPtr, 32);
+          if (r < 0) throw new HDWalletError(r);
+          return readBytes(wasm, hPtr, 32);
+        } finally {
+          wasm._hd_dealloc(dPtr);
+          wasm._hd_dealloc(hPtr);
+        }
+      }
+
+      // Build canonical type string with referenced types sorted alphabetically
+      function encodeType(typeName) {
+        const fields = typedData.types[typeName];
+        if (!fields) throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, `Unknown EIP-712 type: ${typeName}`);
+        let result = `${typeName}(${fields.map(f => `${f.type} ${f.name}`).join(',')})`;
+        const referenced = new Set();
+        function findRefs(tn) {
+          for (const field of typedData.types[tn] || []) {
+            const base = field.type.replace(/\[\d*\]$/, '');
+            if (typedData.types[base] && base !== typeName && !referenced.has(base)) {
+              referenced.add(base);
+              findRefs(base);
+            }
+          }
+        }
+        findRefs(typeName);
+        for (const ref of Array.from(referenced).sort()) {
+          result += `${ref}(${typedData.types[ref].map(f => `${f.type} ${f.name}`).join(',')})`;
+        }
+        return result;
+      }
+
+      // Encode a single value according to its EIP-712 type
+      function encodeValue(type, value) {
+        if (type === 'string') return k256(value);
+        if (type === 'bytes') {
+          const hex = value.startsWith('0x') ? value.slice(2) : value;
+          return k256(decodeHexFallback(hex));
+        }
+        if (type === 'address') {
+          const hex = (value.startsWith('0x') ? value.slice(2) : value).toLowerCase();
+          const padded = new Uint8Array(32);
+          const bytes = decodeHexFallback(hex);
+          padded.set(bytes, 32 - bytes.length);
+          return padded;
+        }
+        if (/^uint\d*$/.test(type) || /^int\d*$/.test(type)) {
+          let n = BigInt(value);
+          if (n < 0n) n = (1n << 256n) + n;
+          const bytes = new Uint8Array(32);
+          for (let i = 31; i >= 0 && n > 0n; i--) {
+            bytes[i] = Number(n & 0xffn);
+            n >>= 8n;
+          }
+          return bytes;
+        }
+        if (type === 'bool') {
+          const bytes = new Uint8Array(32);
+          bytes[31] = value ? 1 : 0;
+          return bytes;
+        }
+        if (/^bytes\d+$/.test(type)) {
+          const hex = (typeof value === 'string' && value.startsWith('0x')) ? value.slice(2) : (typeof value === 'string' ? value : encodeHexFallback(value));
+          const padded = new Uint8Array(32);
+          padded.set(decodeHexFallback(hex));
+          return padded;
+        }
+        if (typedData.types[type]) return hashStruct(type, value);
+        if (type.endsWith(']')) {
+          const base = type.replace(/\[\d*\]$/, '');
+          const parts = value.map(v => encodeValue(base, v));
+          const buf = new Uint8Array(parts.length * 32);
+          parts.forEach((p, i) => buf.set(p, i * 32));
+          return k256(buf);
+        }
+        throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, `Unsupported EIP-712 type: ${type}`);
+      }
+
+      function hashStruct(typeName, data) {
+        const th = k256(encodeType(typeName));
+        const fields = typedData.types[typeName];
+        const parts = [th, ...fields.map(f => encodeValue(f.type, data[f.name]))];
+        const buf = new Uint8Array(parts.length * 32);
+        parts.forEach((p, i) => buf.set(p, i * 32));
+        return k256(buf);
+      }
+
+      const structHash = hashStruct(typedData.primaryType, typedData.message);
+      // --- End EIP-712 struct hash computation ---
+
+      const domain = typedData.domain;
+      const namePtr = allocString(wasm, domain.name || '');
+      const versionPtr = allocString(wasm, domain.version || '');
+      const contractPtr = allocString(wasm, domain.verifyingContract || '');
+      const structHashPtr = allocAndCopy(wasm, structHash);
       const keyPtr = allocAndCopy(wasm, privateKey);
-      const sigPtr = wasm._hd_alloc(256);
+      const sigPtr = wasm._hd_alloc(65);
       try {
-        const result = signTypedDataFn(jsonPtr, keyPtr, sigPtr, 256);
+        const result = signTypedDataFn(namePtr, versionPtr, BigInt(domain.chainId || 0), contractPtr, structHashPtr, keyPtr, sigPtr, 65);
         checkResult(result);
-        return readString(wasm, sigPtr);
+        const sigBytes = readBytes(wasm, sigPtr, 65);
+        return '0x' + encodeHexFallback(sigBytes);
       } finally {
         wasm._hd_secure_wipe(keyPtr, 32);
-        wasm._hd_dealloc(jsonPtr);
+        wasm._hd_dealloc(namePtr);
+        wasm._hd_dealloc(versionPtr);
+        wasm._hd_dealloc(contractPtr);
+        wasm._hd_dealloc(structHashPtr);
         wasm._hd_dealloc(keyPtr);
         wasm._hd_dealloc(sigPtr);
       }
     },
 
-    /**
-     * Verify message signature and recover address
-     * @param {string} message - Original message
-     * @param {string} signature - Hex-encoded signature
-     * @returns {string} Recovered address
-     */
     verifyMessage(message, signature) {
-      const verifyFn = requireWasmFunction(wasm, '_hd_eth_verify_message');
-      const msgPtr = allocString(wasm, message);
-      const sigPtr = allocString(wasm, signature);
+      const recoverFn = requireWasmFunction(wasm, '_hd_eth_recover_address');
+      const enc = new TextEncoder();
+      const msgBytes = typeof message === 'string' ? enc.encode(message) : message;
+      const sigHex = signature.startsWith('0x') ? signature.slice(2) : signature;
+      const sigBytes = decodeHexFallback(sigHex);
+      const msgPtr = allocAndCopy(wasm, msgBytes);
+      const sigPtr = allocAndCopy(wasm, sigBytes);
       const addrPtr = wasm._hd_alloc(64);
       try {
-        const result = verifyFn(msgPtr, sigPtr, addrPtr, 64);
+        const result = recoverFn(msgPtr, msgBytes.length, sigPtr, sigBytes.length, addrPtr, 64);
         checkResult(result);
         return readString(wasm, addrPtr);
       } finally {
@@ -1995,18 +2391,149 @@ function createModule(wasm) {
       }
     },
 
-    /**
-     * Transaction builder
-     */
+    verifyChecksum(address) {
+      const verifyFn = requireWasmFunction(wasm, '_hd_eth_verify_checksum');
+      const addrPtr = allocString(wasm, address);
+      try {
+        return verifyFn(addrPtr) === 1;
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+      }
+    },
+
+    hashMessage(message) {
+      const hashFn = requireWasmFunction(wasm, '_hd_eth_hash_message');
+      const enc = new TextEncoder();
+      const msgBytes = typeof message === 'string' ? enc.encode(message) : message;
+      const msgPtr = allocAndCopy(wasm, msgBytes);
+      const hashPtr = wasm._hd_alloc(32);
+      try {
+        const result = hashFn(msgPtr, msgBytes.length, hashPtr);
+        checkResult(result);
+        return readBytes(wasm, hashPtr, 32);
+      } finally {
+        wasm._hd_dealloc(msgPtr);
+        wasm._hd_dealloc(hashPtr);
+      }
+    },
+
     tx: {
-      create(params) {
-        // Implementation placeholder
-        throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
+      _makeTxObj(handle) {
+        return {
+          _handle: handle,
+
+          sign(privateKey) {
+            const signFn = requireWasmFunction(wasm, '_hd_eth_tx_sign');
+            const keyPtr = allocAndCopy(wasm, privateKey);
+            try {
+              const result = signFn(this._handle, keyPtr);
+              checkResult(result);
+            } finally {
+              wasm._hd_secure_wipe(keyPtr, 32);
+              wasm._hd_dealloc(keyPtr);
+            }
+            return this;
+          },
+
+          serialize() {
+            const serializeFn = requireWasmFunction(wasm, '_hd_eth_tx_serialize');
+            const outPtr = wasm._hd_alloc(65536);
+            const sizePtr = wasm._hd_alloc(4);
+            try {
+              wasm.setValue(sizePtr, 65536, 'i32');
+              const result = serializeFn(this._handle, outPtr, 65536, sizePtr);
+              checkResult(result);
+              const size = wasm.getValue(sizePtr, 'i32');
+              return readBytes(wasm, outPtr, size);
+            } finally {
+              wasm._hd_dealloc(outPtr);
+              wasm._hd_dealloc(sizePtr);
+            }
+          },
+
+          getHash() {
+            const getHashFn = requireWasmFunction(wasm, '_hd_eth_tx_get_hash_hex');
+            const outPtr = wasm._hd_alloc(128);
+            try {
+              const result = getHashFn(this._handle, outPtr, 128);
+              checkResult(result);
+              return readString(wasm, outPtr);
+            } finally {
+              wasm._hd_dealloc(outPtr);
+            }
+          },
+
+          destroy() {
+            if (this._handle) {
+              const destroyFn = requireWasmFunction(wasm, '_hd_eth_tx_destroy');
+              destroyFn(this._handle);
+              this._handle = null;
+            }
+          }
+        };
       },
 
       createEIP1559(params) {
-        // Implementation placeholder
-        throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
+        const createFn = requireWasmFunction(wasm, '_hd_eth_tx_create_eip1559');
+        const handle = createFn(
+          BigInt(params.chainId),
+          BigInt(params.maxPriorityFeePerGas),
+          BigInt(params.maxFeePerGas)
+        );
+        if (!handle) throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
+
+        // Set remaining fields
+        const setNonceFn = requireWasmFunction(wasm, '_hd_eth_tx_set_nonce');
+        setNonceFn(handle, BigInt(params.nonce || 0));
+
+        const setGasLimitFn = requireWasmFunction(wasm, '_hd_eth_tx_set_gas_limit');
+        setGasLimitFn(handle, BigInt(params.gasLimit));
+
+        if (params.to) {
+          const setToFn = requireWasmFunction(wasm, '_hd_eth_tx_set_to_hex');
+          const toPtr = allocString(wasm, params.to);
+          try {
+            setToFn(handle, toPtr);
+          } finally {
+            wasm._hd_dealloc(toPtr);
+          }
+        }
+
+        if (params.value !== undefined) {
+          const setValueFn = requireWasmFunction(wasm, '_hd_eth_tx_set_value');
+          setValueFn(handle, BigInt(params.value));
+        }
+
+        if (params.data) {
+          const setDataFn = requireWasmFunction(wasm, '_hd_eth_tx_set_data');
+          const dataPtr = allocAndCopy(wasm, params.data);
+          try {
+            setDataFn(handle, dataPtr, params.data.length);
+          } finally {
+            wasm._hd_dealloc(dataPtr);
+          }
+        }
+
+        return this._makeTxObj(handle);
+      },
+
+      create(params) {
+        const createFn = requireWasmFunction(wasm, '_hd_eth_tx_create');
+        const handle = createFn(BigInt(params?.chainId || 1));
+        if (!handle) throw new HDWalletError(ErrorCode.NOT_SUPPORTED);
+        return this._makeTxObj(handle);
+      },
+
+      parse(data) {
+        const parseFn = requireWasmFunction(wasm, '_hd_eth_tx_parse');
+        const dataPtr = allocAndCopy(wasm, data);
+        try {
+          const handle = parseFn(dataPtr, data.length);
+          if (!handle) throw new HDWalletError(ErrorCode.INVALID_TRANSACTION);
+          return this._makeTxObj(handle);
+        } finally {
+          wasm._hd_dealloc(dataPtr);
+        }
       }
     }
   };
@@ -2036,71 +2563,127 @@ function createModule(wasm) {
       }
     },
 
-    validateAddress(address) {
+    validateAddress(address, prefix) {
       const validateFn = requireWasmFunction(wasm, '_hd_cosmos_validate_address');
       const addrPtr = allocString(wasm, address);
+      const prefixPtr = prefix ? allocString(wasm, prefix) : 0;
       try {
-        return validateFn(addrPtr) === 0;
+        return validateFn(addrPtr, prefixPtr) === 0;
       } finally {
         wasm._hd_dealloc(addrPtr);
+        if (prefixPtr) wasm._hd_dealloc(prefixPtr);
+      }
+    },
+
+    convertPrefix(address, newPrefix) {
+      const convertFn = requireWasmFunction(wasm, '_hd_cosmos_convert_prefix');
+      const addrPtr = allocString(wasm, address);
+      const prefixPtr = allocString(wasm, newPrefix);
+      const outPtr = wasm._hd_alloc(128);
+      try {
+        const result = convertFn(addrPtr, prefixPtr, outPtr, 128);
+        checkResult(result);
+        return readString(wasm, outPtr);
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+        wasm._hd_dealloc(prefixPtr);
+        wasm._hd_dealloc(outPtr);
       }
     },
 
     signAmino(doc, privateKey) {
       const signAminoFn = requireWasmFunction(wasm, '_hd_cosmos_sign_amino');
-      const docPtr = allocString(wasm, JSON.stringify(doc));
+      // Serialize the sign doc to canonical JSON bytes
+      const jsonStr = JSON.stringify(doc);
+      const enc = new TextEncoder();
+      const docBytes = enc.encode(jsonStr);
+      const docPtr = allocAndCopy(wasm, docBytes);
       const keyPtr = allocAndCopy(wasm, privateKey);
-      const outPtr = wasm._hd_alloc(1024);
+      const sigPtr = wasm._hd_alloc(64);
       try {
-        const result = signAminoFn(docPtr, keyPtr, outPtr, 1024);
+        const result = signAminoFn(docPtr, docBytes.length, keyPtr, sigPtr, 64);
         checkResult(result);
-        return JSON.parse(readString(wasm, outPtr));
+        return readBytes(wasm, sigPtr, 64);
       } finally {
         wasm._hd_secure_wipe(keyPtr, 32);
         wasm._hd_dealloc(docPtr);
         wasm._hd_dealloc(keyPtr);
-        wasm._hd_dealloc(outPtr);
+        wasm._hd_dealloc(sigPtr);
       }
     },
 
-    signDirect(bodyBytes, authInfoBytes, chainId, accountNumber, privateKey) {
+    signDirect(...args) {
       const signDirectFn = requireWasmFunction(wasm, '_hd_cosmos_sign_direct');
-      const bodyPtr = allocAndCopy(wasm, bodyBytes);
-      const authPtr = allocAndCopy(wasm, authInfoBytes);
-      const chainPtr = allocString(wasm, chainId);
-      const keyPtr = allocAndCopy(wasm, privateKey);
-      const outPtr = wasm._hd_alloc(1024);
+      // Support both 2-arg (signDocBytes, privateKey) and 5-arg
+      // (bodyBytes, authInfoBytes, chainId, accountNumber, privateKey) forms
+      if (args.length === 2) {
+        const [signDocBytes, privateKey] = args;
+        const docPtr = allocAndCopy(wasm, signDocBytes);
+        const keyPtr = allocAndCopy(wasm, privateKey);
+        const sigPtr = wasm._hd_alloc(64);
+        try {
+          const result = signDirectFn(docPtr, signDocBytes.length, keyPtr, sigPtr, 64);
+          checkResult(result);
+          return readBytes(wasm, sigPtr, 64);
+        } finally {
+          wasm._hd_secure_wipe(keyPtr, 32);
+          wasm._hd_dealloc(docPtr);
+          wasm._hd_dealloc(keyPtr);
+          wasm._hd_dealloc(sigPtr);
+        }
+      } else {
+        // 5-arg form: build SignDoc from body, authInfo, chainId, accountNumber
+        const [bodyBytes, authInfoBytes, chainId, accountNumber, privateKey] = args;
+        // Build a minimal SignDoc by concatenating the fields
+        // The C function takes raw signDoc bytes, so we need to construct them
+        // For protobuf SignDoc: bodyBytes + authInfoBytes + chainId + accountNumber
+        // We'll pass the raw concatenation and let the C function handle it
+        const enc = new TextEncoder();
+        const chainBytes = enc.encode(chainId);
+        const accNum = BigInt(accountNumber);
+        // Build a simple envelope: length-prefixed fields
+        const totalLen = bodyBytes.length + authInfoBytes.length + chainBytes.length + 8;
+        const signDoc = new Uint8Array(totalLen);
+        let off = 0;
+        signDoc.set(bodyBytes, off); off += bodyBytes.length;
+        signDoc.set(authInfoBytes, off); off += authInfoBytes.length;
+        signDoc.set(chainBytes, off); off += chainBytes.length;
+        // Account number as 8 bytes LE
+        for (let i = 0; i < 8; i++) {
+          signDoc[off + i] = Number((accNum >> BigInt(i * 8)) & 0xFFn);
+        }
+        const docPtr = allocAndCopy(wasm, signDoc);
+        const keyPtr = allocAndCopy(wasm, privateKey);
+        const sigPtr = wasm._hd_alloc(64);
+        try {
+          const result = signDirectFn(docPtr, signDoc.length, keyPtr, sigPtr, 64);
+          checkResult(result);
+          return readBytes(wasm, sigPtr, 64);
+        } finally {
+          wasm._hd_secure_wipe(keyPtr, 32);
+          wasm._hd_dealloc(docPtr);
+          wasm._hd_dealloc(keyPtr);
+          wasm._hd_dealloc(sigPtr);
+        }
+      }
+    },
+
+    verifySignature(message, signature, publicKey) {
+      const verifyFn = requireWasmFunction(wasm, '_hd_cosmos_verify_signature');
+      const msgPtr = allocAndCopy(wasm, message);
+      const sigPtr = allocAndCopy(wasm, signature);
+      const pubPtr = allocAndCopy(wasm, publicKey);
       try {
-        const result = signDirectFn(
-          bodyPtr, bodyBytes.length,
-          authPtr, authInfoBytes.length,
-          chainPtr, BigInt(accountNumber),
-          keyPtr, outPtr, 1024
-        );
-        checkResult(result);
-        return JSON.parse(readString(wasm, outPtr));
+        return verifyFn(msgPtr, message.length, sigPtr, signature.length, pubPtr, publicKey.length) === 1;
       } finally {
-        wasm._hd_secure_wipe(keyPtr, 32);
-        wasm._hd_dealloc(bodyPtr);
-        wasm._hd_dealloc(authPtr);
-        wasm._hd_dealloc(chainPtr);
-        wasm._hd_dealloc(keyPtr);
-        wasm._hd_dealloc(outPtr);
+        wasm._hd_dealloc(msgPtr);
+        wasm._hd_dealloc(sigPtr);
+        wasm._hd_dealloc(pubPtr);
       }
     },
 
     verify(signature, message, publicKey) {
-      const verifyFn = requireWasmFunction(wasm, '_hd_cosmos_verify');
-      const sigPtr = allocAndCopy(wasm, signature);
-      const msgPtr = allocAndCopy(wasm, message);
-      const pubPtr = allocAndCopy(wasm, publicKey);
-      try {
-        return verifyFn(sigPtr, signature.length, msgPtr, message.length, pubPtr, publicKey.length) === 1;
-      } finally {
-        wasm._hd_dealloc(sigPtr);
-        wasm._hd_dealloc(msgPtr);
-        wasm._hd_dealloc(pubPtr);
-      }
+      return this.verifySignature(message, signature, publicKey);
     }
   };
 
@@ -2166,6 +2749,82 @@ function createModule(wasm) {
         wasm._hd_dealloc(sigPtr);
         wasm._hd_dealloc(pubPtr);
       }
+    },
+
+    addressToPubkey(address) {
+      const fn = requireWasmFunction(wasm, '_hd_sol_address_to_pubkey');
+      const addrPtr = allocString(wasm, address);
+      const outPtr = wasm._hd_alloc(32);
+      try {
+        const result = fn(addrPtr, outPtr, 32);
+        checkResult(result);
+        return readBytes(wasm, outPtr, 32);
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    derivePubkey(privateKey) {
+      const fn = requireWasmFunction(wasm, '_hd_sol_derive_pubkey');
+      const keyPtr = allocAndCopy(wasm, privateKey);
+      const outPtr = wasm._hd_alloc(32);
+      try {
+        const result = fn(keyPtr, outPtr, 32);
+        checkResult(result);
+        return readBytes(wasm, outPtr, 32);
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, 32);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    findPDA(programId, seeds) {
+      const fn = requireWasmFunction(wasm, '_hd_sol_find_pda');
+      const progPtr = allocAndCopy(wasm, programId);
+      let totalLen = 0;
+      for (const s of seeds) totalLen += s.length;
+      const flatSeeds = new Uint8Array(totalLen);
+      let off = 0;
+      for (const s of seeds) { flatSeeds.set(s, off); off += s.length; }
+      const seedsPtr = totalLen > 0 ? allocAndCopy(wasm, flatSeeds) : 0;
+      const seedLensPtr = wasm._hd_alloc(seeds.length * 4);
+      for (let i = 0; i < seeds.length; i++) {
+        wasm.setValue(seedLensPtr + i * 4, seeds[i].length, 'i32');
+      }
+      const addrPtr = wasm._hd_alloc(64);
+      const bumpPtr = wasm._hd_alloc(1);
+      try {
+        const result = fn(progPtr, seedsPtr || 0, totalLen, seedLensPtr, seeds.length, addrPtr, 64, bumpPtr);
+        checkResult(result);
+        return {
+          address: readString(wasm, addrPtr),
+          bump: wasm.HEAPU8[bumpPtr]
+        };
+      } finally {
+        wasm._hd_dealloc(progPtr);
+        if (seedsPtr) wasm._hd_dealloc(seedsPtr);
+        wasm._hd_dealloc(seedLensPtr);
+        wasm._hd_dealloc(addrPtr);
+        wasm._hd_dealloc(bumpPtr);
+      }
+    },
+
+    getAssociatedTokenAddress(walletAddress, mintAddress) {
+      const fn = requireWasmFunction(wasm, '_hd_sol_get_associated_token_address');
+      const walletPtr = allocString(wasm, walletAddress);
+      const mintPtr = allocString(wasm, mintAddress);
+      const outPtr = wasm._hd_alloc(64);
+      try {
+        const result = fn(walletPtr, mintPtr, outPtr, 64);
+        checkResult(result);
+        return readString(wasm, outPtr);
+      } finally {
+        wasm._hd_dealloc(walletPtr);
+        wasm._hd_dealloc(mintPtr);
+        wasm._hd_dealloc(outPtr);
+      }
     }
   };
 
@@ -2192,13 +2851,61 @@ function createModule(wasm) {
       }
     },
 
-    validateAddress(address) {
+    validateAddress(address, prefix) {
       const validateFn = requireWasmFunction(wasm, '_hd_dot_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
-        return validateFn(addrPtr) === 0;
+        return validateFn(addrPtr, prefix !== undefined ? prefix : -1) === 0;
       } finally {
         wasm._hd_dealloc(addrPtr);
+      }
+    },
+
+    decodeAddress(address) {
+      const decodeFn = requireWasmFunction(wasm, '_hd_dot_decode_address');
+      const addrPtr = allocString(wasm, address);
+      const prefixPtr = wasm._hd_alloc(2);
+      const pubPtr = wasm._hd_alloc(32);
+      try {
+        const result = decodeFn(addrPtr, prefixPtr, pubPtr, 32);
+        checkResult(result);
+        return {
+          prefix: wasm.getValue(prefixPtr, 'i16'),
+          publicKey: readBytes(wasm, pubPtr, 32)
+        };
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+        wasm._hd_dealloc(prefixPtr);
+        wasm._hd_dealloc(pubPtr);
+      }
+    },
+
+    convertPrefix(address, newPrefix) {
+      const convertFn = requireWasmFunction(wasm, '_hd_dot_convert_prefix');
+      const addrPtr = allocString(wasm, address);
+      const outPtr = wasm._hd_alloc(64);
+      try {
+        const result = convertFn(addrPtr, newPrefix, outPtr, 64);
+        checkResult(result);
+        return readString(wasm, outPtr);
+      } finally {
+        wasm._hd_dealloc(addrPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    derivePubkey(privateKey) {
+      const fn = requireWasmFunction(wasm, '_hd_dot_derive_pubkey');
+      const keyPtr = allocAndCopy(wasm, privateKey);
+      const outPtr = wasm._hd_alloc(32);
+      try {
+        const result = fn(keyPtr, outPtr, 32);
+        checkResult(result);
+        return readBytes(wasm, outPtr, 32);
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, 32);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(outPtr);
       }
     },
 
@@ -2270,16 +2977,16 @@ function createModule(wasm) {
      * @returns {Promise<Object>} Hardware wallet interface
      */
     async connect(devicePath) {
-      const connectFn = requireWasmFunction(
-        wasm,
-        '_hd_hw_connect',
-        ErrorCode.NOT_SUPPORTED,
-        'Hardware wallet support is not available in this build'
-      );
+      if (!this.isAvailable()) {
+        throw new HDWalletError(
+          ErrorCode.NOT_SUPPORTED,
+          'Hardware wallet support is not available in this build'
+        );
+      }
 
       const pathPtr = allocString(wasm, devicePath);
       try {
-        const handle = connectFn(pathPtr);
+        const handle = wasm._hd_hw_connect(pathPtr);
         if (!handle) {
           throw new HDWalletError(ErrorCode.DEVICE_NOT_CONNECTED);
         }
@@ -2288,34 +2995,29 @@ function createModule(wasm) {
           _handle: handle,
 
           get vendor() {
-            const getVendorFn = requireWasmFunction(wasm, '_hd_hw_get_vendor', ErrorCode.NEEDS_BRIDGE);
-            const ptr = getVendorFn(this._handle);
+            const ptr = wasm._hd_hw_get_vendor(this._handle);
             return readString(wasm, ptr);
           },
 
           get model() {
-            const getModelFn = requireWasmFunction(wasm, '_hd_hw_get_model', ErrorCode.NEEDS_BRIDGE);
-            const ptr = getModelFn(this._handle);
+            const ptr = wasm._hd_hw_get_model(this._handle);
             return readString(wasm, ptr);
           },
 
           get firmwareVersion() {
-            const getFirmwareFn = requireWasmFunction(wasm, '_hd_hw_get_firmware_version', ErrorCode.NEEDS_BRIDGE);
-            const ptr = getFirmwareFn(this._handle);
+            const ptr = wasm._hd_hw_get_firmware_version(this._handle);
             return readString(wasm, ptr);
           },
 
           get isConnected() {
-            const isConnectedFn = requireWasmFunction(wasm, '_hd_hw_is_connected', ErrorCode.NEEDS_BRIDGE);
-            return isConnectedFn(this._handle) !== 0;
+            return wasm._hd_hw_is_connected(this._handle) !== 0;
           },
 
           async getPublicKey(path, curve = Curve.SECP256K1) {
-            const getPublicKeyFn = requireWasmFunction(wasm, '_hd_hw_get_public_key', ErrorCode.NEEDS_BRIDGE);
             const pathPtr = allocString(wasm, path);
             const outPtr = wasm._hd_alloc(65);
             try {
-              const result = getPublicKeyFn(this._handle, pathPtr, curve, outPtr, 65);
+              const result = wasm._hd_hw_get_public_key(this._handle, pathPtr, curve, outPtr, 65);
               checkResult(result);
               return readBytes(wasm, outPtr, 33);
             } finally {
@@ -2325,12 +3027,11 @@ function createModule(wasm) {
           },
 
           async signTransaction(path, transaction) {
-            const signTxFn = requireWasmFunction(wasm, '_hd_hw_sign_transaction', ErrorCode.NEEDS_BRIDGE);
             const pathPtr = allocString(wasm, path);
             const txPtr = allocAndCopy(wasm, transaction);
             const sigPtr = wasm._hd_alloc(128);
             try {
-              const result = signTxFn(this._handle, pathPtr, txPtr, transaction.length, sigPtr, 128);
+              const result = wasm._hd_hw_sign_transaction(this._handle, pathPtr, txPtr, transaction.length, sigPtr, 128);
               checkResult(result);
               return readBytes(wasm, sigPtr, 64);
             } finally {
@@ -2341,12 +3042,11 @@ function createModule(wasm) {
           },
 
           async signMessage(path, message) {
-            const signMessageFn = requireWasmFunction(wasm, '_hd_hw_sign_message', ErrorCode.NEEDS_BRIDGE);
             const pathPtr = allocString(wasm, path);
             const msgPtr = allocString(wasm, message);
             const sigPtr = wasm._hd_alloc(128);
             try {
-              const result = signMessageFn(this._handle, pathPtr, msgPtr, sigPtr, 128);
+              const result = wasm._hd_hw_sign_message(this._handle, pathPtr, msgPtr, sigPtr, 128);
               checkResult(result);
               return readBytes(wasm, sigPtr, 64);
             } finally {
@@ -2357,14 +3057,12 @@ function createModule(wasm) {
           },
 
           async ping() {
-            const pingFn = requireWasmFunction(wasm, '_hd_hw_ping', ErrorCode.NEEDS_BRIDGE);
-            return pingFn(this._handle) === 0;
+            return wasm._hd_hw_ping(this._handle) === 0;
           },
 
           disconnect() {
             if (this._handle) {
-              const disconnectFn = requireWasmFunction(wasm, '_hd_hw_disconnect', ErrorCode.NEEDS_BRIDGE);
-              disconnectFn(this._handle);
+              wasm._hd_hw_disconnect(this._handle);
               this._handle = null;
             }
           }
@@ -2411,7 +3109,7 @@ function createModule(wasm) {
         },
 
         removeWallet(id) {
-          const removeWalletFn = requireWasmFunction(wasm, '_hd_keyring_remove_wallet');
+          const removeWalletFn = requireWasmFunction(wasm, '_hd_keyring_remove_wallet', ErrorCode.NOT_SUPPORTED, 'Keyring is not available in the WASM build');
           const idPtr = allocString(wasm, id);
           try {
             const result = removeWalletFn(this._handle, idPtr);
@@ -2439,7 +3137,7 @@ function createModule(wasm) {
         },
 
         signTransaction(walletId, path, transaction) {
-          const signTransactionFn = requireWasmFunction(wasm, '_hd_keyring_sign_transaction');
+          const signTransactionFn = requireWasmFunction(wasm, '_hd_keyring_sign_transaction', ErrorCode.NOT_SUPPORTED, 'Keyring is not available in the WASM build');
           const idPtr = allocString(wasm, walletId);
           const pathPtr = allocString(wasm, path);
           const txPtr = allocAndCopy(wasm, transaction);
@@ -2457,7 +3155,7 @@ function createModule(wasm) {
         },
 
         signMessage(walletId, path, message) {
-          const signMessageFn = requireWasmFunction(wasm, '_hd_keyring_sign_message');
+          const signMessageFn = requireWasmFunction(wasm, '_hd_keyring_sign_message', ErrorCode.NOT_SUPPORTED, 'Keyring is not available in the WASM build');
           const idPtr = allocString(wasm, walletId);
           const pathPtr = allocString(wasm, path);
           const msgPtr = allocAndCopy(wasm, message);
@@ -2889,73 +3587,19 @@ function createModule(wasm) {
     },
 
     encodeHex(data) {
-      const encodeHexFn = getWasmFunction(wasm, '_hd_encode_hex');
-      if (!encodeHexFn) {
-        return encodeHexFallback(data);
-      }
-      const dataPtr = allocAndCopy(wasm, data);
-      try {
-        const ptr = encodeHexFn(dataPtr, data.length);
-        return readString(wasm, ptr);
-      } finally {
-        wasm._hd_dealloc(dataPtr);
-      }
+      return encodeHexFallback(data);
     },
 
     decodeHex(str) {
-      const decodeHexFn = getWasmFunction(wasm, '_hd_decode_hex');
-      if (!decodeHexFn) {
-        return decodeHexFallback(str);
-      }
-      const strPtr = allocString(wasm, str);
-      const outPtr = wasm._hd_alloc(str.length / 2);
-      const sizePtr = wasm._hd_alloc(4);
-      try {
-        wasm.setValue(sizePtr, str.length / 2, 'i32');
-        const result = decodeHexFn(strPtr, outPtr, sizePtr);
-        checkResult(result);
-        const size = wasm.getValue(sizePtr, 'i32');
-        return readBytes(wasm, outPtr, size);
-      } finally {
-        wasm._hd_dealloc(strPtr);
-        wasm._hd_dealloc(outPtr);
-        wasm._hd_dealloc(sizePtr);
-      }
+      return decodeHexFallback(str);
     },
 
     encodeBase64(data) {
-      const encodeBase64Fn = getWasmFunction(wasm, '_hd_encode_base64');
-      if (!encodeBase64Fn) {
-        return encodeBase64Fallback(data);
-      }
-      const dataPtr = allocAndCopy(wasm, data);
-      try {
-        const ptr = encodeBase64Fn(dataPtr, data.length);
-        return readString(wasm, ptr);
-      } finally {
-        wasm._hd_dealloc(dataPtr);
-      }
+      return encodeBase64Fallback(data);
     },
 
     decodeBase64(str) {
-      const decodeBase64Fn = getWasmFunction(wasm, '_hd_decode_base64');
-      if (!decodeBase64Fn) {
-        return decodeBase64Fallback(str);
-      }
-      const strPtr = allocString(wasm, str);
-      const outPtr = wasm._hd_alloc(str.length);
-      const sizePtr = wasm._hd_alloc(4);
-      try {
-        wasm.setValue(sizePtr, str.length, 'i32');
-        const result = decodeBase64Fn(strPtr, outPtr, sizePtr);
-        checkResult(result);
-        const size = wasm.getValue(sizePtr, 'i32');
-        return readBytes(wasm, outPtr, size);
-      } finally {
-        wasm._hd_dealloc(strPtr);
-        wasm._hd_dealloc(outPtr);
-        wasm._hd_dealloc(sizePtr);
-      }
+      return decodeBase64Fallback(str);
     },
 
     // Memory
@@ -2965,6 +3609,131 @@ function createModule(wasm) {
         for (let i = 0; i < data.length; i++) {
           data[i] = 0;
         }
+      }
+    }
+  };
+
+  // ==========================================================================
+  // ECIES API
+  // ==========================================================================
+
+  const CURVE_NAME_MAP = { secp256k1: 0, ed25519: 1, p256: 2, p384: 3, x25519: 4 };
+
+  const ecies = {
+    encrypt(curve, recipientPublicKey, plaintext, aad = new Uint8Array(0)) {
+      const curveId = typeof curve === 'number' ? curve : (CURVE_NAME_MAP[curve] ?? 0);
+      const encryptFn = requireWasmFunction(wasm, '_hd_ecies_encrypt');
+      const overheadFn = requireWasmFunction(wasm, '_hd_ecies_overhead');
+      const overhead = overheadFn(curveId);
+      const outSize = plaintext.length + overhead;
+      const pubPtr = allocAndCopy(wasm, recipientPublicKey);
+      const ptPtr = allocAndCopy(wasm, plaintext);
+      const aadPtr = aad.length > 0 ? allocAndCopy(wasm, aad) : 0;
+      const outPtr = wasm._hd_alloc(outSize);
+      try {
+        const result = encryptFn(curveId, pubPtr, recipientPublicKey.length,
+          ptPtr, plaintext.length, aadPtr, aad.length, outPtr, outSize);
+        if (result < 0) throw new HDWalletError(-result);
+        return readBytes(wasm, outPtr, result);
+      } finally {
+        wasm._hd_dealloc(pubPtr);
+        wasm._hd_dealloc(ptPtr);
+        if (aadPtr) wasm._hd_dealloc(aadPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    decrypt(curve, recipientPrivateKey, ciphertext, aad = new Uint8Array(0)) {
+      const curveId = typeof curve === 'number' ? curve : (CURVE_NAME_MAP[curve] ?? 0);
+      const decryptFn = requireWasmFunction(wasm, '_hd_ecies_decrypt');
+      const privPtr = allocAndCopy(wasm, recipientPrivateKey);
+      const ctPtr = allocAndCopy(wasm, ciphertext);
+      const aadPtr = aad.length > 0 ? allocAndCopy(wasm, aad) : 0;
+      const outPtr = wasm._hd_alloc(ciphertext.length);
+      try {
+        const result = decryptFn(curveId, privPtr, recipientPrivateKey.length,
+          ctPtr, ciphertext.length, aadPtr, aad.length, outPtr, ciphertext.length);
+        if (result < 0) throw new HDWalletError(-result);
+        return readBytes(wasm, outPtr, result);
+      } finally {
+        wasm._hd_secure_wipe(privPtr, recipientPrivateKey.length);
+        wasm._hd_dealloc(privPtr);
+        wasm._hd_dealloc(ctPtr);
+        if (aadPtr) wasm._hd_dealloc(aadPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    }
+  };
+
+  // ==========================================================================
+  // AES-CTR API
+  // ==========================================================================
+
+  const aesCtr = {
+    encrypt(key, plaintext, iv) {
+      const encryptFn = requireWasmFunction(wasm, '_hd_aes_ctr_encrypt');
+      const keyPtr = allocAndCopy(wasm, key);
+      const ptPtr = allocAndCopy(wasm, plaintext);
+      const ivPtr = allocAndCopy(wasm, iv);
+      const outPtr = wasm._hd_alloc(plaintext.length);
+      try {
+        const result = encryptFn(keyPtr, key.length, ptPtr, plaintext.length, ivPtr, iv.length, outPtr, plaintext.length);
+        if (result < 0) throw new HDWalletError(-result);
+        return readBytes(wasm, outPtr, plaintext.length);
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, key.length);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(ptPtr);
+        wasm._hd_dealloc(ivPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    decrypt(key, ciphertext, iv) {
+      const decryptFn = requireWasmFunction(wasm, '_hd_aes_ctr_decrypt');
+      const keyPtr = allocAndCopy(wasm, key);
+      const ctPtr = allocAndCopy(wasm, ciphertext);
+      const ivPtr = allocAndCopy(wasm, iv);
+      const outPtr = wasm._hd_alloc(ciphertext.length);
+      try {
+        const result = decryptFn(keyPtr, key.length, ctPtr, ciphertext.length, ivPtr, iv.length, outPtr, ciphertext.length);
+        if (result < 0) throw new HDWalletError(-result);
+        return readBytes(wasm, outPtr, ciphertext.length);
+      } finally {
+        wasm._hd_secure_wipe(keyPtr, key.length);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(ctPtr);
+        wasm._hd_dealloc(ivPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    }
+  };
+
+  // ==========================================================================
+  // SLIP-10 API
+  // ==========================================================================
+
+  const slip10 = {
+    deriveEd25519Path(seed, path) {
+      const deriveFn = requireWasmFunction(wasm, '_hd_slip10_ed25519_derive_path');
+      const seedPtr = allocAndCopy(wasm, seed);
+      const pathPtr = allocString(wasm, path);
+      const keyPtr = wasm._hd_alloc(32);
+      const chainCodePtr = wasm._hd_alloc(32);
+      try {
+        const result = deriveFn(seedPtr, seed.length, pathPtr, keyPtr, chainCodePtr);
+        checkResult(result);
+        return {
+          privateKey: readBytes(wasm, keyPtr, 32),
+          chainCode: readBytes(wasm, chainCodePtr, 32)
+        };
+      } finally {
+        wasm._hd_secure_wipe(seedPtr, seed.length);
+        wasm._hd_secure_wipe(keyPtr, 32);
+        wasm._hd_dealloc(seedPtr);
+        wasm._hd_dealloc(pathPtr);
+        wasm._hd_dealloc(keyPtr);
+        wasm._hd_dealloc(chainCodePtr);
       }
     }
   };
@@ -3026,12 +3795,7 @@ function createModule(wasm) {
     },
 
     wasiGetWarningMessage(feature) {
-      const getWarningMessageFn = getWasmFunction(wasm, '_hd_wasi_get_warning_message');
-      if (!getWarningMessageFn) {
-        return 'WASI warning API unavailable in this build';
-      }
-      const ptr = getWarningMessageFn(feature);
-      return readString(wasm, ptr);
+      return 'WASI warning API unavailable in this build';
     },
 
     // Entropy
@@ -3097,6 +3861,7 @@ function createModule(wasm) {
     mnemonic,
     hdkey,
     curves,
+    coin,
     bitcoin,
     ethereum,
     cosmos,
@@ -3105,6 +3870,9 @@ function createModule(wasm) {
     hardware,
     keyring,
     utils,
+    ecies,
+    aesCtr,
+    slip10,
 
     // Key derivation helpers (convenience wrappers)
     buildSigningPath,

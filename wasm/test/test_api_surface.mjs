@@ -190,22 +190,16 @@ test('curve helper methods and recoverable-signature path are callable', () => {
   const isValid = wallet.curves.secp256k1.verify(messageHash, signature, uncompressed);
   assertEqual(isValid, true, 'secp256k1 signature should verify');
 
-  // Recoverable-signature support is optional in this build.
-  let recoverable = null;
-  try {
-    recoverable = wallet.curves.secp256k1.signRecoverable(messageHash, privateKey);
-    assertEqual(recoverable.signature.length, 64, 'Recoverable signature payload should be 64 bytes');
-    assert(typeof recoverable.recoveryId === 'number', 'recoveryId should be numeric');
-  } catch (error) {
-    assertEqual(error.name, 'HDWalletError', 'Expected typed error when recoverable-signature support is absent');
-    assertEqual(error.code, 3, 'Expected NOT_SUPPORTED when recoverable signing is unavailable');
-  }
+  // Recoverable-signature support (libsecp256k1 recovery module enabled).
+  const recoverable = wallet.curves.secp256k1.signRecoverable(messageHash, privateKey);
+  assertEqual(recoverable.signature.length, 64, 'Recoverable signature payload should be 64 bytes');
+  assert(typeof recoverable.recoveryId === 'number', 'recoveryId should be numeric');
+  assert(recoverable.recoveryId >= 0 && recoverable.recoveryId <= 3, 'recoveryId should be 0-3');
 
-  // Recover is also optional; if signRecoverable worked, recover should still fail
-  // cleanly with a typed not-supported error on this build.
-  if (recoverable) {
-    expectHdWalletError(() => wallet.curves.secp256k1.recover(messageHash, recoverable.signature, recoverable.recoveryId), 3);
-  }
+  // Recover public key from the recoverable signature.
+  const recoveredPub = wallet.curves.secp256k1.recover(messageHash, recoverable.signature, recoverable.recoveryId);
+  assertEqual(recoveredPub.length, 33, 'Recovered public key should be 33 bytes (compressed)');
+  assertEqual(bytesToHex(recoveredPub), expectedSecpPub, 'Recovered pubkey should match original');
 });
 
 test('P-256/P-384 methods sign, verify, and ECDH correctly', () => {

@@ -141,6 +141,11 @@ export class AlignedKeyDeriver {
    * @returns {Array<DerivedKey>} Array of derived keys
    */
   deriveBatch(baseKey, startIndex, count, hardened = false) {
+    // Short-circuit: requesting zero keys returns empty array
+    if (count === 0) {
+      return [];
+    }
+
     const wasm = this.#wasm;
 
     // Allocate request buffer

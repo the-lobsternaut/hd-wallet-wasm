@@ -116,21 +116,13 @@ bool verifyEIP55Checksum(const std::string& address) {
     return false;
   }
 
-  // Check if it has mixed case (if all lowercase or all uppercase, no checksum to verify)
-  bool has_upper = false, has_lower = false;
-  for (size_t i = 2; i < address.size(); i++) {
-    if (std::isalpha(static_cast<unsigned char>(address[i]))) {
-      if (std::isupper(static_cast<unsigned char>(address[i]))) has_upper = true;
-      if (std::islower(static_cast<unsigned char>(address[i]))) has_lower = true;
-    }
-  }
+  // EIP-55: Only properly checksummed (mixed-case) addresses pass verification.
+  // All-lowercase addresses are NOT checksummed - they are just normalized addresses.
+  // All-uppercase addresses are also NOT checksummed.
+  // Per the spec, a checksummed address must have the correct mix of upper/lower case
+  // as determined by the Keccak256 hash of the lowercase hex.
 
-  if (!has_upper || !has_lower) {
-    // No checksum to verify (all lowercase or all uppercase)
-    return true;
-  }
-
-  // Apply checksum and compare
+  // Apply checksum and compare - the address must exactly match the checksummed form
   std::string checksummed = applyEIP55Checksum(address);
   return checksummed == address;
 }
@@ -275,15 +267,17 @@ Bytes32 EIP712Domain::hash() const {
   encoded.insert(encoded.end(), chain_bytes.begin(), chain_bytes.end());
 
   // verifyingContract (address, padded to 32 bytes)
-  if (!verifyingContract.empty()) {
-    auto addr_bytes = fromHex(verifyingContract);
-    if (addr_bytes.ok()) {
-      Bytes32 padded;
-      std::fill(padded.begin(), padded.end(), 0);
-      size_t offset = 32 - std::min(addr_bytes.value.size(), size_t(32));
-      std::copy(addr_bytes.value.begin(), addr_bytes.value.end(), padded.begin() + offset);
-      encoded.insert(encoded.end(), padded.begin(), padded.end());
+  {
+    Bytes32 padded;
+    std::fill(padded.begin(), padded.end(), 0);
+    if (!verifyingContract.empty()) {
+      auto addr_bytes = fromHex(verifyingContract);
+      if (addr_bytes.ok()) {
+        size_t offset = 32 - std::min(addr_bytes.value.size(), size_t(32));
+        std::copy(addr_bytes.value.begin(), addr_bytes.value.end(), padded.begin() + offset);
+      }
     }
+    encoded.insert(encoded.end(), padded.begin(), padded.end());
   }
 
   // salt (optional, already 32 bytes)

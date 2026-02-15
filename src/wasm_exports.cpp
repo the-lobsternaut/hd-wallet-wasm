@@ -57,6 +57,11 @@ extern "C" int32_t hd_ecdh(
 #include "hd_wallet/crypto_openssl.h"
 #endif
 
+#ifdef HD_WALLET_USE_LIBSECP256K1
+#include <secp256k1.h>
+#include <secp256k1_recovery.h>
+#endif
+
 #include <cstring>
 #include <array>
 #include <vector>
@@ -378,6 +383,144 @@ int32_t hd_secp256k1_verify(
     }
 }
 
+// =============================================================================
+// secp256k1 Recoverable Signing (for Bitcoin/Ethereum message signing)
+// =============================================================================
+
+#ifdef HD_WALLET_USE_LIBSECP256K1
+
+namespace {
+/**
+ * Get libsecp256k1 context for recoverable signatures (lazy init)
+ */
+static secp256k1_context* wasm_secp256k1_ctx() {
+    static secp256k1_context* ctx = secp256k1_context_create(
+        SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+    return ctx;
+}
+} // anonymous namespace
+
+extern "C" HD_WALLET_EXPORT
+int32_t hd_secp256k1_sign_recoverable(
+    const uint8_t* hash, size_t hash_len,
+    const uint8_t* privkey,
+    uint8_t* out_sig65
+) {
+    if (!hash || hash_len != 32 || !privkey || !out_sig65) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    secp256k1_context* ctx = wasm_secp256k1_ctx();
+
+    secp256k1_ecdsa_recoverable_signature sig;
+    if (secp256k1_ecdsa_sign_recoverable(ctx, &sig, hash, privkey, NULL, NULL) != 1) {
+        return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+    }
+
+    int recid;
+    secp256k1_ecdsa_recoverable_signature_serialize_compact(ctx, out_sig65, &recid, &sig);
+    out_sig65[64] = static_cast<uint8_t>(recid);
+
+    return 65;
+}
+
+extern "C" HD_WALLET_EXPORT
+int32_t hd_secp256k1_recover(
+    const uint8_t* hash, size_t hash_len,
+    const uint8_t* sig65,
+    uint8_t* out_pubkey33
+) {
+    if (!hash || hash_len != 32 || !sig65 || !out_pubkey33) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    secp256k1_context* ctx = wasm_secp256k1_ctx();
+
+    int recid = sig65[64];
+    if (recid < 0 || recid > 3) {
+        return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+    }
+
+    secp256k1_ecdsa_recoverable_signature sig;
+    if (secp256k1_ecdsa_recoverable_signature_parse_compact(ctx, &sig, sig65, recid) != 1) {
+        return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+    }
+
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ecdsa_recover(ctx, &pubkey, &sig, hash) != 1) {
+        return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+    }
+
+    size_t len = 33;
+    secp256k1_ec_pubkey_serialize(ctx, out_pubkey33, &len, &pubkey, SECP256K1_EC_COMPRESSED);
+
+    return 33;
+}
+
+#else // !HD_WALLET_USE_LIBSECP256K1
+
+extern "C" HD_WALLET_EXPORT
+int32_t hd_secp256k1_sign_recoverable(
+    const uint8_t* hash, size_t hash_len,
+    const uint8_t* privkey,
+    uint8_t* out_sig65
+) {
+    if (!hash || hash_len != 32 || !privkey || !out_sig65) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    // Fallback to Crypto++ recoverable signing
+    Bytes32 msgHash{};
+    std::memcpy(msgHash.data(), hash, 32);
+
+    Bytes32 privateKey{};
+    std::memcpy(privateKey.data(), privkey, 32);
+
+    auto signResult = ecdsa::secp256k1SignRecoverable(privateKey, msgHash);
+    if (!signResult.ok()) {
+        return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+    }
+
+    // signResult.value is 65 bytes: v[1] + r[32] + s[32]
+    // We need r[32] + s[32] + v[1] format
+    std::memcpy(out_sig65, signResult.value.data() + 1, 64);  // r + s
+    out_sig65[64] = signResult.value[0] - 27;  // Convert from Bitcoin convention to recid
+
+    std::memset(msgHash.data(), 0, msgHash.size());
+    std::memset(privateKey.data(), 0, privateKey.size());
+
+    return 65;
+}
+
+extern "C" HD_WALLET_EXPORT
+int32_t hd_secp256k1_recover(
+    const uint8_t* hash, size_t hash_len,
+    const uint8_t* sig65,
+    uint8_t* out_pubkey33
+) {
+    if (!hash || hash_len != 32 || !sig65 || !out_pubkey33) {
+        return static_cast<int32_t>(Error::INVALID_ARGUMENT);
+    }
+
+    // Build recoverable signature in Bitcoin convention: v[1] + r[32] + s[32]
+    ecdsa::RecoverableSignature recSig;
+    recSig[0] = 27 + sig65[64];  // Convert recid to Bitcoin convention
+    std::memcpy(recSig.data() + 1, sig65, 64);  // r + s
+
+    Bytes32 msgHash{};
+    std::memcpy(msgHash.data(), hash, 32);
+
+    auto result = ecdsa::secp256k1RecoverCompressed(msgHash, recSig);
+    if (!result.ok()) {
+        return static_cast<int32_t>(Error::INVALID_SIGNATURE);
+    }
+
+    std::memcpy(out_pubkey33, result.value.data(), 33);
+    return 33;
+}
+
+#endif // HD_WALLET_USE_LIBSECP256K1
+
 extern "C" HD_WALLET_EXPORT
 int32_t hd_curve_decompress_pubkey(
     const uint8_t* compressed,
@@ -569,16 +712,45 @@ int32_t hd_ecdh_p256(
     uint8_t* shared_secret_out, size_t out_size
 ) {
     if (out_size < 32) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
-    if (public_key_len != 65 || public_key[0] != 0x04) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+
+    // Accept compressed (33) or uncompressed (65) public keys
+    if (public_key_len != 33 && public_key_len != 65) {
+        return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+    }
 
     try {
-        CryptoPP::ECDH<CryptoPP::ECP>::Domain ecdh(CryptoPP::ASN1::secp256r1());
-        // SECURITY FIX [VULN-12]: Use SecByteBlock to auto-wipe shared secret
-        CryptoPP::SecByteBlock sharedPoint(ecdh.AgreedValueLength());
-        if (!ecdh.Agree(sharedPoint.data(), private_key, public_key + 1)) {
+        // Use manual DecodePoint + ScalarMultiply instead of ECDH::Domain::Agree()
+        // which produces incorrect results in 32-bit Emscripten WASM builds.
+        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> curveParams;
+        curveParams.Initialize(CryptoPP::ASN1::secp256r1());
+        const CryptoPP::ECP& ec = curveParams.GetCurve();
+        const CryptoPP::Integer& order = curveParams.GetGroupOrder();
+
+        CryptoPP::Integer d(private_key, 32);
+        if (d <= 0 || d >= order) {
+            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
+        }
+
+        CryptoPP::ECP::Point Q;
+        if (public_key_len == 65) {
+            if (public_key[0] != 0x04) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+            if (!ec.DecodePoint(Q, public_key, 65)) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+        } else {
+            if (public_key[0] != 0x02 && public_key[0] != 0x03) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+            if (!ec.DecodePoint(Q, public_key, 33)) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+        }
+
+        if (!ec.VerifyPoint(Q)) {
+            return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+        }
+
+        CryptoPP::ECP::Point S = ec.ScalarMultiply(Q, d);
+        if (S.identity) {
             return static_cast<int32_t>(Error::INTERNAL);
         }
-        std::memcpy(shared_secret_out, sharedPoint.data(), 32);
+
+        // SECURITY FIX [VULN-12]: Output only x-coordinate as shared secret
+        S.x.Encode(shared_secret_out, 32);
         return 32;
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);
@@ -661,16 +833,45 @@ int32_t hd_ecdh_p384(
     uint8_t* shared_secret_out, size_t out_size
 ) {
     if (out_size < 48) return static_cast<int32_t>(Error::OUT_OF_MEMORY);
-    if (public_key_len != 97 || public_key[0] != 0x04) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+
+    // Accept compressed (49) or uncompressed (97) public keys
+    if (public_key_len != 49 && public_key_len != 97) {
+        return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+    }
 
     try {
-        CryptoPP::ECDH<CryptoPP::ECP>::Domain ecdh(CryptoPP::ASN1::secp384r1());
-        // SECURITY FIX [VULN-12]: Use SecByteBlock to auto-wipe shared secret
-        CryptoPP::SecByteBlock sharedPoint(ecdh.AgreedValueLength());
-        if (!ecdh.Agree(sharedPoint.data(), private_key, public_key + 1)) {
+        // Use manual DecodePoint + ScalarMultiply instead of ECDH::Domain::Agree()
+        // which produces incorrect results in 32-bit Emscripten WASM builds.
+        CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP> curveParams;
+        curveParams.Initialize(CryptoPP::ASN1::secp384r1());
+        const CryptoPP::ECP& ec = curveParams.GetCurve();
+        const CryptoPP::Integer& order = curveParams.GetGroupOrder();
+
+        CryptoPP::Integer d(private_key, 48);
+        if (d <= 0 || d >= order) {
+            return static_cast<int32_t>(Error::INVALID_PRIVATE_KEY);
+        }
+
+        CryptoPP::ECP::Point Q;
+        if (public_key_len == 97) {
+            if (public_key[0] != 0x04) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+            if (!ec.DecodePoint(Q, public_key, 97)) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+        } else {
+            if (public_key[0] != 0x02 && public_key[0] != 0x03) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+            if (!ec.DecodePoint(Q, public_key, 49)) return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+        }
+
+        if (!ec.VerifyPoint(Q)) {
+            return static_cast<int32_t>(Error::INVALID_PUBLIC_KEY);
+        }
+
+        CryptoPP::ECP::Point S = ec.ScalarMultiply(Q, d);
+        if (S.identity) {
             return static_cast<int32_t>(Error::INTERNAL);
         }
-        std::memcpy(shared_secret_out, sharedPoint.data(), 48);
+
+        // SECURITY FIX [VULN-12]: Output only x-coordinate as shared secret
+        S.x.Encode(shared_secret_out, 48);
         return 48;
     } catch (...) {
         return static_cast<int32_t>(Error::INTERNAL);

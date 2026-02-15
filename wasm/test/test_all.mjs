@@ -115,6 +115,12 @@ async function runTests() {
     console.log('\n\x1b[1mCrypto Tests:\x1b[0m');
     await import('./test_crypto.mjs');
 
+    console.log('\n\x1b[1mExtended Feature Tests:\x1b[0m');
+    await import('./test_extended_features.mjs');
+
+    console.log('\n\x1b[1mTransaction Builder Tests:\x1b[0m');
+    await import('./test_transactions.mjs');
+
     console.log('\n\x1b[1mAPI Surface Tests:\x1b[0m');
     await import('./test_api_surface.mjs');
 
@@ -123,6 +129,9 @@ async function runTests() {
 
     console.log('\n\x1b[1mIsomorphic Tests:\x1b[0m');
     await import('./test_isomorphic.mjs');
+
+    console.log('\n\x1b[1mLow-Priority Edge Case Tests (L1-L8):\x1b[0m');
+    await import('./test_low_edge_cases.mjs');
 
   } catch (error) {
     console.error('\nTest suite error:', error.message);

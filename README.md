@@ -22,7 +22,7 @@ HD Wallet WASM provides a complete implementation of BIP-32/39/44 hierarchical d
 
 - **Mnemonic Generation & Validation**
   - 12, 15, 18, 21, or 24 word phrases
-  - Support for 10 languages (English, Japanese, Korean, Spanish, Chinese, French, Italian, Czech, Portuguese)
+  - English wordlist support (other BIP-39 locales are not compiled in this build)
   - Word suggestion and autocomplete
 
 - **HD Key Derivation**

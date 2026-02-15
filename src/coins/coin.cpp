@@ -4,6 +4,11 @@
  */
 
 #include "hd_wallet/coins/coin.h"
+#include "hd_wallet/coins/bitcoin.h"
+#include "hd_wallet/coins/cosmos.h"
+#include "hd_wallet/coins/ethereum.h"
+#include "hd_wallet/coins/polkadot.h"
+#include "hd_wallet/coins/solana.h"
 
 #include <algorithm>
 #include <cctype>
@@ -23,6 +28,11 @@
 #include <cryptopp/oids.h>
 #include <cryptopp/hex.h>
 #include <cryptopp/xed25519.h>
+
+#ifdef HD_WALLET_USE_LIBSECP256K1
+#include <secp256k1.h>
+#include <secp256k1_recovery.h>
+#endif
 
 namespace hd_wallet {
 namespace coins {
@@ -709,6 +719,105 @@ Result<ByteVector> fromHex(const std::string& hex) {
 // ECDSA Operations (secp256k1)
 // =============================================================================
 
+#ifdef HD_WALLET_USE_LIBSECP256K1
+
+namespace {
+/**
+ * Get libsecp256k1 context for ECDSA operations (lazy init)
+ * Uses SIGN | VERIFY for recoverable signature support
+ */
+static secp256k1_context* coin_secp256k1_ctx() {
+    static secp256k1_context* ctx = secp256k1_context_create(
+        SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+    return ctx;
+}
+} // anonymous namespace
+
+Result<ECDSASignature> ecdsaSign(const Bytes32& hash, const Bytes32& private_key) {
+    secp256k1_context* ctx = coin_secp256k1_ctx();
+
+    // Use recoverable signing to get the recovery ID
+    secp256k1_ecdsa_recoverable_signature rec_sig;
+    if (secp256k1_ecdsa_sign_recoverable(ctx, &rec_sig, hash.data(), private_key.data(), NULL, NULL) != 1) {
+        return Result<ECDSASignature>::fail(Error::INVALID_PRIVATE_KEY);
+    }
+
+    // Serialize to compact form (r || s) + recid
+    uint8_t compact[64];
+    int recid;
+    secp256k1_ecdsa_recoverable_signature_serialize_compact(ctx, compact, &recid, &rec_sig);
+
+    ECDSASignature sig;
+    std::copy(compact, compact + 32, sig.r.begin());
+    std::copy(compact + 32, compact + 64, sig.s.begin());
+    sig.v = static_cast<uint8_t>(recid);
+
+    return Result<ECDSASignature>::success(std::move(sig));
+}
+
+Result<bool> ecdsaVerify(const Bytes32& hash, const ECDSASignature& signature, const ByteVector& public_key) {
+    secp256k1_context* ctx = coin_secp256k1_ctx();
+
+    if (public_key.size() != 33 && public_key.size() != 65) {
+        return Result<bool>::fail(Error::INVALID_PUBLIC_KEY);
+    }
+
+    // Parse public key
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ec_pubkey_parse(ctx, &pubkey, public_key.data(), public_key.size()) != 1) {
+        return Result<bool>::fail(Error::INVALID_PUBLIC_KEY);
+    }
+
+    // Build compact signature from r || s
+    uint8_t compact[64];
+    std::copy(signature.r.begin(), signature.r.end(), compact);
+    std::copy(signature.s.begin(), signature.s.end(), compact + 32);
+
+    // Parse as normal (non-recoverable) signature
+    secp256k1_ecdsa_signature sig;
+    if (secp256k1_ecdsa_signature_parse_compact(ctx, &sig, compact) != 1) {
+        return Result<bool>::fail(Error::INVALID_SIGNATURE);
+    }
+
+    // Normalize to low-S
+    secp256k1_ecdsa_signature_normalize(ctx, &sig, &sig);
+
+    bool valid = secp256k1_ecdsa_verify(ctx, &sig, hash.data(), &pubkey) == 1;
+    return Result<bool>::success(std::move(valid));
+}
+
+Result<Bytes33> ecdsaRecover(const Bytes32& hash, const ECDSASignature& signature) {
+    secp256k1_context* ctx = coin_secp256k1_ctx();
+
+    int recid = signature.v % 4;
+
+    // Build compact signature from r || s
+    uint8_t compact[64];
+    std::copy(signature.r.begin(), signature.r.end(), compact);
+    std::copy(signature.s.begin(), signature.s.end(), compact + 32);
+
+    // Parse recoverable signature
+    secp256k1_ecdsa_recoverable_signature rec_sig;
+    if (secp256k1_ecdsa_recoverable_signature_parse_compact(ctx, &rec_sig, compact, recid) != 1) {
+        return Result<Bytes33>::fail(Error::INVALID_SIGNATURE);
+    }
+
+    // Recover public key
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ecdsa_recover(ctx, &pubkey, &rec_sig, hash.data()) != 1) {
+        return Result<Bytes33>::fail(Error::INVALID_SIGNATURE);
+    }
+
+    // Serialize compressed
+    Bytes33 result;
+    size_t len = 33;
+    secp256k1_ec_pubkey_serialize(ctx, result.data(), &len, &pubkey, SECP256K1_EC_COMPRESSED);
+
+    return Result<Bytes33>::success(std::move(result));
+}
+
+#else // !HD_WALLET_USE_LIBSECP256K1 - Crypto++ fallback for native builds
+
 Result<ECDSASignature> ecdsaSign(const Bytes32& hash, const Bytes32& private_key) {
   try {
     using namespace CryptoPP;
@@ -870,6 +979,8 @@ Result<Bytes33> ecdsaRecover(const Bytes32& hash, const ECDSASignature& signatur
   }
 }
 
+#endif // HD_WALLET_USE_LIBSECP256K1
+
 // =============================================================================
 // Ed25519 Operations
 // =============================================================================
@@ -953,9 +1064,48 @@ std::shared_ptr<Coin> getCoin(CoinType type, Network network) {
     return it->second;
   }
 
-  // Create default instance
-  // Note: Actual coin classes need to be included
-  return nullptr;
+  // Create and cache a default instance for supported coins.
+  //
+  // This enables the generic C APIs (hd_coin_*) to work without requiring
+  // callers to explicitly register coin instances at runtime.
+  std::shared_ptr<Coin> coin;
+  switch (type) {
+    case CoinType::BITCOIN:
+      coin = std::make_shared<Bitcoin>(network);
+      break;
+
+    case CoinType::BITCOIN_TESTNET:
+      coin = std::make_shared<Bitcoin>(Network::TESTNET);
+      break;
+
+    case CoinType::ETHEREUM:
+      coin = std::make_shared<Ethereum>(network);
+      break;
+
+    case CoinType::SOLANA:
+      coin = std::make_shared<Solana>(network);
+      break;
+
+    case CoinType::COSMOS:
+      coin = std::make_shared<Cosmos>();
+      coin->setNetwork(network);
+      break;
+
+    case CoinType::POLKADOT:
+      coin = std::make_shared<Polkadot>();
+      coin->setNetwork(network);
+      break;
+
+    default:
+      break;
+  }
+
+  if (!coin) {
+    return nullptr;
+  }
+
+  g_coin_registry[key] = coin;
+  return coin;
 }
 
 void registerCoin(std::shared_ptr<Coin> coin) {

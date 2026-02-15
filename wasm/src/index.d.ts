@@ -113,6 +113,11 @@ export enum CoinType {
   CARDANO = 1815
 }
 
+/**
+ * BIP-39 wordlist language selector.
+ * ENGLISH is supported in this build; other locale values are reserved and
+ * currently return NOT_SUPPORTED.
+ */
 export enum Language {
   ENGLISH = 0,
   JAPANESE = 1,
@@ -171,7 +176,7 @@ export interface MnemonicAPI {
   /**
    * Generate a random mnemonic phrase
    * @param wordCount Number of words (12, 15, 18, 21, or 24)
-   * @param language Wordlist language
+   * @param language Wordlist language (ENGLISH supported in default build)
    * @throws If entropy not available (WASI) or invalid word count
    */
   generate(wordCount?: number, language?: Language): string;

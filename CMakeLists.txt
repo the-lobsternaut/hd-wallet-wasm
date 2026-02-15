@@ -30,8 +30,8 @@
 cmake_minimum_required(VERSION 3.16...3.28)
 
 # Version
-set(HD_WALLET_VERSION_MAJOR 0)
-set(HD_WALLET_VERSION_MINOR 1)
+set(HD_WALLET_VERSION_MAJOR 1)
+set(HD_WALLET_VERSION_MINOR 3)
 set(HD_WALLET_VERSION_PATCH 0)
 
 project(HDWalletWasm
@@ -297,11 +297,17 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/wasi_bridge.cpp
       src/aligned_api.cpp
       src/wasm_exports.cpp
+      # Transaction building
+      src/tx/transaction.cpp
+      src/tx/bitcoin_tx.cpp
+      src/tx/ethereum_tx.cpp
       # Coin address generation and validation
       src/coins/coin.cpp
       src/coins/bitcoin.cpp
       src/coins/ethereum.cpp
       src/coins/solana.cpp
+      src/coins/cosmos.cpp
+      src/coins/polkadot.cpp
     )
 
     # Add OpenSSL wrapper when enabled
@@ -374,19 +380,14 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
 
       # ========== Curve Operations (Generic) ==========
       "_hd_curve_pubkey_from_privkey"
-      "_hd_curve_compress_pubkey"
       "_hd_curve_decompress_pubkey"
-      "_hd_curve_derive_secp256k1"
-      "_hd_curve_derive_ed25519"
-      "_hd_curve_derive_p256"
-      "_hd_curve_derive_p384"
-      "_hd_curve_derive_x25519"
+      "_hd_curve_compress_pubkey"
 
       # ========== secp256k1 Signing ==========
       "_hd_secp256k1_sign"
       "_hd_secp256k1_sign_recoverable"
-      "_hd_secp256k1_verify"
       "_hd_secp256k1_recover"
+      "_hd_secp256k1_verify"
       "_hd_ecdh_secp256k1"
 
       # ========== Generic ECDH ==========
@@ -455,12 +456,6 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_aes_ctr_encrypt"
       "_hd_aes_ctr_decrypt"
 
-      # ========== OpenSSL FIPS (when enabled) ==========
-      "_hd_openssl_init_fips"
-      "_hd_openssl_init_default"
-      "_hd_openssl_cleanup"
-      "_hd_openssl_is_fips"
-
       # ========== Coin Address Generation & Validation ==========
       # Generic coin utilities (coin.cpp)
       "_hd_coin_address_from_pubkey"
@@ -481,10 +476,31 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_btc_p2tr_address"
       "_hd_btc_validate_address"
       "_hd_btc_detect_address_type"
+      "_hd_btc_decode_address"
       "_hd_btc_sign_message"
       "_hd_btc_verify_message"
       "_hd_btc_to_wif"
       "_hd_btc_from_wif"
+      # Bitcoin Transactions (tx/bitcoin_tx.cpp)
+      "_hd_btc_tx_create"
+      "_hd_btc_tx_create_v"
+      "_hd_btc_tx_add_input"
+      "_hd_btc_tx_add_output"
+      "_hd_btc_tx_add_p2pkh_output"
+      "_hd_btc_tx_add_p2wpkh_output"
+      "_hd_btc_tx_sign"
+      "_hd_btc_tx_sign_input"
+      "_hd_btc_tx_serialize"
+      "_hd_btc_tx_get_txid"
+      "_hd_btc_tx_get_txid_hex"
+      "_hd_btc_tx_get_size"
+      "_hd_btc_tx_get_vsize"
+      "_hd_btc_tx_get_weight"
+      "_hd_btc_tx_get_fee"
+      "_hd_btc_tx_validate"
+      "_hd_btc_tx_destroy"
+      "_hd_btc_tx_parse"
+      "_hd_btc_tx_parse_hex"
       # Ethereum (ethereum.cpp)
       "_hd_eth_address"
       "_hd_eth_validate_address"
@@ -495,6 +511,28 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_eth_recover_address"
       "_hd_eth_hash_message"
       "_hd_eth_sign_typed_data"
+      # Ethereum Transactions (tx/ethereum_tx.cpp)
+      "_hd_eth_tx_create"
+      "_hd_eth_tx_create_eip1559"
+      "_hd_eth_tx_set_nonce"
+      "_hd_eth_tx_set_gas_price"
+      "_hd_eth_tx_set_gas_limit"
+      "_hd_eth_tx_set_to"
+      "_hd_eth_tx_set_to_hex"
+      "_hd_eth_tx_set_value"
+      "_hd_eth_tx_set_value_256"
+      "_hd_eth_tx_set_data"
+      "_hd_eth_tx_sign"
+      "_hd_eth_tx_serialize"
+      "_hd_eth_tx_get_hash"
+      "_hd_eth_tx_get_hash_hex"
+      "_hd_eth_tx_get_sender"
+      "_hd_eth_tx_get_size"
+      "_hd_eth_tx_get_max_fee"
+      "_hd_eth_tx_validate"
+      "_hd_eth_tx_destroy"
+      "_hd_eth_tx_parse"
+      "_hd_eth_tx_parse_hex"
       # Solana (solana.cpp)
       "_hd_sol_address"
       "_hd_sol_validate_address"
@@ -504,7 +542,34 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_sol_derive_pubkey"
       "_hd_sol_find_pda"
       "_hd_sol_get_associated_token_address"
+      # Cosmos (cosmos.cpp)
+      "_hd_cosmos_address"
+      "_hd_cosmos_validate_address"
+      "_hd_cosmos_convert_prefix"
+      "_hd_cosmos_sign_amino"
+      "_hd_cosmos_sign_direct"
+      "_hd_cosmos_verify_signature"
+      "_hd_cosmos_sign_arbitrary"
+      # Polkadot/Substrate (polkadot.cpp)
+      "_hd_dot_address"
+      "_hd_dot_validate_address"
+      "_hd_dot_decode_address"
+      "_hd_dot_convert_prefix"
+      "_hd_dot_sign_message"
+      "_hd_dot_verify_message"
+      "_hd_dot_sign_extrinsic"
+      "_hd_dot_derive_pubkey"
     )
+
+    # Add OpenSSL FIPS exports only when OpenSSL is enabled
+    if(HD_WALLET_USE_OPENSSL)
+      list(APPEND WASM_EXPORTED_FUNCTIONS
+        "_hd_openssl_init_fips"
+        "_hd_openssl_init_default"
+        "_hd_openssl_cleanup"
+        "_hd_openssl_is_fips"
+      )
+    endif()
     string(JOIN "," EXPORTED_FUNCS_STR ${WASM_EXPORTED_FUNCTIONS})
 
     # =========================================================================
@@ -524,8 +589,8 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     set(SECP256K1_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
     set(SECP256K1_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(SECP256K1_BUILD_CTIME_TESTS OFF CACHE BOOL "" FORCE)
-    set(SECP256K1_ENABLE_MODULE_RECOVERY OFF CACHE BOOL "" FORCE)
-    set(SECP256K1_ENABLE_MODULE_SCHNORRSIG OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_ENABLE_MODULE_RECOVERY ON CACHE BOOL "" FORCE)
+    set(SECP256K1_ENABLE_MODULE_SCHNORRSIG ON CACHE BOOL "" FORCE)
     set(SECP256K1_ENABLE_MODULE_MUSIG OFF CACHE BOOL "" FORCE)
     set(SECP256K1_ENABLE_MODULE_ELLSWIFT OFF CACHE BOOL "" FORCE)
     set(SECP256K1_INSTALL OFF CACHE BOOL "" FORCE)
@@ -598,7 +663,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     # Target: Pure WASI module (for Go/wazero, Rust/wasmtime, Python/wasmer)
     # This build disables C++ exceptions for true WASI compatibility
     # =========================================================================
-    # WASI sources: hardened set with full Crypto++ security features
+    # WASI sources: hardened set with full Crypto++ security features + tx support
     set(HD_WALLET_WASI_SOURCES
       src/utils.cpp
       src/secure_memory.cpp
@@ -617,6 +682,11 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/coins/bitcoin.cpp
       src/coins/ethereum.cpp
       src/coins/solana.cpp
+      src/coins/cosmos.cpp
+      src/coins/polkadot.cpp
+      src/tx/transaction.cpp
+      src/tx/bitcoin_tx.cpp
+      src/tx/ethereum_tx.cpp
     )
 
     # Add OpenSSL wrapper to WASI when FIPS enabled
@@ -624,7 +694,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       list(APPEND HD_WALLET_WASI_SOURCES src/crypto_openssl.c)
     endif()
 
-    # WASI exports: core + coin address functions (no aligned, keyring, key_manager, hw, tx)
+    # WASI exports: core + coin + tx support (no aligned, keyring, key_manager, hw)
     set(WASI_EXPORTED_FUNCTIONS
       # Memory Management
       "_malloc"
@@ -687,19 +757,11 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_path_get_change"
       "_hd_path_get_index"
       # Multi-Curve Keys
-      "_hd_curve_derive_secp256k1"
-      "_hd_curve_derive_ed25519"
-      "_hd_curve_derive_p256"
-      "_hd_curve_derive_p384"
-      "_hd_curve_derive_x25519"
       "_hd_curve_pubkey_from_privkey"
-      "_hd_curve_compress_pubkey"
       "_hd_curve_decompress_pubkey"
       # ECDSA Signing (secp256k1)
       "_hd_secp256k1_sign"
-      "_hd_secp256k1_sign_recoverable"
       "_hd_secp256k1_verify"
-      "_hd_secp256k1_recover"
       # EdDSA Signing (Ed25519)
       "_hd_ed25519_sign"
       "_hd_ed25519_verify"
@@ -745,21 +807,109 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_build_path"
       "_hd_build_signing_path"
       "_hd_build_encryption_path"
-      # Encoding Utilities
-      "_hd_encode_base58"
-      "_hd_decode_base58"
-      "_hd_encode_base58check"
-      "_hd_decode_base58check"
-      "_hd_encode_bech32"
-      "_hd_decode_bech32"
-      "_hd_encode_hex"
-      "_hd_decode_hex"
-      "_hd_encode_base64"
-      "_hd_decode_base64"
-      # Coin Address Generation
+      # Coin Address Generation & Validation
+      # Generic coin utilities (coin.cpp)
+      "_hd_coin_address_from_pubkey"
+      "_hd_coin_validate_address"
+      "_hd_coin_sign_message"
+      "_hd_coin_verify_message"
+      "_hd_base58_encode"
+      "_hd_base58_decode"
+      "_hd_base58check_encode"
+      "_hd_base58check_decode"
+      "_hd_bech32_encode"
+      "_hd_bech32_decode"
+      # Bitcoin (bitcoin.cpp)
+      "_hd_btc_p2pkh_address"
+      "_hd_btc_p2sh_address"
       "_hd_btc_p2wpkh_address"
+      "_hd_btc_p2wsh_address"
+      "_hd_btc_p2tr_address"
+      "_hd_btc_validate_address"
+      "_hd_btc_detect_address_type"
+      "_hd_btc_decode_address"
+      "_hd_btc_sign_message"
+      "_hd_btc_verify_message"
+      "_hd_btc_to_wif"
+      "_hd_btc_from_wif"
+      # Bitcoin Transactions (tx/bitcoin_tx.cpp)
+      "_hd_btc_tx_create"
+      "_hd_btc_tx_create_v"
+      "_hd_btc_tx_add_input"
+      "_hd_btc_tx_add_output"
+      "_hd_btc_tx_add_p2pkh_output"
+      "_hd_btc_tx_add_p2wpkh_output"
+      "_hd_btc_tx_sign"
+      "_hd_btc_tx_sign_input"
+      "_hd_btc_tx_serialize"
+      "_hd_btc_tx_get_txid"
+      "_hd_btc_tx_get_txid_hex"
+      "_hd_btc_tx_get_size"
+      "_hd_btc_tx_get_vsize"
+      "_hd_btc_tx_get_weight"
+      "_hd_btc_tx_get_fee"
+      "_hd_btc_tx_validate"
+      "_hd_btc_tx_destroy"
+      "_hd_btc_tx_parse"
+      "_hd_btc_tx_parse_hex"
+      # Ethereum (ethereum.cpp)
       "_hd_eth_address"
+      "_hd_eth_validate_address"
+      "_hd_eth_checksum_address"
+      "_hd_eth_verify_checksum"
+      "_hd_eth_sign_message"
+      "_hd_eth_verify_message"
+      "_hd_eth_recover_address"
+      "_hd_eth_hash_message"
+      "_hd_eth_sign_typed_data"
+      # Ethereum Transactions (tx/ethereum_tx.cpp)
+      "_hd_eth_tx_create"
+      "_hd_eth_tx_create_eip1559"
+      "_hd_eth_tx_set_nonce"
+      "_hd_eth_tx_set_gas_price"
+      "_hd_eth_tx_set_gas_limit"
+      "_hd_eth_tx_set_to"
+      "_hd_eth_tx_set_to_hex"
+      "_hd_eth_tx_set_value"
+      "_hd_eth_tx_set_value_256"
+      "_hd_eth_tx_set_data"
+      "_hd_eth_tx_sign"
+      "_hd_eth_tx_serialize"
+      "_hd_eth_tx_get_hash"
+      "_hd_eth_tx_get_hash_hex"
+      "_hd_eth_tx_get_sender"
+      "_hd_eth_tx_get_size"
+      "_hd_eth_tx_get_max_fee"
+      "_hd_eth_tx_validate"
+      "_hd_eth_tx_destroy"
+      "_hd_eth_tx_parse"
+      "_hd_eth_tx_parse_hex"
+      # Solana (solana.cpp)
       "_hd_sol_address"
+      "_hd_sol_validate_address"
+      "_hd_sol_address_to_pubkey"
+      "_hd_sol_sign_message"
+      "_hd_sol_verify_message"
+      "_hd_sol_derive_pubkey"
+      "_hd_sol_find_pda"
+      "_hd_sol_get_associated_token_address"
+      # Cosmos (cosmos.cpp)
+      "_hd_cosmos_address"
+      "_hd_cosmos_validate_address"
+      "_hd_cosmos_convert_prefix"
+      "_hd_cosmos_sign_amino"
+      "_hd_cosmos_sign_direct"
+      "_hd_cosmos_verify_signature"
+      "_hd_cosmos_sign_arbitrary"
+      # Polkadot/Substrate (polkadot.cpp)
+      "_hd_dot_address"
+      "_hd_dot_validate_address"
+      "_hd_dot_decode_address"
+      "_hd_dot_convert_prefix"
+      "_hd_dot_sign_message"
+      "_hd_dot_verify_message"
+      "_hd_dot_sign_extrinsic"
+      "_hd_dot_derive_pubkey"
     )
     string(JOIN "," WASI_EXPORTED_FUNCS_STR ${WASI_EXPORTED_FUNCTIONS})
 
@@ -839,7 +989,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
-      -sENVIRONMENT=web,worker
+      -sENVIRONMENT=web,worker,node
       -sNO_EXIT_RUNTIME=1
       -fexceptions
       -sDISABLE_EXCEPTION_THROWING=0
@@ -882,7 +1032,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
-      -sENVIRONMENT=web,worker
+      -sENVIRONMENT=web,worker,node
       -sNO_EXIT_RUNTIME=1
       -fexceptions
       -sDISABLE_EXCEPTION_THROWING=0
@@ -922,6 +1072,22 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
         "${WASM_NPM_DIR}/index.d.ts"
       COMMENT "NPM package created in ${WASM_NPM_DIR}"
     )
+
+    # Strip node: protocol prefixes so the bundle is browser-compatible
+    find_program(SED_PROGRAM sed)
+    if(SED_PROGRAM)
+      add_custom_command(TARGET hd_wallet_wasm_npm POST_BUILD
+        COMMAND ${SED_PROGRAM} -i.bak
+          -e "s/'node:module'/'module'/g"
+          -e "s/'node:fs'/'fs'/g"
+          -e "s/'node:path'/'path'/g"
+          -e "s/'node:url'/'url'/g"
+          -e "s/'node:crypto'/'crypto'/g"
+          "${WASM_NPM_DIR}/hd-wallet.js"
+        COMMAND ${CMAKE_COMMAND} -E remove -f "${WASM_NPM_DIR}/hd-wallet.js.bak"
+        COMMENT "Stripping node: protocol prefixes from JS bundle"
+      )
+    endif()
 
     # Run wasm-opt on the standalone .wasm for non-JS runtimes
     if(WASM_OPT)
