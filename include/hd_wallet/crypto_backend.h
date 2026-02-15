@@ -90,6 +90,17 @@
     hd_ossl_aes_gcm_decrypt(key, key_len, ct, ct_len, iv, iv_len, aad, aad_len, tag, pt)
 
 // -----------------------------------------------------------------------------
+// AES-CTR
+// Route through OpenSSL
+// -----------------------------------------------------------------------------
+
+#define HD_BACKEND_AES_CTR_ENCRYPT(key, key_len, pt, pt_len, iv, iv_len, ct) \
+    hd_ossl_aes_ctr_encrypt(key, key_len, pt, pt_len, iv, iv_len, ct)
+
+#define HD_BACKEND_AES_CTR_DECRYPT(key, key_len, ct, ct_len, iv, iv_len, pt) \
+    hd_ossl_aes_ctr_decrypt(key, key_len, ct, ct_len, iv, iv_len, pt)
+
+// -----------------------------------------------------------------------------
 // ECDSA/ECDH (NIST curves P-256, P-384)
 // Route through OpenSSL
 // -----------------------------------------------------------------------------

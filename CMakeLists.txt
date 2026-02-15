@@ -185,6 +185,7 @@ set(HD_WALLET_SOURCES
   src/ecdsa.cpp
   src/eddsa.cpp
   src/ecdh.cpp
+  src/ecies.cpp
   # Coins
   src/coins/coin.cpp
   src/coins/bitcoin.cpp
@@ -226,6 +227,12 @@ if(NOT EMSCRIPTEN)
 
   if(HD_WALLET_USE_CRYPTOPP)
     target_link_libraries(hd_wallet PUBLIC cryptopp)
+  endif()
+
+  # OpenSSL backend for native builds
+  if(HD_WALLET_USE_OPENSSL AND OpenSSL_FOUND)
+    target_sources(hd_wallet PRIVATE src/crypto_openssl.c)
+    target_link_libraries(hd_wallet PUBLIC OpenSSL::Crypto)
   endif()
 
   # macOS requires Security framework for SecRandomCopyBytes
@@ -271,7 +278,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
   file(MAKE_DIRECTORY "${WASM_NPM_DIR}")
 
   if(EMSCRIPTEN)
-    # WASM source files - core functionality only
+    # WASM source files - core + coin address functionality
     # wasm_exports.cpp contains unique C wrappers for hash/KDF/curve functions
     # that are not already exported from the main library source files.
     set(HD_WALLET_WASM_SOURCES
@@ -286,9 +293,15 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/ecdsa.cpp
       src/eddsa.cpp
       src/ecdh.cpp
+      src/ecies.cpp
       src/wasi_bridge.cpp
       src/aligned_api.cpp
       src/wasm_exports.cpp
+      # Coin address generation and validation
+      src/coins/coin.cpp
+      src/coins/bitcoin.cpp
+      src/coins/ethereum.cpp
+      src/coins/solana.cpp
     )
 
     # Add OpenSSL wrapper when enabled
@@ -434,18 +447,97 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_aes_gcm_encrypt"
       "_hd_aes_gcm_decrypt"
 
+      # ========== ECIES ==========
+      "_hd_ecies_encrypt"
+      "_hd_ecies_decrypt"
+      "_hd_ecies_overhead"
+      # ========== AES-CTR ==========
+      "_hd_aes_ctr_encrypt"
+      "_hd_aes_ctr_decrypt"
+
       # ========== OpenSSL FIPS (when enabled) ==========
       "_hd_openssl_init_fips"
       "_hd_openssl_init_default"
       "_hd_openssl_cleanup"
       "_hd_openssl_is_fips"
+
+      # ========== Coin Address Generation & Validation ==========
+      # Generic coin utilities (coin.cpp)
+      "_hd_coin_address_from_pubkey"
+      "_hd_coin_validate_address"
+      "_hd_coin_sign_message"
+      "_hd_coin_verify_message"
+      "_hd_base58_encode"
+      "_hd_base58_decode"
+      "_hd_base58check_encode"
+      "_hd_base58check_decode"
+      "_hd_bech32_encode"
+      "_hd_bech32_decode"
+      # Bitcoin (bitcoin.cpp)
+      "_hd_btc_p2pkh_address"
+      "_hd_btc_p2sh_address"
+      "_hd_btc_p2wpkh_address"
+      "_hd_btc_p2wsh_address"
+      "_hd_btc_p2tr_address"
+      "_hd_btc_validate_address"
+      "_hd_btc_detect_address_type"
+      "_hd_btc_sign_message"
+      "_hd_btc_verify_message"
+      "_hd_btc_to_wif"
+      "_hd_btc_from_wif"
+      # Ethereum (ethereum.cpp)
+      "_hd_eth_address"
+      "_hd_eth_validate_address"
+      "_hd_eth_checksum_address"
+      "_hd_eth_verify_checksum"
+      "_hd_eth_sign_message"
+      "_hd_eth_verify_message"
+      "_hd_eth_recover_address"
+      "_hd_eth_hash_message"
+      "_hd_eth_sign_typed_data"
+      # Solana (solana.cpp)
+      "_hd_sol_address"
+      "_hd_sol_validate_address"
+      "_hd_sol_address_to_pubkey"
+      "_hd_sol_sign_message"
+      "_hd_sol_verify_message"
+      "_hd_sol_derive_pubkey"
+      "_hd_sol_find_pda"
+      "_hd_sol_get_associated_token_address"
     )
     string(JOIN "," EXPORTED_FUNCS_STR ${WASM_EXPORTED_FUNCTIONS})
+
+    # =========================================================================
+    # libsecp256k1 - Bitcoin Core's secp256k1 (replaces Crypto++ EC in WASM)
+    # Crypto++ ECP::ScalarMultiply is unreliable in 32-bit WASM due to
+    # exception handling being disabled (-fignore-exceptions).
+    # =========================================================================
+    include(FetchContent)
+    FetchContent_Declare(
+      secp256k1
+      GIT_REPOSITORY https://github.com/bitcoin-core/secp256k1.git
+      GIT_TAG        1a53f4961f337b4d166c25fce72ef0dc88806618  # v0.7.1
+      GIT_SHALLOW    TRUE
+    )
+    set(SECP256K1_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_BUILD_EXHAUSTIVE_TESTS OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_BUILD_CTIME_TESTS OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_ENABLE_MODULE_RECOVERY OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_ENABLE_MODULE_SCHNORRSIG OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_ENABLE_MODULE_MUSIG OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_ENABLE_MODULE_ELLSWIFT OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_INSTALL OFF CACHE BOOL "" FORCE)
+    set(SECP256K1_ASM "OFF" CACHE STRING "" FORCE)
+    FetchContent_MakeAvailable(secp256k1)
+    message(STATUS "Using libsecp256k1 for WASM EC operations")
 
     # WASM compile options
     set(WASM_COMPILE_OPTIONS
       -DHD_WALLET_WASM=1
       -DHD_WALLET_USE_CRYPTOPP=1
+      -DHD_WALLET_USE_LIBSECP256K1=1
     )
 
     if(HD_WALLET_FIPS_MODE)
@@ -474,7 +566,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     # This allows Crypto++ to compile but will abort if an exception is thrown
     # -fignore-exceptions tells the compiler to ignore try/catch blocks (no-op)
     target_compile_options(hd_wallet_wasm PRIVATE ${WASM_COMPILE_OPTIONS} -fignore-exceptions)
-    target_link_libraries(hd_wallet_wasm PRIVATE cryptopp)
+    target_link_libraries(hd_wallet_wasm PRIVATE cryptopp secp256k1)
     if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
       target_link_libraries(hd_wallet_wasm PRIVATE "${OPENSSL_FIPS_LIB}")
     endif()
@@ -519,6 +611,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/ecdsa.cpp
       src/eddsa.cpp
       src/ecdh.cpp
+      src/ecies.cpp
       src/wasi_bridge.cpp
       src/coins/coin.cpp
       src/coins/bitcoin.cpp
@@ -624,6 +717,13 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_ecdh_p384"
       "_hd_ecdh_x25519"
       "_hd_x25519_pubkey"
+      # ECIES
+      "_hd_ecies_encrypt"
+      "_hd_ecies_decrypt"
+      "_hd_ecies_overhead"
+      # AES-CTR
+      "_hd_aes_ctr_encrypt"
+      "_hd_aes_ctr_decrypt"
       # Hash Functions
       "_hd_hash_sha256"
       "_hd_hash_sha512"
@@ -679,7 +779,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     target_include_directories(hd_wallet_wasm_wasi PRIVATE
       $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
-    target_link_libraries(hd_wallet_wasm_wasi PRIVATE cryptopp)
+    target_link_libraries(hd_wallet_wasm_wasi PRIVATE cryptopp secp256k1)
     if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
       target_link_libraries(hd_wallet_wasm_wasi PRIVATE "${OPENSSL_FIPS_LIB}")
     endif()
@@ -717,7 +817,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
     target_compile_options(hd_wallet_wasm_js PRIVATE ${WASM_COMPILE_OPTIONS} -fexceptions)
-    target_link_libraries(hd_wallet_wasm_js PRIVATE cryptopp)
+    target_link_libraries(hd_wallet_wasm_js PRIVATE cryptopp secp256k1)
     if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
       target_link_libraries(hd_wallet_wasm_js PRIVATE "${OPENSSL_FIPS_LIB}")
     endif()
@@ -759,7 +859,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       $<$<BOOL:${HD_WALLET_USE_OPENSSL}>:${OPENSSL_FIPS_INCLUDE}>
     )
     target_compile_options(hd_wallet_wasm_inline PRIVATE ${WASM_COMPILE_OPTIONS} -fexceptions)
-    target_link_libraries(hd_wallet_wasm_inline PRIVATE cryptopp)
+    target_link_libraries(hd_wallet_wasm_inline PRIVATE cryptopp secp256k1)
     if(HD_WALLET_USE_OPENSSL AND EXISTS "${OPENSSL_FIPS_LIB}")
       target_link_libraries(hd_wallet_wasm_inline PRIVATE "${OPENSSL_FIPS_LIB}")
     endif()
@@ -884,6 +984,8 @@ if(HD_WALLET_BUILD_TESTS AND NOT EMSCRIPTEN)
     test/test_curves.cpp
     test/test_bitcoin.cpp
     test/test_ethereum.cpp
+    test/test_coin_addresses.cpp
+    test/test_ecies.cpp
     test/test_vectors.cpp
   )
   target_link_libraries(hd_wallet_tests PRIVATE hd_wallet)

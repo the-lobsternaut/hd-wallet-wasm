@@ -195,6 +195,42 @@ int32_t hd_ossl_aes_gcm_decrypt(const uint8_t* key, size_t key_len,
                                 uint8_t* pt);
 
 // =============================================================================
+// AES-CTR Encryption
+// =============================================================================
+
+/**
+ * AES-256-CTR encryption
+ * @param key 32-byte key
+ * @param key_len Key length (must be 16, 24, or 32)
+ * @param pt Plaintext
+ * @param pt_len Plaintext length
+ * @param iv 16-byte IV/nonce
+ * @param iv_len IV length (must be 16)
+ * @param ct Ciphertext output buffer (must be at least pt_len bytes)
+ * @return Ciphertext length on success, negative on error
+ */
+int32_t hd_ossl_aes_ctr_encrypt(const uint8_t* key, size_t key_len,
+                                const uint8_t* pt, size_t pt_len,
+                                const uint8_t* iv, size_t iv_len,
+                                uint8_t* ct);
+
+/**
+ * AES-256-CTR decryption (same operation as encrypt for CTR mode)
+ * @param key 32-byte key
+ * @param key_len Key length (must be 16, 24, or 32)
+ * @param ct Ciphertext
+ * @param ct_len Ciphertext length
+ * @param iv 16-byte IV/nonce
+ * @param iv_len IV length (must be 16)
+ * @param pt Plaintext output buffer (must be at least ct_len bytes)
+ * @return Plaintext length on success, negative on error
+ */
+int32_t hd_ossl_aes_ctr_decrypt(const uint8_t* key, size_t key_len,
+                                const uint8_t* ct, size_t ct_len,
+                                const uint8_t* iv, size_t iv_len,
+                                uint8_t* pt);
+
+// =============================================================================
 // ECDSA (NIST curves)
 // =============================================================================
 

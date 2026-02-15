@@ -1648,19 +1648,19 @@ function createModule(wasm) {
         let fnName;
         switch (type) {
           case BitcoinAddressType.P2PKH:
-            fnName = '_hd_btc_get_address_p2pkh';
+            fnName = '_hd_btc_p2pkh_address';
             break;
           case BitcoinAddressType.P2SH:
-            fnName = '_hd_btc_get_address_p2sh';
+            fnName = '_hd_btc_p2sh_address';
             break;
           case BitcoinAddressType.P2WPKH:
-            fnName = '_hd_btc_get_address_p2wpkh';
+            fnName = '_hd_btc_p2wpkh_address';
             break;
           case BitcoinAddressType.P2WSH:
-            fnName = '_hd_btc_get_address_p2wsh';
+            fnName = '_hd_btc_p2wsh_address';
             break;
           case BitcoinAddressType.P2TR:
-            fnName = '_hd_btc_get_address_taproot';
+            fnName = '_hd_btc_p2tr_address';
             break;
           default:
             throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'Invalid address type');
@@ -1681,8 +1681,7 @@ function createModule(wasm) {
      * @returns {boolean} True if valid
      */
     validateAddress(address) {
-      const validateFn = getWasmFunction(wasm, '_hd_btc_validate_address');
-      if (!validateFn) return false;
+      const validateFn = requireWasmFunction(wasm, '_hd_btc_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
         const result = validateFn(addrPtr);
@@ -1754,8 +1753,7 @@ function createModule(wasm) {
      * @returns {boolean} True if valid
      */
     verifyMessage(message, signature, address) {
-      const verifyFn = getWasmFunction(wasm, '_hd_btc_verify_message');
-      if (!verifyFn) return false;
+      const verifyFn = requireWasmFunction(wasm, '_hd_btc_verify_message');
       const msgPtr = allocString(wasm, message);
       const sigPtr = allocString(wasm, signature);
       const addrPtr = allocString(wasm, address);
@@ -1881,7 +1879,7 @@ function createModule(wasm) {
      * @returns {string} Ethereum address (with 0x prefix)
      */
     getAddress(publicKey) {
-      const getAddressFn = requireWasmFunction(wasm, '_hd_eth_get_address');
+      const getAddressFn = requireWasmFunction(wasm, '_hd_eth_address');
       const pubPtr = allocAndCopy(wasm, publicKey);
       const outPtr = wasm._hd_alloc(64);
       try {
@@ -1900,7 +1898,7 @@ function createModule(wasm) {
      * @returns {string} Checksummed address
      */
     getChecksumAddress(address) {
-      const checksumFn = requireWasmFunction(wasm, '_hd_eth_get_address_checksum');
+      const checksumFn = requireWasmFunction(wasm, '_hd_eth_checksum_address');
       const addrPtr = allocString(wasm, address);
       const outPtr = wasm._hd_alloc(64);
       try {
@@ -1919,8 +1917,7 @@ function createModule(wasm) {
      * @returns {boolean} True if valid
      */
     validateAddress(address) {
-      const validateFn = getWasmFunction(wasm, '_hd_eth_validate_address');
-      if (!validateFn) return false;
+      const validateFn = requireWasmFunction(wasm, '_hd_eth_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
         const result = validateFn(addrPtr);
@@ -2024,7 +2021,7 @@ function createModule(wasm) {
    */
   const cosmos = {
     getAddress(publicKey, prefix = 'cosmos') {
-      const getAddressFn = requireWasmFunction(wasm, '_hd_cosmos_get_address');
+      const getAddressFn = requireWasmFunction(wasm, '_hd_cosmos_address');
       const pubPtr = allocAndCopy(wasm, publicKey);
       const prefixPtr = allocString(wasm, prefix);
       const outPtr = wasm._hd_alloc(128);
@@ -2040,8 +2037,7 @@ function createModule(wasm) {
     },
 
     validateAddress(address) {
-      const validateFn = getWasmFunction(wasm, '_hd_cosmos_validate_address');
-      if (!validateFn) return false;
+      const validateFn = requireWasmFunction(wasm, '_hd_cosmos_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
         return validateFn(addrPtr) === 0;
@@ -2094,8 +2090,7 @@ function createModule(wasm) {
     },
 
     verify(signature, message, publicKey) {
-      const verifyFn = getWasmFunction(wasm, '_hd_cosmos_verify');
-      if (!verifyFn) return false;
+      const verifyFn = requireWasmFunction(wasm, '_hd_cosmos_verify');
       const sigPtr = allocAndCopy(wasm, signature);
       const msgPtr = allocAndCopy(wasm, message);
       const pubPtr = allocAndCopy(wasm, publicKey);
@@ -2119,7 +2114,7 @@ function createModule(wasm) {
    */
   const solana = {
     getAddress(publicKey) {
-      const getAddressFn = requireWasmFunction(wasm, '_hd_sol_get_address');
+      const getAddressFn = requireWasmFunction(wasm, '_hd_sol_address');
       const pubPtr = allocAndCopy(wasm, publicKey);
       const outPtr = wasm._hd_alloc(64);
       try {
@@ -2133,8 +2128,7 @@ function createModule(wasm) {
     },
 
     validateAddress(address) {
-      const validateFn = getWasmFunction(wasm, '_hd_sol_validate_address');
-      if (!validateFn) return false;
+      const validateFn = requireWasmFunction(wasm, '_hd_sol_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
         return validateFn(addrPtr) === 0;
@@ -2161,8 +2155,7 @@ function createModule(wasm) {
     },
 
     verifyMessage(message, signature, publicKey) {
-      const verifyFn = getWasmFunction(wasm, '_hd_sol_verify_message');
-      if (!verifyFn) return false;
+      const verifyFn = requireWasmFunction(wasm, '_hd_sol_verify_message');
       const msgPtr = allocAndCopy(wasm, message);
       const sigPtr = allocAndCopy(wasm, signature);
       const pubPtr = allocAndCopy(wasm, publicKey);
@@ -2186,7 +2179,7 @@ function createModule(wasm) {
    */
   const polkadot = {
     getAddress(publicKey, ss58Prefix = 0) {
-      const getAddressFn = requireWasmFunction(wasm, '_hd_dot_get_address');
+      const getAddressFn = requireWasmFunction(wasm, '_hd_dot_address');
       const pubPtr = allocAndCopy(wasm, publicKey);
       const outPtr = wasm._hd_alloc(64);
       try {
@@ -2200,8 +2193,7 @@ function createModule(wasm) {
     },
 
     validateAddress(address) {
-      const validateFn = getWasmFunction(wasm, '_hd_dot_validate_address');
-      if (!validateFn) return false;
+      const validateFn = requireWasmFunction(wasm, '_hd_dot_validate_address');
       const addrPtr = allocString(wasm, address);
       try {
         return validateFn(addrPtr) === 0;
@@ -2228,8 +2220,7 @@ function createModule(wasm) {
     },
 
     verifyMessage(message, signature, publicKey) {
-      const verifyFn = getWasmFunction(wasm, '_hd_dot_verify_message');
-      if (!verifyFn) return false;
+      const verifyFn = requireWasmFunction(wasm, '_hd_dot_verify_message');
       const msgPtr = allocAndCopy(wasm, message);
       const sigPtr = allocAndCopy(wasm, signature);
       const pubPtr = allocAndCopy(wasm, publicKey);

@@ -61,7 +61,8 @@ HD Wallet WASM provides a complete implementation of BIP-32/39/44 hierarchical d
 - **Cryptographic Utilities**
   - Hash functions: SHA-256, SHA-512, Keccak-256, RIPEMD-160, BLAKE2b/s
   - Key derivation: HKDF, PBKDF2, scrypt
-  - Encryption: AES-256-GCM (authenticated encryption)
+  - Encryption: AES-256-GCM (authenticated), AES-128/192/256-CTR (streaming)
+  - ECIES: Unified encrypt/decrypt (ECDH + HKDF-SHA256 + AES-256-GCM)
   - Encoding: Base58, Base58Check, Bech32, Hex, Base64
   - Random: Secure random bytes, IV generation, AES key generation
 
@@ -219,6 +220,46 @@ const encrypted = wallet.utils.aesGcm.encrypt(aesKey, plaintext, iv, aad);
 const decryptedWithAad = wallet.utils.aesGcm.decrypt(aesKey, encrypted.ciphertext, encrypted.tag, iv, aad);
 ```
 
+### ECIES (Elliptic Curve Integrated Encryption)
+
+ECIES combines ECDH key agreement, HKDF-SHA256 key derivation, and AES-256-GCM
+into a single encrypt/decrypt API. Supports secp256k1, P-256, P-384, and X25519.
+
+```javascript
+// Encrypt for a recipient using their public key
+const encrypted = wallet.ecies.encrypt('x25519', recipientPublicKey, plaintext);
+
+// Decrypt with the recipient's private key
+const decrypted = wallet.ecies.decrypt('x25519', recipientPrivateKey, encrypted);
+
+// With additional authenticated data (AAD)
+const encrypted = wallet.ecies.encrypt('secp256k1', recipientPubKey, plaintext, aad);
+const decrypted = wallet.ecies.decrypt('secp256k1', recipientPrivKey, encrypted, aad);
+```
+
+Wire format: `[ephemeral_pubkey][iv (12B)][ciphertext][tag (16B)]`
+
+| Curve     | Overhead |
+|-----------|----------|
+| secp256k1 | 61 bytes |
+| P-256     | 61 bytes |
+| P-384     | 77 bytes |
+| X25519    | 60 bytes |
+
+### AES-CTR Encryption
+
+Counter mode encryption for streaming use cases. No authentication — pair with HMAC for integrity.
+
+```javascript
+// AES-256-CTR
+const key = wallet.utils.generateAesKey(256);
+const iv = wallet.utils.generateRandomBytes(16); // 16-byte IV for CTR mode
+const ciphertext = wallet.aesCtr.encrypt(key, plaintext, iv);
+const decrypted = wallet.aesCtr.decrypt(key, ciphertext, iv);
+
+// Also supports AES-128-CTR and AES-192-CTR (key size selects variant)
+```
+
 ### Building Transactions
 
 ```javascript
@@ -263,6 +304,7 @@ Full API documentation is available at [https://digitalarsenal.github.io/hd-wall
 | `polkadot` | Polkadot/Substrate addresses and signing |
 | `hardware` | Hardware wallet abstraction (KeepKey, Trezor, Ledger) |
 | `keyring` | Multi-wallet key management |
+| `ecies` | ECIES encrypt/decrypt (ECDH + HKDF + AES-GCM), AES-CTR |
 | `utils` | Hash functions, encoding, key derivation, AES-GCM encryption |
 
 ### Low-Level C API
@@ -365,6 +407,7 @@ When OpenSSL is enabled, FIPS-approved algorithms automatically route through Op
 | **Symmetric Encryption** | | |
 | AES-128/192/256-GCM | ✅ OpenSSL FIPS | Crypto++ |
 | AES-128/192/256-CTR | ✅ OpenSSL FIPS | Crypto++ |
+| ECIES (ECDH+HKDF+AES-GCM) | ✅ FIPS with P-256/P-384 | Crypto++ |
 | ChaCha20-Poly1305 | ❌ Crypto++ | Crypto++ |
 | **Elliptic Curves** | | |
 | NIST P-256 (secp256r1) | ✅ OpenSSL FIPS | Crypto++ |

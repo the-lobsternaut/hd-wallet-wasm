@@ -11,6 +11,8 @@
 
 #include "hd_wallet/types.h"
 #include "hd_wallet/config.h"
+#include "hd_wallet/error.h"
+#include "hd_wallet/ecdh.h"
 
 #include <cryptopp/eccrypto.h>
 #include <cryptopp/ecp.h>
@@ -714,6 +716,140 @@ bool hkdf(
     }
 
     return hkdfExpand(prk.data(), prkLen, info, infoLen, okm, okmLen);
+}
+
+// =============================================================================
+// ECDH + HKDF Combined Key Derivation
+// =============================================================================
+
+Result<ByteVector> ecdhDeriveKey(
+    Curve curve,
+    const ByteVector& privateKey,
+    const ByteVector& publicKey,
+    const ByteVector& salt,
+    const ByteVector& info,
+    size_t keyLength
+) {
+    if (keyLength == 0 || keyLength > 255 * 32) {
+        return Result<ByteVector>::fail(Error::INVALID_ARGUMENT);
+    }
+
+    // Step 1: Compute ECDH shared secret
+    size_t secretSize = (curve == Curve::P384) ? 48 : 32;
+    CryptoPP::SecByteBlock sharedSecret(secretSize);
+    size_t actualSecretLen = secretSize;
+
+    bool ecdhOk;
+    if (curve == Curve::X25519) {
+        ecdhOk = x25519(
+            privateKey.data(), privateKey.size(),
+            publicKey.data(), publicKey.size(),
+            sharedSecret.data(), &actualSecretLen);
+    } else {
+        ecdhOk = ecdh(
+            curve,
+            privateKey.data(), privateKey.size(),
+            publicKey.data(), publicKey.size(),
+            sharedSecret.data(), &actualSecretLen);
+    }
+
+    if (!ecdhOk) {
+        return Result<ByteVector>::fail(Error::INTERNAL);
+    }
+
+    // Step 2: Derive key via HKDF
+    ByteVector derivedKey(keyLength);
+    if (!hkdf(
+            salt.empty() ? nullptr : salt.data(), salt.size(),
+            sharedSecret.data(), actualSecretLen,
+            info.empty() ? nullptr : info.data(), info.size(),
+            derivedKey.data(), keyLength)) {
+        return Result<ByteVector>::fail(Error::INTERNAL);
+    }
+
+    return Result<ByteVector>::success(std::move(derivedKey));
+}
+
+// =============================================================================
+// Ephemeral Key Pair Generation
+// =============================================================================
+
+Result<KeyPair> generateEphemeralKeyPair(Curve curve) {
+#if HD_WALLET_FIPS_MODE
+    if (curve != Curve::P256 && curve != Curve::P384) {
+        return Result<KeyPair>::fail(Error::FIPS_NOT_ALLOWED);
+    }
+#endif
+
+    try {
+        CryptoPP::AutoSeededRandomPool rng;
+        KeyPair kp;
+
+        switch (curve) {
+            case Curve::SECP256K1: {
+                kp.privateKey.resize(32);
+                rng.GenerateBlock(kp.privateKey.data(), 32);
+                CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PrivateKey privKey;
+                CryptoPP::Integer d(kp.privateKey.data(), 32);
+                privKey.Initialize(CryptoPP::ASN1::secp256k1(), d);
+                CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PublicKey pubKey;
+                privKey.MakePublicKey(pubKey);
+                const auto& point = pubKey.GetPublicElement();
+                kp.publicKey.resize(33);
+                kp.publicKey[0] = point.y.IsOdd() ? 0x03 : 0x02;
+                point.x.Encode(kp.publicKey.data() + 1, 32);
+                break;
+            }
+            case Curve::P256: {
+                kp.privateKey.resize(32);
+                rng.GenerateBlock(kp.privateKey.data(), 32);
+                CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PrivateKey privKey;
+                CryptoPP::Integer d(kp.privateKey.data(), 32);
+                privKey.Initialize(CryptoPP::ASN1::secp256r1(), d);
+                CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PublicKey pubKey;
+                privKey.MakePublicKey(pubKey);
+                const auto& point = pubKey.GetPublicElement();
+                kp.publicKey.resize(33);
+                kp.publicKey[0] = point.y.IsOdd() ? 0x03 : 0x02;
+                point.x.Encode(kp.publicKey.data() + 1, 32);
+                break;
+            }
+            case Curve::P384: {
+                kp.privateKey.resize(48);
+                rng.GenerateBlock(kp.privateKey.data(), 48);
+                CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PrivateKey privKey;
+                CryptoPP::Integer d(kp.privateKey.data(), 48);
+                privKey.Initialize(CryptoPP::ASN1::secp384r1(), d);
+                CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PublicKey pubKey;
+                privKey.MakePublicKey(pubKey);
+                const auto& point = pubKey.GetPublicElement();
+                kp.publicKey.resize(49);
+                kp.publicKey[0] = point.y.IsOdd() ? 0x03 : 0x02;
+                point.x.Encode(kp.publicKey.data() + 1, 48);
+                break;
+            }
+            case Curve::X25519: {
+#if !HD_WALLET_ENABLE_X25519
+                return Result<KeyPair>::fail(Error::FIPS_NOT_ALLOWED);
+#else
+                kp.privateKey.resize(32);
+                rng.GenerateBlock(kp.privateKey.data(), 32);
+                kp.publicKey.resize(32);
+                size_t pubLen = 32;
+                if (!x25519PublicKey(kp.privateKey.data(), 32, kp.publicKey.data(), &pubLen)) {
+                    return Result<KeyPair>::fail(Error::INTERNAL);
+                }
+                break;
+#endif
+            }
+            default:
+                return Result<KeyPair>::fail(Error::INVALID_ARGUMENT);
+        }
+
+        return Result<KeyPair>::success(std::move(kp));
+    } catch (...) {
+        return Result<KeyPair>::fail(Error::INTERNAL);
+    }
 }
 
 } // namespace ecdh

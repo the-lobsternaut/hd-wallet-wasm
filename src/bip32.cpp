@@ -28,6 +28,10 @@
 #include <cryptopp/secblock.h>
 #endif
 
+#if HD_WALLET_USE_LIBSECP256K1
+#include <secp256k1.h>
+#endif
+
 namespace hd_wallet {
 namespace bip32 {
 
@@ -187,6 +191,126 @@ static ByteVector hash160(const uint8_t* data, size_t size) {
     ripemd.Final(result.data());
     return result;
 }
+
+#if HD_WALLET_USE_LIBSECP256K1
+
+// =============================================================================
+// secp256k1 EC Operations via libsecp256k1 (Bitcoin Core)
+//
+// Replaces Crypto++ ECP in WASM builds. Crypto++ ScalarMultiply is unreliable
+// in 32-bit WASM due to exception-handling being disabled (-fignore-exceptions).
+// libsecp256k1 is pure C, exception-free, and the gold standard for secp256k1.
+// =============================================================================
+
+/**
+ * Get secp256k1 context (lazy init, safe in single-threaded WASM)
+ */
+static secp256k1_context* secp256k1_ctx() {
+    static secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+    return ctx;
+}
+
+/**
+ * Check if a 32-byte value is a valid secp256k1 private key
+ */
+static bool isValidPrivateKey(const Bytes32& key) {
+    return secp256k1_ec_seckey_verify(secp256k1_ctx(), key.data()) == 1;
+}
+
+/**
+ * Add two private keys modulo curve order
+ * result = (key1 + key2) mod n
+ */
+static Result<Bytes32> addPrivateKeys(const Bytes32& key1, const Bytes32& key2) {
+    Bytes32 result = key1;
+    if (secp256k1_ec_seckey_tweak_add(secp256k1_ctx(), result.data(), key2.data()) != 1) {
+        return Result<Bytes32>::fail(Error::KEY_DERIVATION_FAILED);
+    }
+    return Result<Bytes32>::success(std::move(result));
+}
+
+/**
+ * Derive public key from private key using secp256k1
+ */
+Result<Bytes33> publicKeyFromPrivate(const Bytes32& private_key, Curve curve) {
+    if (curve != Curve::SECP256K1) {
+        return Result<Bytes33>::fail(Error::NOT_SUPPORTED);
+    }
+
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ec_pubkey_create(secp256k1_ctx(), &pubkey, private_key.data()) != 1) {
+        return Result<Bytes33>::fail(Error::INVALID_PRIVATE_KEY);
+    }
+
+    Bytes33 result;
+    size_t len = 33;
+    secp256k1_ec_pubkey_serialize(secp256k1_ctx(), result.data(), &len, &pubkey, SECP256K1_EC_COMPRESSED);
+    return Result<Bytes33>::success(std::move(result));
+}
+
+/**
+ * Add two public key points (point addition on secp256k1)
+ */
+static Result<Bytes33> addPublicKeys(const Bytes33& pubkey1, const Bytes33& pubkey2) {
+    secp256k1_pubkey pk1, pk2;
+    if (secp256k1_ec_pubkey_parse(secp256k1_ctx(), &pk1, pubkey1.data(), 33) != 1) {
+        return Result<Bytes33>::fail(Error::INVALID_PUBLIC_KEY);
+    }
+    if (secp256k1_ec_pubkey_parse(secp256k1_ctx(), &pk2, pubkey2.data(), 33) != 1) {
+        return Result<Bytes33>::fail(Error::INVALID_PUBLIC_KEY);
+    }
+
+    const secp256k1_pubkey* pubkeys[2] = {&pk1, &pk2};
+    secp256k1_pubkey combined;
+    if (secp256k1_ec_pubkey_combine(secp256k1_ctx(), &combined, pubkeys, 2) != 1) {
+        return Result<Bytes33>::fail(Error::KEY_DERIVATION_FAILED);
+    }
+
+    Bytes33 result;
+    size_t len = 33;
+    secp256k1_ec_pubkey_serialize(secp256k1_ctx(), result.data(), &len, &combined, SECP256K1_EC_COMPRESSED);
+    return Result<Bytes33>::success(std::move(result));
+}
+
+/**
+ * Compress a 65-byte uncompressed public key to 33-byte compressed form
+ */
+Result<Bytes33> compressPublicKey(const Bytes65& uncompressed, Curve curve) {
+    if (curve != Curve::SECP256K1) {
+        return Result<Bytes33>::fail(Error::NOT_SUPPORTED);
+    }
+
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ec_pubkey_parse(secp256k1_ctx(), &pubkey, uncompressed.data(), 65) != 1) {
+        return Result<Bytes33>::fail(Error::INVALID_PUBLIC_KEY);
+    }
+
+    Bytes33 result;
+    size_t len = 33;
+    secp256k1_ec_pubkey_serialize(secp256k1_ctx(), result.data(), &len, &pubkey, SECP256K1_EC_COMPRESSED);
+    return Result<Bytes33>::success(std::move(result));
+}
+
+/**
+ * Decompress a 33-byte compressed public key to 65-byte uncompressed form
+ */
+Result<Bytes65> decompressPublicKey(const Bytes33& compressed, Curve curve) {
+    if (curve != Curve::SECP256K1) {
+        return Result<Bytes65>::fail(Error::NOT_SUPPORTED);
+    }
+
+    secp256k1_pubkey pubkey;
+    if (secp256k1_ec_pubkey_parse(secp256k1_ctx(), &pubkey, compressed.data(), 33) != 1) {
+        return Result<Bytes65>::fail(Error::INVALID_PUBLIC_KEY);
+    }
+
+    Bytes65 result;
+    size_t len = 65;
+    secp256k1_ec_pubkey_serialize(secp256k1_ctx(), result.data(), &len, &pubkey, SECP256K1_EC_UNCOMPRESSED);
+    return Result<Bytes65>::success(std::move(result));
+}
+
+#else // !HD_WALLET_USE_LIBSECP256K1 — use Crypto++ EC operations
 
 /**
  * Compare two big-endian byte arrays in constant time
@@ -459,6 +583,8 @@ Result<Bytes65> decompressPublicKey(const Bytes33& compressed, Curve curve) {
         return Result<Bytes65>::fail(Error::INVALID_PUBLIC_KEY);
     }
 }
+
+#endif // !HD_WALLET_USE_LIBSECP256K1
 
 #endif // HD_WALLET_USE_CRYPTOPP
 

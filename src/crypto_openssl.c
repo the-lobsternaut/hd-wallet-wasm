@@ -655,6 +655,64 @@ cleanup:
 }
 
 // =============================================================================
+// AES-CTR
+// =============================================================================
+
+static const char* aes_ctr_cipher_name(size_t key_len) {
+    switch (key_len) {
+        case 16: return "AES-128-CTR";
+        case 24: return "AES-192-CTR";
+        case 32: return "AES-256-CTR";
+        default: return NULL;
+    }
+}
+
+HD_OSSL_EXPORT
+int32_t hd_ossl_aes_ctr_encrypt(const uint8_t* key, size_t key_len,
+                                const uint8_t* pt, size_t pt_len,
+                                const uint8_t* iv, size_t iv_len,
+                                uint8_t* ct) {
+    EVP_CIPHER_CTX *ctx = NULL;
+    EVP_CIPHER *cipher = NULL;
+    int len = 0;
+    int ct_len = 0;
+    int ret = -1;
+
+    const char* cipher_name = aes_ctr_cipher_name(key_len);
+    if (!cipher_name || iv_len != 16) return -1;
+
+    cipher = EVP_CIPHER_fetch(fips_libctx, cipher_name, NULL);
+    if (cipher == NULL) goto cleanup;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL) goto cleanup;
+
+    if (EVP_EncryptInit_ex2(ctx, cipher, key, iv, NULL) != 1) goto cleanup;
+
+    if (EVP_EncryptUpdate(ctx, ct, &len, pt, (int)pt_len) != 1) goto cleanup;
+    ct_len = len;
+
+    if (EVP_EncryptFinal_ex(ctx, ct + len, &len) != 1) goto cleanup;
+    ct_len += len;
+
+    ret = ct_len;
+
+cleanup:
+    EVP_CIPHER_CTX_free(ctx);
+    EVP_CIPHER_free(cipher);
+    return ret;
+}
+
+HD_OSSL_EXPORT
+int32_t hd_ossl_aes_ctr_decrypt(const uint8_t* key, size_t key_len,
+                                const uint8_t* ct, size_t ct_len,
+                                const uint8_t* iv, size_t iv_len,
+                                uint8_t* pt) {
+    /* CTR mode decryption is identical to encryption */
+    return hd_ossl_aes_ctr_encrypt(key, key_len, ct, ct_len, iv, iv_len, pt);
+}
+
+// =============================================================================
 // ECDSA (P-256, P-384)
 // =============================================================================
 

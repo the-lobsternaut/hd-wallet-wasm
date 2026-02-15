@@ -273,43 +273,65 @@ test('ECDSA verification handles leading-zero compact components', () => {
   assertEqual(wallet.curves.p384.verify(p384Msg, p384Sig, p384Pub), true, 'P-384 leading-zero signature should verify');
 });
 
-test('unsupported coin wrappers fail cleanly instead of crashing', () => {
-  const anyPub33 = new Uint8Array(33).fill(1);
-  const anyPub65 = new Uint8Array(65).fill(2);
-  anyPub65[0] = 0x04;
-  const anyPriv = new Uint8Array(32).fill(7);
+test('coin address generation and validation work correctly', () => {
+  // Generate a deterministic wallet for testing
+  const seed = new Uint8Array(64);
+  for (let i = 0; i < 64; i++) seed[i] = i;
+  const master = wallet.hdkey.fromSeed(seed);
 
-  assertEqual(wallet.bitcoin.validateAddress('1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH'), false);
-  expectHdWalletError(() => wallet.bitcoin.getAddress(anyPub33, BitcoinAddressType.P2PKH, Network.MAINNET), 3);
-  expectHdWalletError(() => wallet.bitcoin.decodeAddress('1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH'), 3);
-  expectHdWalletError(() => wallet.bitcoin.signMessage('msg', anyPriv), 3);
-  assertEqual(wallet.bitcoin.verifyMessage('msg', 'sig', 'addr'), false);
-  expectHdWalletError(() => wallet.bitcoin.tx.create(), 3);
+  // ===== Bitcoin =====
+  const btcKey = master.derivePath("m/44'/0'/0'/0/0");
+  const btcPub = btcKey.publicKey();
+  assert(btcPub.length === 33, 'BTC pubkey should be 33 bytes');
 
-  assertEqual(wallet.ethereum.validateAddress('0x0000000000000000000000000000000000000000'), false);
-  expectHdWalletError(() => wallet.ethereum.getAddress(anyPub65), 3);
-  expectHdWalletError(() => wallet.ethereum.getChecksumAddress('0x0000000000000000000000000000000000000000'), 3);
-  expectHdWalletError(() => wallet.ethereum.signMessage('msg', anyPriv), 3);
-  expectHdWalletError(() => wallet.ethereum.signTypedData({ a: 1 }, anyPriv), 3);
-  expectHdWalletError(() => wallet.ethereum.verifyMessage('msg', '0x'), 3);
-  expectHdWalletError(() => wallet.ethereum.tx.create({}), 3);
-  expectHdWalletError(() => wallet.ethereum.tx.createEIP1559({}), 3);
+  // Address generation
+  const p2pkh = wallet.bitcoin.getAddress(btcPub, BitcoinAddressType.P2PKH, Network.MAINNET);
+  assert(p2pkh.startsWith('1'), 'P2PKH mainnet should start with 1');
 
-  assertEqual(wallet.cosmos.validateAddress('cosmos1xyz'), false);
-  expectHdWalletError(() => wallet.cosmos.getAddress(anyPub33), 3);
-  expectHdWalletError(() => wallet.cosmos.signAmino({}, anyPriv), 3);
-  expectHdWalletError(() => wallet.cosmos.signDirect(new Uint8Array(), new Uint8Array(), 'cosmoshub-4', 0n, anyPriv), 3);
-  assertEqual(wallet.cosmos.verify(new Uint8Array(64), new Uint8Array(32), anyPub33), false);
+  const p2wpkh = wallet.bitcoin.getAddress(btcPub, BitcoinAddressType.P2WPKH, Network.MAINNET);
+  assert(p2wpkh.startsWith('bc1q'), 'P2WPKH mainnet should start with bc1q');
 
-  assertEqual(wallet.solana.validateAddress('11111111111111111111111111111111'), false);
-  expectHdWalletError(() => wallet.solana.getAddress(anyPub33), 3);
-  expectHdWalletError(() => wallet.solana.signMessage(new Uint8Array([1, 2, 3]), anyPriv), 3);
-  assertEqual(wallet.solana.verifyMessage(new Uint8Array([1]), new Uint8Array(64), anyPub33), false);
+  // Validation: valid addresses return true
+  assertEqual(wallet.bitcoin.validateAddress('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'), true);
+  assertEqual(wallet.bitcoin.validateAddress('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'), true);
+  // Validation: invalid addresses return false
+  assertEqual(wallet.bitcoin.validateAddress('notanaddress'), false);
+  // Roundtrip: generated addresses validate
+  assertEqual(wallet.bitcoin.validateAddress(p2pkh), true);
+  assertEqual(wallet.bitcoin.validateAddress(p2wpkh), true);
 
-  assertEqual(wallet.polkadot.validateAddress('14abc'), false);
-  expectHdWalletError(() => wallet.polkadot.getAddress(anyPub33), 3);
-  expectHdWalletError(() => wallet.polkadot.signMessage(new Uint8Array([1, 2, 3]), anyPriv), 3);
-  assertEqual(wallet.polkadot.verifyMessage(new Uint8Array([1]), new Uint8Array(64), anyPub33), false);
+  btcKey.wipe();
+
+  // ===== Ethereum =====
+  const ethKey = master.derivePath("m/44'/60'/0'/0/0");
+  const ethPub = ethKey.publicKeyUncompressed();
+  assert(ethPub.length === 65, 'ETH pubkey should be 65 bytes');
+
+  const ethAddr = wallet.ethereum.getAddress(ethPub);
+  assert(ethAddr.startsWith('0x'), 'ETH address should start with 0x');
+  assert(ethAddr.length === 42, 'ETH address should be 42 chars');
+
+  assertEqual(wallet.ethereum.validateAddress(ethAddr), true);
+  assertEqual(wallet.ethereum.validateAddress('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045'), true);
+  assertEqual(wallet.ethereum.validateAddress('notanaddress'), false);
+
+  ethKey.wipe();
+
+  // ===== Solana =====
+  const solKey = master.derivePath("m/44'/501'/0'/0'");
+  const solPriv = solKey.privateKey();
+  const solPub = wallet.curves.ed25519.publicKeyFromSeed(solPriv);
+  assert(solPub.length === 32, 'SOL Ed25519 pubkey should be 32 bytes');
+
+  const solAddr = wallet.solana.getAddress(solPub);
+  assert(solAddr.length > 30, 'SOL address should be base58');
+
+  assertEqual(wallet.solana.validateAddress(solAddr), true);
+  assertEqual(wallet.solana.validateAddress('11111111111111111111111111111111'), true);
+  assertEqual(wallet.solana.validateAddress('notanaddress'), false);
+
+  solKey.wipe();
+  master.wipe();
 });
 
 testAsync('hardware wrapper handles no-bridge mode cleanly', async () => {
