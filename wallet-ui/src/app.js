@@ -2468,10 +2468,10 @@ function login(keys) {
   state.addresses = deriveAllAddressesFromHD();
   state.selectedCrypto = 'btc';
 
-  // Fire onLogin callback with SDN identity (coin type 1957 — Sputnik)
+  // Fire onLogin callback with SDN identity (BIP-44 Bitcoin coin type 0)
   if (_onLoginCallback && state.hdRoot) {
     try {
-      const sdnSigning = getSigningKey(state.hdRoot, 1957, 0, 0);
+      const sdnSigning = getSigningKey(state.hdRoot, 0, 0, 0);
       const sdnPrivKey = sdnSigning.privateKey;
       const sdnPubKey = ed25519.getPublicKey(sdnPrivKey);
       // Don't keep derived private key bytes around longer than needed.
@@ -2484,7 +2484,7 @@ function login(keys) {
           const msgBytes = typeof message === 'string'
             ? new TextEncoder().encode(message)
             : message;
-          const signing = getSigningKey(state.hdRoot, 1957, 0, 0);
+          const signing = getSigningKey(state.hdRoot, 0, 0, 0);
           try {
             return ed25519.sign(msgBytes, signing.privateKey);
           } finally {
@@ -5842,7 +5842,7 @@ export async function init(rootElement, options = {}) {
  * @param {Node}   [rootElement]  - Optional root element for DOM queries
  * @param {Object} [options]      - Options passed to init()
  * @param {Function} [options.onLogin] - Callback fired after successful login with
- *   `{ xpub, signingPublicKey, sign(message) }` for SDN identity (coin type 1957)
+ *   `{ xpub, signingPublicKey, sign(message) }` for SDN identity (BIP-44 coin type 0)
  * @param {boolean}  [options.openAccountAfterLogin=true] - When false, the Account
  *   modal will NOT auto-open after login. Useful for integrations that handle
  *   post-login UX themselves (e.g. challenge-response auth flows).

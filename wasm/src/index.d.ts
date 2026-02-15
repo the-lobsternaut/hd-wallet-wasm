@@ -650,7 +650,7 @@ export function getEncryptionKey(hdRoot: HDKey, coinType: string | number, accou
 
 /** Well-known coin types */
 export enum WellKnownCoinType {
-  SDN = 1957,
+  SDN = 0,
   BITCOIN = 0,
   ETHEREUM = 60,
   SOLANA = 501,

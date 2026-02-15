@@ -6,7 +6,7 @@ import { hexToBytes } from '../src/address-derivation.js';
 // Test Fixtures — mirrors the onLogin callback contract from app.js login()
 // =============================================================================
 
-// Deterministic ed25519 key pair (simulates SDN coin-type 1957 signing key)
+// Deterministic ed25519 key pair (simulates SDN signing key, BIP-44 coin type 0)
 const SDN_PRIVKEY = hexToBytes(
   '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60'
 );

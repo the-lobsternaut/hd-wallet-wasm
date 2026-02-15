@@ -3153,7 +3153,7 @@ function createModule(wasm) {
  * @example
  * buildSigningPath(60);          // "m/44'/60'/0'/0/0" (Ethereum)
  * buildSigningPath(0, '0', '1'); // "m/44'/0'/0'/0/1"  (Bitcoin, 2nd key)
- * buildSigningPath(1957);        // "m/44'/1957'/0'/0/0" (Space Data Network)
+ * buildSigningPath(501);         // "m/44'/501'/0'/0/0"  (Solana)
  */
 export function buildSigningPath(coinType, account = '0', index = '0') {
   return `m/44'/${coinType}'/${account}'/0/${index}`;
@@ -3173,7 +3173,7 @@ export function buildSigningPath(coinType, account = '0', index = '0') {
  *
  * @example
  * buildEncryptionPath(60);          // "m/44'/60'/0'/1/0" (Ethereum)
- * buildEncryptionPath(1957, '0', '3'); // "m/44'/1957'/0'/1/3" (SDN, 4th plugin key)
+ * buildEncryptionPath(501, '0', '3');  // "m/44'/501'/0'/1/3"  (Solana, 4th plugin key)
  */
 export function buildEncryptionPath(coinType, account = '0', index = '0') {
   return `m/44'/${coinType}'/${account}'/1/${index}`;
@@ -3229,7 +3229,7 @@ export function getSigningKey(hdRoot, coinType, account = '0', index = '0') {
  * const wallet = await createHDWallet();
  * const seed = wallet.mnemonic.toSeed(mnemonic);
  * const root = wallet.hdkey.fromSeed(seed);
- * const { privateKey, publicKey } = getEncryptionKey(root, 1957, '0', '0');
+ * const { privateKey, publicKey } = getEncryptionKey(root, 0, '0', '0');
  * // Use publicKey for ECIES encryption, privateKey for decryption
  * const shared = wallet.curves.secp256k1.ecdh(privateKey, otherPublicKey);
  */
@@ -3253,8 +3253,8 @@ export function getEncryptionKey(hdRoot, coinType, account = '0', index = '0') {
  * @enum {number}
  */
 export const WellKnownCoinType = Object.freeze({
-  /** Space Data Network identity (1957 = Sputnik launch year) */
-  SDN: 1957,
+  /** Space Data Network identity (uses Bitcoin coin type 0) */
+  SDN: 0,
   /** Bitcoin */
   BITCOIN: 0,
   /** Ethereum */

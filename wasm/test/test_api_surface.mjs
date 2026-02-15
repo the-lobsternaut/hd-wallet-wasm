@@ -374,7 +374,7 @@ test('utility methods not covered elsewhere behave correctly', () => {
 
 test('BIP-44 helper exports derive expected paths and keys', () => {
   assertEqual(buildSigningPath(WellKnownCoinType.ETHEREUM, '2', '3'), "m/44'/60'/2'/0/3");
-  assertEqual(buildEncryptionPath(WellKnownCoinType.SDN, '1', '9'), "m/44'/1957'/1'/1/9");
+  assertEqual(buildEncryptionPath(WellKnownCoinType.SDN, '1', '9'), "m/44'/0'/1'/1/9");
 
   const root = wallet.hdkey.fromSeed(TEST_SEED_16);
   try {
