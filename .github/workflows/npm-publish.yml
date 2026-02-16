@@ -58,11 +58,8 @@ jobs:
       - name: Cache CMake build
         uses: actions/cache@v4
         with:
-          path: |
-            build/_deps/cryptopp*
-            build/CMakeCache.txt
-            build/CMakeFiles
-          key: cmake-wasm-${{ runner.os }}-${{ hashFiles('CMakeLists.txt') }}-emsdk-3.1.51
+          path: build/_deps/cryptopp*
+          key: cryptopp-wasm-${{ runner.os }}-8.9.0-emsdk-3.1.51
 
       - name: Configure CMake with Emscripten
         run: emcmake cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DHD_WALLET_BUILD_WASM=ON -DHD_WALLET_USE_OPENSSL=ON
