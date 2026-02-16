@@ -223,18 +223,9 @@ test('L3: P-256 ECDH mutual agreement (Alice and Bob compute same secret)', () =
   const privB = new Uint8Array(32);
   privB[31] = 2;
 
-  // P-256 generator point * 1 (uncompressed)
-  const pubA_uncomp = hexToBytes(
-    '04' +
-    '6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296' +
-    '4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5'
-  );
-  // P-256 generator point * 2 (uncompressed)
-  const pubB_uncomp = hexToBytes(
-    '04' +
-    '7cf27b188d034f7e8a52380304b51ac3c08969e277f21b35a60b48fc47669978' +
-    'e9e29ceab0ae25e5e8965bdb60e24d57ac6e68026fa7cdb0fbec85a37a03f3b8'
-  );
+  // Derive public keys from private keys to ensure correctness
+  const pubA_uncomp = wallet.curves.publicKeyFromPrivate(privA, Curve.P256);
+  const pubB_uncomp = wallet.curves.publicKeyFromPrivate(privB, Curve.P256);
 
   const secretAB = wallet.curves.p256.ecdh(privA, pubB_uncomp);
   const secretBA = wallet.curves.p256.ecdh(privB, pubA_uncomp);

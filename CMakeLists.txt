@@ -978,6 +978,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     )
     target_link_options(hd_wallet_wasm_js PRIVATE
       -sWASM=1
+      -sWASM_BIGINT=1
       -sMODULARIZE=1
       -sEXPORT_NAME=HDWalletWasm
       -sEXPORT_ES6=1
@@ -1020,6 +1021,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
     )
     target_link_options(hd_wallet_wasm_inline PRIVATE
       -sWASM=1
+      -sWASM_BIGINT=1
       -sMODULARIZE=1
       -sEXPORT_NAME=HDWalletWasm
       -sEXPORT_ES6=1
