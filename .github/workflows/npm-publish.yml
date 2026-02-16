@@ -226,6 +226,22 @@ jobs:
           echo "Updated hd-wallet-wasm dependency to ^${WASM_VERSION}"
           cat package.json | head -40
 
+      - name: Wait for hd-wallet-wasm to propagate on npm
+        run: |
+          cd wallet-ui
+          WASM_VERSION=$(node -p "require('./package.json').dependencies['hd-wallet-wasm'].replace('^','')")
+          echo "Waiting for hd-wallet-wasm@${WASM_VERSION} on npm registry..."
+          for i in $(seq 1 30); do
+            if npm view "hd-wallet-wasm@${WASM_VERSION}" version 2>/dev/null; then
+              echo "Found hd-wallet-wasm@${WASM_VERSION} on npm"
+              exit 0
+            fi
+            echo "Attempt $i/30 — not yet available, waiting 10s..."
+            sleep 10
+          done
+          echo "Timed out waiting for hd-wallet-wasm@${WASM_VERSION}"
+          exit 1
+
       - name: Install dependencies
         run: npm install --ignore-scripts
         working-directory: wallet-ui
