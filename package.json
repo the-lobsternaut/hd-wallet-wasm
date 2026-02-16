@@ -4,7 +4,8 @@
   "scripts": {
     "prepare": "husky",
     "dev": "cd wallet-ui && npm run dev",
-    "build:docs": "cd wallet-ui && npm run build:docs"
+    "build:docs": "cd wallet-ui && npm run build:docs",
+    "test": "cd wasm && npm test && cd ../wallet-ui && npm test"
   },
   "devDependencies": {
     "husky": "^9.1.7"

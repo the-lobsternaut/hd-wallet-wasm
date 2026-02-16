@@ -1044,7 +1044,7 @@ function createModule(wasm) {
       const outputPtr = wasm._hd_alloc(1024);
       try {
         const result = wasm._hd_mnemonic_suggest_word(prefixPtr, language, outputPtr, 1024, maxSuggestions);
-        checkResult(result);
+        if (result < 0) throw new HDWalletError(result);
         const text = readString(wasm, outputPtr);
         // C API returns newline-separated words
         return text ? text.split('\n').filter(w => w.length > 0) : [];
