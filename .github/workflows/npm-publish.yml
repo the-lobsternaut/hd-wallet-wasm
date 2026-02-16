@@ -229,6 +229,10 @@ jobs:
           echo "Updated hd-wallet-wasm dependency to ^${WASM_VERSION}"
           cat package.json | head -40
 
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+        working-directory: wallet-ui
+
       - name: Verify package
         run: npm pack --dry-run
         working-directory: wallet-ui
