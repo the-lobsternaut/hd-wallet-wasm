@@ -3881,6 +3881,24 @@ function createModule(wasm) {
         wasm._hd_dealloc(cidPtr);
         wasm._hd_dealloc(outPtr);
       }
+    },
+
+    peerIdFromXpub(xpubStr) {
+      const key = hdkey.fromXpub(xpubStr);
+      try {
+        return key.peerIdString();
+      } finally {
+        key.wipe();
+      }
+    },
+
+    ipnsHashFromXpub(xpubStr) {
+      const key = hdkey.fromXpub(xpubStr);
+      try {
+        return key.ipnsHash();
+      } finally {
+        key.wipe();
+      }
     }
   };
 

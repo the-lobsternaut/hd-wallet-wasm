@@ -497,26 +497,12 @@ function deriveHDKey(path) {
   }
 }
 
-function derivePeerInfo(acct) {
-  if (!state.hdRoot || !state.hdWalletModule) return null;
+function deriveAccountPeerId() {
+  if (!state.hdRoot) return null;
   try {
-    const path = acct.path || buildSigningPath(acct.coinType, acct.account, acct.index);
-    const derived = state.hdRoot.derivePath(path);
-    let pubKey, curve;
-    if (acct.coinType === 501) {
-      pubKey = ed25519.getPublicKey(derived.privateKey());
-      curve = Curve.ED25519;
-    } else {
-      pubKey = derived.publicKey();
-      curve = Curve.SECP256K1;
-    }
-    const peerIdBytes = state.hdWalletModule.libp2p.peerIdFromPublicKey(pubKey, curve);
-    return {
-      peerIdStr: state.hdWalletModule.libp2p.peerIdToString(peerIdBytes),
-      ipnsHash: state.hdWalletModule.libp2p.ipnsHash(peerIdBytes),
-    };
+    return state.hdRoot.peerIdString();
   } catch (e) {
-    console.warn('Failed to derive peer info:', e);
+    console.warn('Failed to derive account PeerID:', e);
     return null;
   }
 }
@@ -1629,18 +1615,6 @@ async function showReceiveModal(acct) {
         <h4 id="wallet-receive-title" class="section-label"></h4>
         <canvas id="wallet-receive-qr"></canvas>
         <code id="wallet-receive-address" class="wallet-receive-address"></code>
-        <div id="wallet-receive-peer-section" class="wallet-receive-peer-section" style="display:none">
-          <div class="wallet-receive-field">
-            <span class="wallet-receive-field-label">PeerID</span>
-            <code id="wallet-receive-peerid" class="wallet-receive-field-value"></code>
-            <button id="wallet-receive-copy-peerid" class="glass-btn small">Copy</button>
-          </div>
-          <div class="wallet-receive-field">
-            <span class="wallet-receive-field-label">IPNS</span>
-            <code id="wallet-receive-ipns" class="wallet-receive-field-value"></code>
-            <button id="wallet-receive-copy-ipns" class="glass-btn small">Copy</button>
-          </div>
-        </div>
         <div class="wallet-receive-actions">
           <button id="wallet-receive-copy" class="glass-btn small">Copy Address</button>
           <button id="wallet-receive-close" class="glass-btn small">Close</button>
@@ -1654,18 +1628,6 @@ async function showReceiveModal(acct) {
   const addrEl = overlay.querySelector('#wallet-receive-address');
   if (titleEl) titleEl.textContent = `Receive ${acct.name}`;
   if (addrEl) addrEl.textContent = acct.address;
-
-  const peerSection = overlay.querySelector('#wallet-receive-peer-section');
-  const peerIdEl = overlay.querySelector('#wallet-receive-peerid');
-  const ipnsEl = overlay.querySelector('#wallet-receive-ipns');
-  const peerInfo = derivePeerInfo(acct);
-  if (peerInfo && peerSection) {
-    peerSection.style.display = '';
-    if (peerIdEl) peerIdEl.textContent = peerInfo.peerIdStr;
-    if (ipnsEl) ipnsEl.textContent = peerInfo.ipnsHash;
-  } else if (peerSection) {
-    peerSection.style.display = 'none';
-  }
 
   try {
     const qrCanvas = overlay.querySelector('#wallet-receive-qr');
@@ -1688,16 +1650,6 @@ async function showReceiveModal(acct) {
 
   overlay.querySelector('#wallet-receive-close')?.addEventListener('click', () => {
     overlay.style.display = 'none';
-  }, { once: true });
-
-  overlay.querySelector('#wallet-receive-copy-peerid')?.addEventListener('click', () => {
-    const val = overlay.querySelector('#wallet-receive-peerid')?.textContent;
-    if (val) navigator.clipboard.writeText(val).catch(() => {});
-  }, { once: true });
-
-  overlay.querySelector('#wallet-receive-copy-ipns')?.addEventListener('click', () => {
-    const val = overlay.querySelector('#wallet-receive-ipns')?.textContent;
-    if (val) navigator.clipboard.writeText(val).catch(() => {});
   }, { once: true });
 }
 
@@ -2537,6 +2489,7 @@ function login(keys) {
       const xpub = state.hdRoot.toXpub();
       _onLoginCallback({
         xpub,
+        peerId: deriveAccountPeerId(),
         signingPublicKey: sdnPubKey,
         async sign(message) {
           const msgBytes = typeof message === 'string'
@@ -2593,6 +2546,16 @@ function login(keys) {
     const walletTabXpubEl = $('wallet-tab-xpub');
     if (walletTabXpubEl) {
       setTruncatedValue(walletTabXpubEl, state.hdRoot.toXpub() || 'N/A');
+    }
+    // Populate wallet tab PeerID display
+    const walletTabPeerIdEl = $('wallet-tab-peerid');
+    const peerIdRow = $('ph-portfolio-peerid-row');
+    if (walletTabPeerIdEl && peerIdRow) {
+      const peerIdStr = deriveAccountPeerId();
+      if (peerIdStr) {
+        setTruncatedValue(walletTabPeerIdEl, peerIdStr);
+        peerIdRow.style.display = '';
+      }
     }
     populateAccountAddressDropdown();
     if (xprvEl) {
@@ -2853,6 +2816,27 @@ function populateAccountAddressDropdown() {
         navigator.clipboard.writeText(xpubStr).then(() => {
           copyBtn.title = 'Copied!';
           setTimeout(() => { copyBtn.title = 'Copy xpub'; }, 1500);
+        });
+      }
+    };
+  }
+
+  // Populate PeerID row (derived from account-level secp256k1 key)
+  const peerIdStr = deriveAccountPeerId();
+  const peerIdRow = $('account-peerid-row');
+  const peerIdEl = $('account-peerid-display');
+  if (peerIdStr && peerIdRow && peerIdEl) {
+    peerIdRow.style.display = '';
+    peerIdEl.textContent = `${peerIdStr.slice(0,8)}...${peerIdStr.slice(-8)}`;
+    peerIdEl.title = peerIdStr;
+  }
+  const peerCopyBtn = $('account-peerid-copy');
+  if (peerCopyBtn) {
+    peerCopyBtn.onclick = () => {
+      if (peerIdStr) {
+        navigator.clipboard.writeText(peerIdStr).then(() => {
+          peerCopyBtn.title = 'Copied!';
+          setTimeout(() => { peerCopyBtn.title = 'Copy PeerID'; }, 1500);
         });
       }
     };
@@ -4581,6 +4565,8 @@ function setupMainAppHandlers() {
           let value = '';
           if (targetId === 'wallet-xpub' || targetId === 'wallet-tab-xpub') {
             value = state.hdRoot?.toXpub?.() || '';
+          } else if (targetId === 'wallet-tab-peerid') {
+            value = deriveAccountPeerId() || '';
           } else if (targetId === 'wallet-xprv') {
             if (targetEl.dataset.revealed !== 'true') {
               alert('Reveal the xprv first to copy it.');

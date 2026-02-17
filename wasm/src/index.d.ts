@@ -658,6 +658,12 @@ export interface Libp2pAPI {
 
   /** Compute IPNS hash (CIDv1 base32lower, 'b' prefix) */
   ipnsHashBase32(peerIdBytes: Uint8Array): string;
+
+  /** Derive PeerID string directly from a Base58Check-encoded xpub */
+  peerIdFromXpub(xpub: string): string;
+
+  /** Derive IPNS hash (CIDv1 base36lower) directly from an xpub */
+  ipnsHashFromXpub(xpub: string): string;
 }
 
 // =============================================================================
