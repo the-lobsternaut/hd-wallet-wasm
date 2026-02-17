@@ -249,9 +249,10 @@ class HDWalletError extends Error {
    * @param {string} [message] - Optional custom message
    */
   constructor(code, message) {
-    super(message || ERROR_MESSAGES[code] || `Error code: ${code}`);
+    const lookup = code < 0 ? -code : code;
+    super(message || ERROR_MESSAGES[lookup] || `Error code: ${code}`);
     this.name = 'HDWalletError';
-    this.code = code;
+    this.code = lookup;
   }
 }
 
@@ -396,6 +397,7 @@ function decodeBase64Fallback(str) {
     throw new HDWalletError(ErrorCode.INVALID_ARGUMENT, 'Invalid base64 string');
   }
 }
+
 
 function encodeBech32Fallback(hrp, data) {
   let out = `${hrp}1`;
@@ -755,6 +757,63 @@ class HDKey {
       return readString(this._wasm, ptr);
     } finally {
       this._wasm._hd_dealloc(ptr);
+    }
+  }
+
+  /**
+   * Compute libp2p peerID bytes for this key
+   * @returns {Uint8Array} PeerID as raw multihash bytes
+   */
+  peerId() {
+    this._checkDestroyed();
+    const pubKey = this.publicKey();
+    const pubPtr = allocAndCopy(this._wasm, pubKey);
+    const outPtr = this._wasm._hd_alloc(64);
+    try {
+      const result = this._wasm._hd_libp2p_peer_id(pubPtr, pubKey.length, this.curve, outPtr, 64);
+      if (result < 0) throw new HDWalletError(result);
+      return readBytes(this._wasm, outPtr, result);
+    } finally {
+      this._wasm._hd_dealloc(pubPtr);
+      this._wasm._hd_dealloc(outPtr);
+    }
+  }
+
+  /**
+   * Get peerID as base58btc string
+   * @returns {string}
+   */
+  peerIdString() {
+    this._checkDestroyed();
+    const pubKey = this.publicKey();
+    const pubPtr = allocAndCopy(this._wasm, pubKey);
+    const outPtr = this._wasm._hd_alloc(128);
+    try {
+      const result = this._wasm._hd_libp2p_peer_id_string(pubPtr, pubKey.length, this.curve, outPtr, 128);
+      checkResult(result);
+      return readString(this._wasm, outPtr);
+    } finally {
+      this._wasm._hd_dealloc(pubPtr);
+      this._wasm._hd_dealloc(outPtr);
+    }
+  }
+
+  /**
+   * Get IPNS hash (CIDv1 base36lower with 'k' prefix)
+   * @returns {string}
+   */
+  ipnsHash() {
+    this._checkDestroyed();
+    const pubKey = this.publicKey();
+    const pubPtr = allocAndCopy(this._wasm, pubKey);
+    const outPtr = this._wasm._hd_alloc(128);
+    try {
+      const result = this._wasm._hd_libp2p_ipns_hash(pubPtr, pubKey.length, this.curve, outPtr, 128);
+      checkResult(result);
+      return readString(this._wasm, outPtr);
+    } finally {
+      this._wasm._hd_dealloc(pubPtr);
+      this._wasm._hd_dealloc(outPtr);
     }
   }
 
@@ -3739,6 +3798,93 @@ function createModule(wasm) {
   };
 
   // ==========================================================================
+  // libp2p PeerID / IPNS API
+  // ==========================================================================
+
+  const libp2p = {
+    /**
+     * Compute libp2p peerID (raw multihash bytes) from a public key
+     * @param {Uint8Array} publicKey - Compressed pubkey (secp256k1/P-256) or raw 32-byte (ed25519)
+     * @param {number} curve - Curve enum value
+     * @returns {Uint8Array} PeerID as raw multihash bytes
+     */
+    peerIdFromPublicKey(publicKey, curve) {
+      const pubPtr = allocAndCopy(wasm, publicKey);
+      const outPtr = wasm._hd_alloc(64);
+      try {
+        const result = wasm._hd_libp2p_peer_id(pubPtr, publicKey.length, curve, outPtr, 64);
+        if (result < 0) throw new HDWalletError(result);
+        return readBytes(wasm, outPtr, result);
+      } finally {
+        wasm._hd_dealloc(pubPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    /**
+     * Encode peerID bytes as base58btc string
+     * @param {Uint8Array} peerIdBytes - Raw multihash bytes
+     * @returns {string}
+     */
+    peerIdToString(peerIdBytes) {
+      return utils.encodeBase58(peerIdBytes);
+    },
+
+    /**
+     * Compute IPNS hash (CIDv1 base36lower with 'k' prefix)
+     * @param {Uint8Array} peerIdBytes - Raw peerID multihash bytes
+     * @returns {string}
+     */
+    ipnsHash(peerIdBytes) {
+      // Use the WASM function via a dummy key + curve? No — we have raw peerID bytes.
+      // For raw bytes, build CID and encode in JS using the WASM base36 encoder.
+      // However, peerIdBytes came from peerIdFromPublicKey which already used WASM.
+      // We could also re-derive from pubkey, but for the namespace API we accept
+      // pre-computed peerID bytes and just do the CID wrapping + encoding here.
+      // We still use WASM for base36 encoding.
+      const dataPtr = allocAndCopy(wasm, peerIdBytes);
+      const outPtr = wasm._hd_alloc(128);
+      // Build CID in JS (trivial: 2-byte prefix + multihash)
+      const cid = new Uint8Array(2 + peerIdBytes.length);
+      cid[0] = 0x01; // CIDv1
+      cid[1] = 0x72; // libp2p-key codec
+      cid.set(peerIdBytes, 2);
+      const cidPtr = allocAndCopy(wasm, cid);
+      try {
+        const result = wasm._hd_encode_base36lower(cidPtr, cid.length, outPtr, 128);
+        checkResult(result);
+        return 'k' + readString(wasm, outPtr);
+      } finally {
+        wasm._hd_dealloc(dataPtr);
+        wasm._hd_dealloc(cidPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    },
+
+    /**
+     * Compute IPNS hash (CIDv1 base32lower with 'b' prefix)
+     * @param {Uint8Array} peerIdBytes - Raw peerID multihash bytes
+     * @returns {string}
+     */
+    ipnsHashBase32(peerIdBytes) {
+      const cid = new Uint8Array(2 + peerIdBytes.length);
+      cid[0] = 0x01; // CIDv1
+      cid[1] = 0x72; // libp2p-key codec
+      cid.set(peerIdBytes, 2);
+      const cidPtr = allocAndCopy(wasm, cid);
+      const outPtr = wasm._hd_alloc(128);
+      try {
+        const result = wasm._hd_encode_base32lower(cidPtr, cid.length, outPtr, 128);
+        checkResult(result);
+        return 'b' + readString(wasm, outPtr);
+      } finally {
+        wasm._hd_dealloc(cidPtr);
+        wasm._hd_dealloc(outPtr);
+      }
+    }
+  };
+
+  // ==========================================================================
   // Return the module API
   // ==========================================================================
 
@@ -3873,6 +4019,7 @@ function createModule(wasm) {
     ecies,
     aesCtr,
     slip10,
+    libp2p,
 
     // Key derivation helpers (convenience wrappers)
     buildSigningPath,

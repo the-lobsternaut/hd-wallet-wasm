@@ -308,6 +308,8 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       src/coins/solana.cpp
       src/coins/cosmos.cpp
       src/coins/polkadot.cpp
+      # libp2p PeerID / IPNS
+      src/libp2p.cpp
     )
 
     # Add OpenSSL wrapper when enabled
@@ -559,6 +561,13 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_dot_verify_message"
       "_hd_dot_sign_extrinsic"
       "_hd_dot_derive_pubkey"
+      # libp2p PeerID / IPNS (libp2p.cpp)
+      "_hd_libp2p_peer_id"
+      "_hd_libp2p_peer_id_string"
+      "_hd_libp2p_ipns_hash"
+      "_hd_libp2p_ipns_hash_base32"
+      "_hd_encode_base32lower"
+      "_hd_encode_base36lower"
     )
 
     # Add OpenSSL FIPS exports only when OpenSSL is enabled
@@ -910,6 +919,13 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       "_hd_dot_verify_message"
       "_hd_dot_sign_extrinsic"
       "_hd_dot_derive_pubkey"
+      # libp2p PeerID / IPNS (libp2p.cpp)
+      "_hd_libp2p_peer_id"
+      "_hd_libp2p_peer_id_string"
+      "_hd_libp2p_ipns_hash"
+      "_hd_libp2p_ipns_hash_base32"
+      "_hd_encode_base32lower"
+      "_hd_encode_base36lower"
     )
     string(JOIN "," WASI_EXPORTED_FUNCS_STR ${WASI_EXPORTED_FUNCTIONS})
 

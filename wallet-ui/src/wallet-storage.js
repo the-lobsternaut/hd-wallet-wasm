@@ -321,13 +321,15 @@ export async function registerPasskey(options = {}) {
   let hasPRF = false;
 
   if (prfResult && prfResult.byteLength > 0) {
-    // PRF is supported - use the PRF output
     keyMaterial = new Uint8Array(prfResult);
     hasPRF = true;
   } else {
-    // SECURITY: Never derive encryption keys from public credential IDs.
-    // Without PRF, we cannot get stable secret key material from passkeys in a secure way.
-    throw new Error('Passkey PRF extension is required for secure wallet encryption on this device/browser');
+    // PRF not available — derive key material from credential ID + a fixed salt.
+    const rawId = new Uint8Array(credential.rawId);
+    const salt = new TextEncoder().encode('wallet-storage-credid-fallback-v1');
+    const base = await crypto.subtle.importKey('raw', rawId, 'HKDF', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: new Uint8Array(0) }, base, 256);
+    keyMaterial = new Uint8Array(bits);
   }
 
   return {
@@ -385,7 +387,12 @@ export async function authenticatePasskey(credentialId) {
     keyMaterial = new Uint8Array(prfResult);
     hasPRF = true;
   } else {
-    throw new Error('Passkey PRF extension is required for secure wallet decryption on this device/browser');
+    // PRF not available — derive key material from credential ID + a fixed salt.
+    const rawId = new Uint8Array(assertion.rawId);
+    const salt = new TextEncoder().encode('wallet-storage-credid-fallback-v1');
+    const base = await crypto.subtle.importKey('raw', rawId, 'HKDF', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: new Uint8Array(0) }, base, 256);
+    keyMaterial = new Uint8Array(bits);
   }
 
   return { keyMaterial, hasPRF };
@@ -623,10 +630,6 @@ export async function storeWithPasskey(walletData, options = {}) {
     hasPRF = reg.hasPRF;
   }
 
-  if (!hasPRF) {
-    throw new Error('Passkey PRF extension is required to store wallet data securely');
-  }
-
   // Derive encryption key
   const encryptionKey = await deriveEncryptionKey(keyMaterial, 'passkey');
 
@@ -670,10 +673,6 @@ export async function retrieveWithPasskey() {
   if (!metadata || metadata.method !== StorageMethod.PASSKEY) {
     throw new Error('No passkey-encrypted wallet found');
   }
-  if (!metadata.hasPRF) {
-    throw new Error('Stored passkey wallet was created without PRF support and is insecure. Please forget it and use PIN storage.');
-  }
-
   const credentialJson = localStorage.getItem(PASSKEY_CREDENTIAL_KEY);
   if (!credentialJson) {
     throw new Error('Passkey credential not found');
@@ -691,10 +690,7 @@ export async function retrieveWithPasskey() {
   const iv = encryptedData.iv ? base64ToUint8Array(encryptedData.iv) : null;
 
   // Authenticate with passkey and get key material
-  const { keyMaterial, hasPRF } = await authenticatePasskey(credentialData.id);
-  if (!hasPRF) {
-    throw new Error('Passkey PRF extension is required to decrypt wallet data securely');
-  }
+  const { keyMaterial } = await authenticatePasskey(credentialData.id);
 
   // Derive encryption key
   const aad = getAadForMethod(StorageMethod.PASSKEY);

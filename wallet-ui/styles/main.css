@@ -2704,6 +2704,48 @@ body:has(.modal.active) .nav-bar {
   justify-content: center;
 }
 
+.wallet-receive-peer-section {
+  margin: 0 auto 16px;
+  max-width: 320px;
+  text-align: left;
+}
+
+.wallet-receive-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--white-05);
+}
+
+.wallet-receive-field:last-child {
+  border-bottom: none;
+}
+
+.wallet-receive-field-label {
+  flex-shrink: 0;
+  width: 48px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--white-50);
+}
+
+.wallet-receive-field-value {
+  flex: 1;
+  font-size: 11px;
+  color: var(--white-60);
+  word-break: break-all;
+  line-height: 1.4;
+  font-family: var(--font-mono);
+}
+
+.wallet-receive-field .glass-btn.small {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
 .trust-summary {
   margin-top: 16px;
   padding: 24px;

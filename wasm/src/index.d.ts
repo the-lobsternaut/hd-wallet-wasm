@@ -80,6 +80,9 @@ export interface HDWalletModule {
   getSigningKey: typeof getSigningKey;
   getEncryptionKey: typeof getEncryptionKey;
 
+  // libp2p PeerID / IPNS
+  libp2p: Libp2pAPI;
+
   // Aligned binary API for efficient batch operations
   aligned: AlignedAPI;
 }
@@ -278,6 +281,15 @@ export interface HDKey {
 
   /** Clone key */
   clone(): HDKey;
+
+  /** Compute libp2p peerID (raw multihash bytes) */
+  peerId(): Uint8Array;
+
+  /** Get peerID as base58btc string */
+  peerIdString(): string;
+
+  /** Get IPNS hash (CIDv1 base36lower) */
+  ipnsHash(): string;
 }
 
 export interface HDKeyAPI {
@@ -628,6 +640,24 @@ export interface UtilsAPI {
 
   // Memory
   secureWipe(data: Uint8Array): void;
+}
+
+// =============================================================================
+// libp2p PeerID / IPNS API
+// =============================================================================
+
+export interface Libp2pAPI {
+  /** Compute libp2p peerID from a public key */
+  peerIdFromPublicKey(publicKey: Uint8Array, curve: Curve): Uint8Array;
+
+  /** Encode peerID bytes as base58btc string */
+  peerIdToString(peerIdBytes: Uint8Array): string;
+
+  /** Compute IPNS hash (CIDv1 base36lower, 'k' prefix) */
+  ipnsHash(peerIdBytes: Uint8Array): string;
+
+  /** Compute IPNS hash (CIDv1 base32lower, 'b' prefix) */
+  ipnsHashBase32(peerIdBytes: Uint8Array): string;
 }
 
 // =============================================================================
