@@ -1006,7 +1006,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
-      -sENVIRONMENT=web,worker,node
+      -sENVIRONMENT=web,worker
       -sNO_EXIT_RUNTIME=1
       -fexceptions
       -sDISABLE_EXCEPTION_THROWING=0
@@ -1050,7 +1050,7 @@ if(HD_WALLET_BUILD_WASM OR EMSCRIPTEN)
       -Wno-undefined
       "-sEXPORTED_FUNCTIONS=[${EXPORTED_FUNCS_STR}]"
       -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8,HEAPU8,HEAP32
-      -sENVIRONMENT=web,worker,node
+      -sENVIRONMENT=web,worker
       -sNO_EXIT_RUNTIME=1
       -fexceptions
       -sDISABLE_EXCEPTION_THROWING=0

@@ -5,7 +5,10 @@
     "prepare": "husky",
     "dev": "cd wallet-ui && npm run dev",
     "build:docs": "cd wallet-ui && npm run build:docs",
-    "test": "cd wasm && npm test && cd ../wallet-ui && npm test"
+    "test": "npm run test:artifact && npm run test:wasm && npm run test:wallet-ui",
+    "test:artifact": "cd wasm && npm run test:artifact",
+    "test:wasm": "cd wasm && npm run test:all",
+    "test:wallet-ui": "cd wallet-ui && npm test"
   },
   "devDependencies": {
     "husky": "^9.1.7"

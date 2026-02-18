@@ -121,6 +121,9 @@ async function runTests() {
     console.log('\n\x1b[1mTransaction Builder Tests:\x1b[0m');
     await import('./test_transactions.mjs');
 
+    console.log('\n\x1b[1mBuild Artifact Browser Compatibility:\x1b[0m');
+    await import('./test_bundle_browser_artifact.mjs');
+
     console.log('\n\x1b[1mAPI Surface Tests:\x1b[0m');
     await import('./test_api_surface.mjs');
 

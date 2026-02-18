@@ -77,6 +77,16 @@ const $ = (id) => {
   if (_root !== document) return document.getElementById(id);
   return null;
 };
+
+export function normalizeTabHash(rawHash) {
+  return String(rawHash || '')
+    .replace(/^\/+/g, '')
+    .split(/[/?#]/)[0]
+    .replace(/[^a-z0-9_-]/gi, '')
+    .replace(/-tab$/i, '')
+    .toLowerCase();
+}
+
 const $q = (sel) => _root.querySelector(sel) || (_root !== document ? document.querySelector(sel) : null);
 const $qa = (sel) => {
   const list = _root.querySelectorAll(sel);
@@ -5825,14 +5835,15 @@ export async function init(rootElement, options = {}) {
 
     // Handle initial hash navigation
     const initialHash = window.location.hash.slice(1);
-    if (initialHash) {
-      const tabEl = $(`${initialHash}-tab`);
+    const normalizedTab = normalizeTabHash(initialHash);
+    if (normalizedTab) {
+      const tabEl = $(`${normalizedTab}-tab`);
       if (tabEl) {
         setTimeout(() => {
           tabEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           $qa('.nav-link[data-tab]').forEach(link => {
             link.classList.remove('active');
-            if (link.dataset.tab === initialHash) {
+            if (link.dataset.tab === normalizedTab) {
               link.classList.add('active');
             }
           });
