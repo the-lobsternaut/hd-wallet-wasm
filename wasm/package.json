@@ -1,6 +1,6 @@
 {
   "name": "hd-wallet-wasm",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "description": "Comprehensive HD Wallet implementation in WebAssembly - BIP-32/39/44, multi-curve, multi-chain support",
   "type": "module",
   "main": "src/index.mjs",
@@ -16,6 +16,9 @@
       "types": "./src/aligned.d.ts",
       "import": "./src/aligned.mjs"
     },
+    "./attestation": {
+      "import": "./src/epm-attestation.mjs"
+    },
     "./wasm": {
       "types": "./dist/index.d.ts",
       "import": "./dist/hd-wallet.js"
@@ -24,6 +27,7 @@
   "files": [
     "src/index.mjs",
     "src/index.d.ts",
+    "src/epm-attestation.mjs",
     "src/aligned.mjs",
     "src/aligned.d.ts",
     "src/generated/",

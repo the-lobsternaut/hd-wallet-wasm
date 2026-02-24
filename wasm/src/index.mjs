@@ -4214,3 +4214,17 @@ export {
   HDWalletError,
   ErrorCode
 };
+
+// EPM Attestation
+export {
+  buildCanonicalPayload,
+  buildEPMSigningContent,
+  signEPMContent,
+  verifyEPMSignature,
+  buildBitcoinChainProof,
+  buildEthereumChainProof,
+  buildSolanaChainProof,
+  buildAllChainProofs,
+  verifyChainProof,
+  verifyAllChainProofs,
+} from './epm-attestation.mjs';
